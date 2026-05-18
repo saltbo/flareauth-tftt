@@ -1,9 +1,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ForgotPasswordPage, resolveAuthRedirect, SignInPage, socialAuthorizationUrl } from './auth-pages'
+import {
+  AuthCallbackPage,
+  EmailVerificationPage,
+  ForgotPasswordPage,
+  resolveAuthRedirect,
+  SignInPage,
+  SignUpPage,
+} from './auth-pages'
 import { ConsentPage } from './consent-page'
 
-const experienceConfig = {
+const configz = {
+  onboarding: { required: false, href: '/onboarding' },
   signIn: {
     passwordEnabled: true,
     signupEnabled: true,
@@ -24,8 +32,8 @@ const experienceConfig = {
     {
       slug: 'github',
       providerType: 'social',
+      providerId: 'github',
       displayName: 'GitHub',
-      authorizationUrl: '/api/auth/sign-in/social/github',
     },
   ],
   links: {
@@ -42,6 +50,9 @@ const experienceConfig = {
     applicationId: null,
     redirectUri: null,
   },
+  auth: authPaths(),
+  oidc: oidcMetadata(),
+  security: { mfaRequired: false, sessionExpiresInSeconds: 3600, passkeysEnabled: true },
 }
 
 const consentResponse = {
@@ -87,8 +98,8 @@ afterEach(() => {
 })
 
 describe('hosted auth pages', () => {
-  it('renders enabled sign-in methods and social connectors from experience config', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(experienceConfig))
+  it('renders enabled sign-in methods and social connectors from configz', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
     render(<SignInPage />)
 
@@ -96,17 +107,15 @@ describe('hosted auth pages', () => {
     expect(screen.getByRole('button', { name: 'Password' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Magic link' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'OTP' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Continue with GitHub' }).getAttribute('href')).toBe(
-      '/api/auth/sign-in/social/github',
-    )
+    expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
   })
 
   it('uses magic link when password auth is disabled', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse({
-        ...experienceConfig,
+        ...configz,
         signIn: {
-          ...experienceConfig.signIn,
+          ...configz.signIn,
           passwordEnabled: false,
           magicLinkEnabled: true,
           emailOtpEnabled: false,
@@ -120,30 +129,123 @@ describe('hosted auth pages', () => {
     expect(screen.queryByLabelText('Password')).toBeNull()
   })
 
+  it('submits password and OTP sign-in through native auth endpoints', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ url: '/account' }))
+    })
+
+    render(<SignInPage />)
+
+    fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OTP' }))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Send code' }) as HTMLButtonElement).disabled).toBe(false),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+    fireEvent.change(await screen.findByLabelText('One-time code'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual(
+        expect.arrayContaining([
+          {
+            url: '/api/auth/sign-in/email',
+            body: { email: 'jane@example.com', password: 'password-1', rememberMe: true },
+          },
+          { url: '/api/auth/email-otp/send-verification-otp', body: { email: 'jane@example.com', type: 'sign-in' } },
+          { url: '/api/auth/sign-in/email-otp', body: { email: 'jane@example.com', otp: '123456' } },
+        ]),
+      )
+    })
+  })
+
+  it('submits magic link sign-in through the native auth endpoint', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<SignInPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Magic link' }))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send magic link' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual([
+        { url: '/api/auth/sign-in/magic-link', body: { email: 'jane@example.com', errorCallbackURL: '/sign-in' } },
+      ])
+    })
+    expect(screen.getByText('Magic link sent. Check your email to continue.')).toBeTruthy()
+  })
+
+  it('surfaces native auth submission failures', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      return Promise.resolve(jsonResponse({ error: { message: 'Invalid credentials.' } }, 401))
+    })
+
+    render(<SignInPage />)
+
+    fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong-password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('Invalid credentials.')).toBeTruthy()
+  })
+
   it('navigates after successful password sign-in', async () => {
     expect(resolveAuthRedirect({ url: '/auth/callback' }, '/account')).toBe('/auth/callback')
     expect(resolveAuthRedirect({ token: 'token-1' }, '/account')).toBe('/account')
     expect(resolveAuthRedirect({ token: 'token-1' }, undefined)).toBe('/account')
   })
 
-  it('preserves OAuth authorize callback on social connector links', () => {
+  it('posts native Better Auth social sign-in and redirects to the provider authorization URL', async () => {
     window.history.pushState(
       null,
       '',
       '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ url: 'https://github.com/login/oauth/authorize?state=social-state' }))
+    })
 
-    expect(socialAuthorizationUrl('/api/auth/sign-in/social/github?prompt=select_account', callbackFromPage())).toBe(
-      '/api/auth/sign-in/social/github?prompt=select_account&callbackURL=%2Fapi%2Fauth%2Foauth2%2Fauthorize%3Fclient_id%3Dclient-1%26redirect_uri%3Dhttps%253A%252F%252Fclient.example.com%252Fcallback%26state%3Dstate-1',
-    )
-    expect(
-      socialAuthorizationUrl(
-        'https://auth.example.com/api/auth/sign-in/social/github?prompt=select_account',
-        callbackFromPage(),
-      ),
-    ).toBe(
-      'https://auth.example.com/api/auth/sign-in/social/github?prompt=select_account&callbackURL=%2Fapi%2Fauth%2Foauth2%2Fauthorize%3Fclient_id%3Dclient-1%26redirect_uri%3Dhttps%253A%252F%252Fclient.example.com%252Fcallback%26state%3Dstate-1',
-    )
+    render(<SignInPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue with GitHub' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual([
+        {
+          url: '/api/auth/sign-in/social',
+          body: {
+            provider: 'github',
+            callbackURL:
+              '/api/auth/oauth2/authorize?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+          },
+        },
+      ])
+    })
+  })
+
+  it('rejects external redirect targets from native auth responses and query params', () => {
+    expect(resolveAuthRedirect({ url: 'https://evil.example.com/callback' }, '/account')).toBe('/account')
+    expect(resolveAuthRedirect({ redirectTo: '//evil.example.com' }, '/account')).toBe('/account')
+    expect(resolveAuthRedirect({}, 'https://evil.example.com/callback')).toBe('/account')
   })
 
   it('posts OAuth consent approval and returns to the authorization endpoint', async () => {
@@ -155,7 +257,7 @@ describe('hosted auth pages', () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
-      if (url.startsWith('/api/experience')) return Promise.resolve(jsonResponse(experienceConfig))
+      if (url.startsWith('/api/configz')) return Promise.resolve(jsonResponse(configz))
       if (url.startsWith('/api/oauth/consent') && init?.method !== 'POST') {
         return Promise.resolve(jsonResponse(consentResponse))
       }
@@ -178,11 +280,60 @@ describe('hosted auth pages', () => {
     })
   })
 
+  it('surfaces OAuth consent load and approval failures', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url.startsWith('/api/configz')) return Promise.resolve(jsonResponse(configz))
+      return Promise.resolve(jsonResponse({ error: { message: 'Consent request expired.' } }, 400))
+    })
+
+    render(<ConsentPage />)
+
+    expect(await screen.findByText('Consent request expired.')).toBeTruthy()
+    cleanup()
+    vi.restoreAllMocks()
+    window.history.pushState(null, '', '/oauth/consent?client_id=client-1&state=state-1')
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/configz')) return Promise.resolve(jsonResponse(configz))
+      if (url.startsWith('/api/oauth/consent') && init?.method !== 'POST') {
+        return Promise.resolve(
+          jsonResponse({
+            ...consentResponse,
+            application: {
+              ...consentResponse.application,
+              description: null,
+              homepageUrl: null,
+              iconUrl: 'https://client.example.com/icon.png',
+            },
+            requestedScopes: ['email', 'offline_access', 'custom:scope'],
+            existingConsent: { id: 'consent-1', scopes: ['email'], grantedAt: '2026-01-02T00:00:00.000Z' },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ error: { message: 'Consent approval failed.' } }, 400))
+    })
+    vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
+
+    render(<ConsentPage />)
+
+    expect(await screen.findByText('OAuth client application')).toBeTruthy()
+    expect(screen.getByText('Share your email address and verification state.')).toBeTruthy()
+    expect(screen.getByText('Allow refresh tokens for continued access.')).toBeTruthy()
+    expect(screen.getByText('Allow this application to request this scope.')).toBeTruthy()
+    expect(screen.getByText(/Previously approved on/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(window.history.back).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve access' }))
+
+    expect(await screen.findByText('Consent approval failed.')).toBeTruthy()
+  })
+
   it('requests an OTP password reset code before OTP reset completion', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
-      if (url === '/api/experience') return Promise.resolve(jsonResponse(experienceConfig))
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
       requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
       return Promise.resolve(jsonResponse({ success: true }))
     })
@@ -195,7 +346,7 @@ describe('hosted auth pages', () => {
 
     await waitFor(() => {
       expect(requests).toContainEqual({
-        url: '/api/experience/email-otp/password-reset-requests',
+        url: '/api/auth/email-otp/request-password-reset',
         body: { email: 'jane@example.com' },
       })
     })
@@ -206,10 +357,124 @@ describe('hosted auth pages', () => {
 
     await waitFor(() => {
       expect(requests).toContainEqual({
-        url: '/api/experience/email-otp/password-resets',
+        url: '/api/auth/email-otp/reset-password',
         body: { email: 'jane@example.com', otp: '123456', password: 'new-password' },
       })
     })
+  })
+
+  it('creates accounts through native sign-up and removes password fields after success', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ user: { id: 'user-1' } }))
+    })
+
+    render(<SignUpPage />)
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Jane Stone' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'jane' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/auth/sign-up/email',
+        body: {
+          email: 'jane@example.com',
+          name: 'Jane Stone',
+          password: 'password-1',
+          username: 'jane',
+        },
+      })
+    })
+    expect(await screen.findByText('Account created. Check your email if verification is required.')).toBeTruthy()
+    expect(screen.queryByLabelText('Password')).toBeNull()
+  })
+
+  it('requests and verifies email with OTP through native auth endpoints', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<EmailVerificationPage />)
+
+    fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send verification' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/auth/send-verification-email',
+        body: { email: 'jane@example.com' },
+      })
+    })
+
+    fireEvent.change(screen.getByLabelText('One-time code'), { target: { value: '654321' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/auth/email-otp/verify-email',
+        body: { email: 'jane@example.com', otp: '654321' },
+      })
+    })
+  })
+
+  it('verifies email token links through native auth', async () => {
+    window.history.pushState(null, '', '/email-verification?token=token-1')
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<EmailVerificationPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify email' }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith('/api/auth/verify-email?token=token-1', {
+        method: 'GET',
+        headers: undefined,
+        body: undefined,
+      })
+    })
+  })
+
+  it('renders callback errors, consent handoff, and safe account continuation', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
+
+    window.history.pushState(null, '', '/auth/callback?error=access_denied&error_description=Denied')
+    render(<AuthCallbackPage />)
+    expect(await screen.findByRole('heading', { name: 'Sign-in could not continue.' })).toBeTruthy()
+    expect(screen.getByText('Denied')).toBeTruthy()
+
+    cleanup()
+    window.history.pushState(
+      null,
+      '',
+      '/auth/callback?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    )
+    render(<AuthCallbackPage />)
+    expect(await screen.findByRole('heading', { name: 'Consent is required before redirecting.' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe(
+      '/oauth/consent?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    )
+
+    cleanup()
+    window.history.pushState(null, '', '/auth/callback?return_to=/admin/onboarding')
+    render(<AuthCallbackPage />)
+    expect(await screen.findByRole('heading', { name: 'Sign-in complete.' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Continue' }).getAttribute('href')).toBe('/admin/onboarding')
+  })
+
+  it('accepts callbackURL fields from native auth responses', () => {
+    expect(resolveAuthRedirect({ callbackURL: '/admin/onboarding' }, '/account')).toBe('/admin/onboarding')
   })
 })
 
@@ -220,6 +485,34 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-function callbackFromPage() {
-  return `/api/auth/oauth2/authorize${window.location.search}`
+function authPaths() {
+  return {
+    basePath: '/api/auth',
+    signInEmailPath: '/api/auth/sign-in/email',
+    signInUsernamePath: '/api/auth/sign-in/username',
+    signUpEmailPath: '/api/auth/sign-up/email',
+    signOutPath: '/api/auth/sign-out',
+    requestPasswordResetPath: '/api/auth/request-password-reset',
+    resetPasswordPath: '/api/auth/reset-password',
+    sendVerificationEmailPath: '/api/auth/send-verification-email',
+    verifyEmailPath: '/api/auth/verify-email',
+    magicLinkPath: '/api/auth/sign-in/magic-link',
+    emailOtpPath: '/api/auth/email-otp/send-verification-otp',
+    emailOtpSignInPath: '/api/auth/sign-in/email-otp',
+    emailOtpVerificationPath: '/api/auth/email-otp/verify-email',
+    emailOtpPasswordResetRequestPath: '/api/auth/email-otp/request-password-reset',
+    emailOtpPasswordResetPath: '/api/auth/email-otp/reset-password',
+  }
+}
+
+function oidcMetadata() {
+  return {
+    issuer: 'https://auth.example.com/api/auth',
+    discoveryUrl: 'https://auth.example.com/api/auth/.well-known/openid-configuration',
+    authorizationEndpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+    tokenEndpoint: 'https://auth.example.com/api/auth/oauth2/token',
+    jwksUri: 'https://auth.example.com/api/auth/jwks',
+    userInfoEndpoint: 'https://auth.example.com/api/auth/userinfo',
+    endSessionEndpoint: 'https://auth.example.com/api/auth/oauth2/logout',
+  }
 }
