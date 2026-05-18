@@ -658,6 +658,7 @@ export const identityProviderConnector = sqliteTable(
   },
   (table) => [
     index('identityProviderConnector_providerType_idx').on(table.providerType),
+    uniqueIndex('identityProviderConnector_providerId_unique').on(table.providerId),
     index('identityProviderConnector_enabled_idx').on(table.enabled),
   ],
 )
