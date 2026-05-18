@@ -1,0 +1,20 @@
+name = "flareauth"
+main = "./workers/bootstrap.ts"
+compatibility_date = "2026-04-12"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = true
+
+[assets]
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "flareauth-db"
+database_id = "4214d8e8-6e05-40c2-ba56-80e5c5ba965a"
+migrations_dir = "./migrations"
+
+[observability]
+enabled = true
