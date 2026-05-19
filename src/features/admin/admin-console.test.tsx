@@ -165,11 +165,13 @@ describe('admin console', () => {
   })
 
   it('redirects unauthorized Console routes to sign-in with the requested return target', async () => {
+    const requestedUrls: string[] = []
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
-      if (url === '/api/management/sign-in-settings')
-        return Promise.resolve(jsonResponse({ error: 'Unauthorized' }, 401))
+      requestedUrls.push(url)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile')
+        return Promise.resolve(jsonResponse({ error: 'Authentication is required.' }, 401))
       return Promise.resolve(jsonResponse({}))
     })
     window.history.pushState(null, '', '/console/applications')
@@ -179,11 +181,15 @@ describe('admin console', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in to Acme.' })).toBeTruthy()
     await waitFor(() => expect(window.location.pathname).toBe('/sign-in'))
     expect(decodeURIComponent(window.location.search)).toContain('return_to=/console/applications')
+    expect(requestedUrls.slice(0, 2)).toEqual(['/api/configz', '/api/account/profile'])
+    expect(requestedUrls).not.toContain('/api/management/sign-in-settings')
+    expect(requestedUrls).not.toContain('/api/management/readiness')
   })
 
   it('redirects forbidden Console routes to sign-in with return target', async () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse({ error: 'Forbidden' }, 403))
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
       return Promise.resolve(jsonResponse({}))
@@ -195,6 +201,26 @@ describe('admin console', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in to Acme.' })).toBeTruthy()
     await waitFor(() => expect(window.location.pathname).toBe('/sign-in'))
     expect(window.location.search).toContain('return_to=')
+  })
+
+  it('surfaces non-auth Console account guard errors before management requests', async () => {
+    const requestedUrls: string[] = []
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ error: 'Profile unavailable.' }, 503))
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/console/users')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByText('Profile unavailable.')).toBeTruthy()
+    expect(window.location.pathname).toBe('/console/users')
+    expect(requestedUrls).toContain('/api/account/profile')
+    expect(requestedUrls).not.toContain('/api/management/sign-in-settings')
+    expect(requestedUrls).not.toContain('/api/management/readiness')
   })
 
   it('redirects signed-out account routes to sign-in before rendering account controls', async () => {
@@ -294,6 +320,7 @@ describe('admin console', () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
       if (url === '/api/management/readiness') {
@@ -348,6 +375,7 @@ describe('admin console', () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
       if (url === '/api/management/readiness') {
@@ -372,6 +400,7 @@ describe('admin console', () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
       if (url === '/api/management/readiness') {
@@ -562,6 +591,7 @@ describe('admin console', () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
       if (url === '/api/management/readiness') return Promise.resolve(jsonResponse({ error: 'Readiness failed.' }, 500))
@@ -4019,6 +4049,7 @@ function accountRouteFetch(input: RequestInfo | URL, init?: RequestInit) {
 function consoleRouteFetch(input: RequestInfo | URL) {
   const url = String(input)
   if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+  if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user }))
   if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
   if (url === '/api/management/readiness') {
     return Promise.resolve(
