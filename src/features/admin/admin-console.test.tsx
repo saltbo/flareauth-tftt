@@ -110,6 +110,176 @@ describe('admin console', () => {
     expect(window.location.search).toContain('return_to=')
   })
 
+  it('redirects fresh deployments from product routes to first-admin onboarding', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz')
+        return Promise.resolve(jsonResponse({ ...configz, onboarding: { required: true, href: '/onboarding' } }))
+      if (url === '/api/onboarding/status') return Promise.resolve(jsonResponse({ required: true }))
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/account/security')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Create the first admin.' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/onboarding'))
+  })
+
+  it('redirects representative fresh deployment product routes to first-admin onboarding', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz')
+        return Promise.resolve(jsonResponse({ ...configz, onboarding: { required: true, href: '/onboarding' } }))
+      if (url === '/api/onboarding/status') return Promise.resolve(jsonResponse({ required: true }))
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    for (const path of [
+      '/',
+      '/sign-in',
+      '/sign-up',
+      '/account',
+      '/account/security',
+      '/admin',
+      '/admin/applications',
+    ]) {
+      window.history.pushState(null, '', path)
+      render(<AppRouter />)
+
+      expect(await screen.findByRole('heading', { name: 'Create the first admin.' })).toBeTruthy()
+      await waitFor(() => expect(window.location.pathname).toBe('/onboarding'))
+
+      cleanup()
+      queryClient.clear()
+    }
+  })
+
+  it('redirects stale first-admin onboarding visits to admin setup', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/readiness') {
+        return Promise.resolve(
+          jsonResponse({
+            admin: { setupRequired: true, setupHref: '/admin/onboarding', missing: ['oidc_application'] },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/onboarding')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Admin onboarding' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/onboarding'))
+  })
+
+  it('redirects account root to the profile route', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation(accountRouteFetch)
+    window.history.pushState(null, '', '/account')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/account/profile'))
+  })
+
+  it('renders every account product section from a direct route', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation(accountRouteFetch)
+
+    for (const [path, heading] of [
+      ['/account/profile', 'Jane Stone'],
+      ['/account/security', 'MFA'],
+      ['/account/linked-accounts', 'Linked social accounts'],
+      ['/account/sessions', 'Sessions and devices'],
+      ['/account/authorized-apps', 'Consented applications'],
+    ] as const) {
+      window.history.pushState(null, '', path)
+      render(<AppRouter />)
+
+      expect(await screen.findByRole('heading', { name: heading })).toBeTruthy()
+      expect(window.location.pathname).toBe(path)
+
+      cleanup()
+      queryClient.clear()
+    }
+  })
+
+  it('redirects protected admin routes to admin onboarding while setup is incomplete', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/readiness') {
+        return Promise.resolve(
+          jsonResponse({
+            admin: { setupRequired: true, setupHref: '/admin/onboarding', missing: ['oidc_application'] },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/admin/applications')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Admin onboarding' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/onboarding'))
+    expect(screen.queryByRole('link', { name: /Onboarding/ })).toBeNull()
+  })
+
+  it('redirects stale admin onboarding visits to the console after setup is complete', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/readiness') {
+        return Promise.resolve(
+          jsonResponse({ admin: { setupRequired: false, setupHref: '/admin/onboarding', missing: [] } }),
+        )
+      }
+      if (url === '/api/management/applications')
+        return Promise.resolve(jsonResponse({ applications: [application], pagination }))
+      if (url.startsWith('/api/management/users')) return Promise.resolve(jsonResponse({ users: [user], pagination }))
+      if (url === '/api/management/connectors')
+        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
+      if (url === '/api/management/organizations') {
+        return Promise.resolve(jsonResponse({ organizations: [organization], pagination }))
+      }
+      if (url === '/api/management/roles') return Promise.resolve(jsonResponse({ roles: [role], pagination }))
+      if (url === '/api/management/api-resources') {
+        return Promise.resolve(jsonResponse({ resources: [apiResource], pagination }))
+      }
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/admin/onboarding')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Tenant health' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/admin'))
+  })
+
+  it('surfaces non-auth admin readiness errors instead of converting them to sign-in redirects', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/readiness') return Promise.resolve(jsonResponse({ error: 'Readiness failed.' }, 500))
+      return Promise.resolve(jsonResponse({}))
+    })
+    window.history.pushState(null, '', '/admin/applications')
+
+    render(<AppRouter />)
+
+    expect(await screen.findByText('Readiness failed.')).toBeTruthy()
+    expect(window.location.pathname).toBe('/admin/applications')
+  })
+
   it('renders application rows and posts validated create input', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
@@ -594,6 +764,18 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+function accountRouteFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const url = String(input)
+  if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+  if (url === '/api/account/profile') return Promise.resolve(jsonResponse({ user: profile }))
+  if (url === '/api/account/linked-accounts') return Promise.resolve(jsonResponse({ accounts: [] }))
+  if (url === '/api/account/applications') return Promise.resolve(jsonResponse({ applications: [] }))
+  if (url === '/api/account/sessions') return Promise.resolve(jsonResponse({ sessions: [] }))
+  if (url === '/api/account/security') return Promise.resolve(jsonResponse({ security: accountSecurity }))
+  if (url === '/api/account/security/passkeys') return Promise.resolve(jsonResponse({ passkeys: [] }))
+  return Promise.resolve(jsonResponse(init?.method ? { ok: true } : {}))
+}
+
 const pagination = {
   limit: 50,
   offset: 0,
@@ -642,6 +824,16 @@ const user = {
   banned: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+const profile = {
+  id: 'user-1',
+  email: 'jane@example.com',
+  emailVerified: true,
+  displayName: 'Jane Stone',
+  username: 'jane',
+  avatarAssetId: null,
+  image: null,
 }
 
 const connector = {
@@ -733,6 +925,15 @@ const securityPolicy = {
       freshAgeSeconds: 120,
       cookieCacheSeconds: 60,
     },
+  },
+}
+
+const accountSecurity = {
+  mfa: { enabled: false, factors: [] },
+  passkeys: { enabled: true, count: 0 },
+  policy: {
+    mfa: { mode: 'optional' },
+    passkeys: { enabled: true, rpName: 'Acme Auth' },
   },
 }
 
