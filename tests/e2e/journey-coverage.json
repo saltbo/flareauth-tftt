@@ -35,7 +35,7 @@
     { "id": "admin-create-application", "name": "Admin applications page creates an OIDC client" },
     { "id": "admin-create-connector", "name": "Admin connectors page creates a connector" },
     { "id": "admin-connector-inventory", "name": "Admin connectors page lists provider settings and availability" },
-    { "id": "admin-sign-in-settings", "name": "Admin sign-in settings page shows methods, defaults, and legal links" },
+    { "id": "admin-sign-in-settings", "name": "Admin sign-in experience page shows methods, defaults, and legal links" },
     { "id": "admin-security-policy", "name": "Admin security page shows MFA, passkey, and session policy" },
     { "id": "admin-create-organization", "name": "Admin organizations page creates an organization" },
     { "id": "admin-create-role", "name": "Admin roles page creates a role" },

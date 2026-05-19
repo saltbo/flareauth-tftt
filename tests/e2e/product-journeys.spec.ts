@@ -384,7 +384,7 @@ const journeyAssertions: Record<
         { label: 'Applications', href: '/admin/applications', heading: 'Applications' },
         { label: 'Users', href: '/admin/users', heading: 'Users' },
         { label: 'Connectors', href: '/admin/connectors', heading: 'Connectors' },
-        { label: 'Sign-in settings', href: '/admin/sign-in', heading: 'Sign-in settings' },
+        { label: 'Sign-in experience', href: '/admin/sign-in', heading: 'Sign-in experience' },
         { label: 'Security', href: '/admin/security', heading: 'Security' },
         { label: 'Organizations', href: '/admin/organizations', heading: 'Organizations' },
         { label: 'Roles', href: '/admin/roles', heading: 'Roles' },
@@ -475,7 +475,7 @@ const journeyAssertions: Record<
     suite: 'admin management journeys',
     assert: async ({ page }) => {
       await page.goto('/admin/sign-in')
-      await expect(page.getByRole('heading', { name: 'Sign-in settings' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Sign-in experience' })).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Authentication methods' })).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Defaults and links' })).toBeVisible()
       await expect(page.getByText('password enabled')).toBeVisible()
@@ -656,6 +656,41 @@ test('account center journey', async ({ page }) => {
 test('admin management journeys', async ({ page }) => {
   const requests = await mockApi(page)
   await runJourneySuite('admin management journeys', { page, requests })
+})
+
+test('admin console desktop and mobile screenshot evidence', async ({ page }, testInfo) => {
+  await mockApi(page)
+
+  for (const viewport of [
+    { name: 'desktop', width: 1440, height: 1000 },
+    { name: 'mobile', width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+
+    for (const route of [
+      { name: 'dashboard', path: '/admin', heading: 'Tenant health' },
+      { name: 'applications', path: '/admin/applications', heading: 'Applications' },
+      { name: 'sign-in-experience', path: '/admin/sign-in', heading: 'Sign-in experience' },
+      { name: 'security', path: '/admin/security', heading: 'Security' },
+    ]) {
+      await page.goto(route.path)
+      await expect(page.getByRole('heading', { name: route.heading })).toBeVisible()
+      await page.screenshot({
+        fullPage: true,
+        path: testInfo.outputPath(`admin-${route.name}-${viewport.name}.png`),
+      })
+      if (viewport.name === 'mobile' && route.name === 'dashboard') {
+        await page.getByRole('button', { name: 'Open admin navigation' }).click()
+        await expect(page.getByRole('navigation', { name: 'Admin mobile' })).toBeVisible()
+        await expect(page.getByRole('link', { name: /Sign-in experience/ })).toBeVisible()
+        await page.screenshot({
+          fullPage: true,
+          path: testInfo.outputPath('admin-dashboard-mobile-navigation.png'),
+        })
+        await page.getByRole('button', { name: 'Close admin navigation' }).click()
+      }
+    }
+  }
 })
 
 type JourneyAssertionSuite = (typeof journeyAssertions)[JourneyId]['suite']
