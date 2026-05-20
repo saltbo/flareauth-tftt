@@ -184,6 +184,46 @@ const accountAuthorizedAppsRoute = createRoute({
   },
 })
 
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile',
+  beforeLoad: () => {
+    throw redirect({ to: '/account' })
+  },
+})
+
+const profileSecurityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile/security',
+  beforeLoad: () => {
+    throw redirect({ to: '/account' })
+  },
+})
+
+const profileLinkedAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile/linked-accounts',
+  beforeLoad: () => {
+    throw redirect({ to: '/account' })
+  },
+})
+
+const profileSessionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile/sessions',
+  beforeLoad: () => {
+    throw redirect({ to: '/account' })
+  },
+})
+
+const profileAuthorizedAppsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile/authorized-apps',
+  beforeLoad: () => {
+    throw redirect({ to: '/account' })
+  },
+})
+
 const consoleRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/console',
@@ -706,6 +746,11 @@ const routeTree = rootRoute.addChildren([
   emailVerificationRoute,
   authCallbackRoute,
   oauthConsentRoute,
+  profileRoute,
+  profileSecurityRoute,
+  profileLinkedAccountsRoute,
+  profileSessionsRoute,
+  profileAuthorizedAppsRoute,
   accountRoute.addChildren([
     accountIndexRoute,
     accountProfileRoute,

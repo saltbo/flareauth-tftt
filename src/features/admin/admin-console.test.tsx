@@ -261,6 +261,27 @@ describe('admin console', () => {
     }
   })
 
+  it('redirects top-level profile compatibility routes to the account center', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation(accountRouteFetch)
+
+    for (const path of [
+      '/profile',
+      '/profile/security',
+      '/profile/linked-accounts',
+      '/profile/sessions',
+      '/profile/authorized-apps',
+    ]) {
+      window.history.pushState(null, '', path)
+      render(<AppRouter />)
+
+      await waitFor(() => expect(window.location.pathname).toBe('/account'))
+      expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
+
+      cleanup()
+      queryClient.clear()
+    }
+  })
+
   it('surfaces non-auth account guard errors instead of converting them to sign-in redirects', async () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
