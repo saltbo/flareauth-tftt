@@ -34,10 +34,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertCircle,
+  AppWindow,
   CheckCircle2,
   Copy,
   ExternalLink,
   Eye,
+  Globe2,
   ImageUp,
   ListChecks,
   MoreHorizontal,
@@ -46,6 +48,7 @@ import {
   Save,
   Server,
   ShieldCheck,
+  Smartphone,
   Trash2,
   Undo2,
 } from 'lucide-react'
@@ -174,6 +177,27 @@ type ApiResourceDetailSection = 'settings' | 'scopes' | 'permissions'
 type OrganizationTemplateSection = 'organization-roles' | 'organization-permissions'
 type WebhooksSection = 'endpoints' | 'requests'
 type SignInPreviewSurface = 'desktop' | 'mobile'
+
+const applicationTypeOptions = [
+  {
+    value: 'public_spa',
+    title: 'Single-page app',
+    description: 'Browser client using authorization code with PKCE and no client secret.',
+    icon: AppWindow,
+  },
+  {
+    value: 'confidential_web',
+    title: 'Traditional web app',
+    description: 'Server-rendered or backend app that can hold a confidential client secret.',
+    icon: Globe2,
+  },
+  {
+    value: 'public_native',
+    title: 'Native app',
+    description: 'Mobile or desktop client using app redirects and PKCE protection.',
+    icon: Smartphone,
+  },
+] as const
 
 export function AdminDashboardPage() {
   const query = useQuery({ queryKey: adminQueryKeys.dashboard, queryFn: getAdminDashboard })
@@ -590,8 +614,8 @@ export function ApplicationDetailPage({
               <TabsTrigger value="branding">Branding</TabsTrigger>
             </TabsList>
             <TabsContent className="mt-4" value="settings">
-              <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-                <Card>
+              <div className="applicationSettingsStack">
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>General settings</CardTitle>
                     <CardDescription>Required display metadata and client classification.</CardDescription>
@@ -634,7 +658,7 @@ export function ApplicationDetailPage({
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>Redirects and origins</CardTitle>
                     <CardDescription>
@@ -684,7 +708,7 @@ export function ApplicationDetailPage({
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>Endpoints and credentials</CardTitle>
                     <CardDescription>Use these values with any standards-compliant OIDC SDK.</CardDescription>
@@ -705,7 +729,7 @@ export function ApplicationDetailPage({
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>Client secrets</CardTitle>
                     <CardDescription>
@@ -750,7 +774,7 @@ export function ApplicationDetailPage({
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>Advanced options</CardTitle>
                     <CardDescription>
@@ -773,7 +797,7 @@ export function ApplicationDetailPage({
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="applicationSettingsPanel">
                   <CardHeader>
                     <CardTitle>Lifecycle</CardTitle>
                     <CardDescription>
@@ -812,7 +836,7 @@ export function ApplicationDetailPage({
               </div>
             </TabsContent>
             <TabsContent className="mt-4" value="branding">
-              <Card>
+              <Card className="applicationSettingsPanel">
                 <CardHeader>
                   <CardTitle>Application branding</CardTitle>
                   <CardDescription>Logo and display values shown in application and consent surfaces.</CardDescription>
@@ -960,6 +984,7 @@ export function AdminOnboardingPage() {
   const [form, setForm] = useState({
     name: 'Customer portal',
     slug: 'customer-portal',
+    clientType: 'public_spa',
     redirectUris: `${window.location.origin}/oidc/callback`,
   })
   const createMutation = useAdminMutation({
@@ -1008,20 +1033,24 @@ export function AdminOnboardingPage() {
           </CardHeader>
           <CardContent>
             <form
-              className="formStack"
+              className="formStack applicationCreateForm"
               onSubmit={(event) => {
                 event.preventDefault()
                 createMutation.mutate(
                   parseForm(createApplicationRequestSchema, {
                     name: form.name,
                     slug: form.slug,
-                    clientType: 'public_spa',
+                    clientType: form.clientType,
                     firstParty: true,
                     redirectUris: form.redirectUris.split('\n').filter(Boolean),
                   }),
                 )
               }}
             >
+              <ApplicationTypeCards
+                onChange={(clientType) => setForm((value) => ({ ...value, clientType }))}
+                value={form.clientType}
+              />
               <Field label="Application name">
                 <TextInput
                   onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
@@ -5609,7 +5638,7 @@ function CreateApplicationDialog({
   open: boolean
   pending: boolean
 }) {
-  const [form, setForm] = useState<FormState>(emptyForm)
+  const [form, setForm] = useState<FormState>({ clientType: 'public_spa' })
   const [validationError, setValidationError] = useState<string | null>(null)
   return (
     <Dialog open={open}>
@@ -5644,21 +5673,41 @@ function CreateApplicationDialog({
             placeholder="customer-portal"
           />
         </Field>
-        <Field label="Client type">
-          <SelectInput
-            onChange={(event) => setValue(setForm, 'clientType', event.target.value)}
-            defaultValue="public_spa"
-          >
-            <option value="public_spa">Public SPA</option>
-            <option value="public_native">Public native</option>
-            <option value="confidential_web">Confidential web</option>
-          </SelectInput>
-        </Field>
+        <ApplicationTypeCards
+          onChange={(clientType) => setValue(setForm, 'clientType', clientType)}
+          value={form.clientType}
+        />
         <Field label="Redirect URIs" help="One URI per line.">
           <TextArea onChange={(event) => setValue(setForm, 'redirectUris', event.target.value)} required />
         </Field>
       </FormDialog>
     </Dialog>
+  )
+}
+
+function ApplicationTypeCards({ onChange, value }: { onChange: (clientType: string) => void; value: string }) {
+  const selected = value
+  return (
+    <fieldset className="applicationTypeGrid">
+      <legend>Application type</legend>
+      {applicationTypeOptions.map((option) => (
+        <button
+          aria-pressed={selected === option.value}
+          className={cn('applicationTypeCard', selected === option.value && 'selected')}
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          type="button"
+        >
+          <span className="applicationTypeIcon" aria-hidden="true">
+            <option.icon size={18} />
+          </span>
+          <span>
+            <strong>{option.title}</strong>
+            <small>{option.description}</small>
+          </span>
+        </button>
+      ))}
+    </fieldset>
   )
 }
 

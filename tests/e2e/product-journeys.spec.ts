@@ -1818,7 +1818,7 @@ async function expectConsoleDesktopDensity(page: Page, kind: ConsolePageKind, he
     const firstAction = main?.querySelector('button, a[href], input, select, textarea')
     const controls = Array.from(
       main?.querySelectorAll('button, a.uiButton, input:not([type="file"]):not([type="color"]), select') ?? [],
-    ).filter((control) => !control.closest('.brandingPreview'))
+    ).filter((control) => !control.closest('.brandingPreview') && !control.closest('.applicationTypeGrid'))
     const nestedCards = main?.querySelectorAll('[data-ui="card"] [data-ui="card"]').length ?? 0
     if (!header || !aside || !main || !content || navRows.length === 0) return null
 
@@ -1993,7 +1993,10 @@ async function expectAccountSinglePageSections(page: Page) {
     await expect(page.getByRole('heading', { name: section })).toBeVisible()
   }
 
-  await expect(page.locator('.accountSectionStack > .settingsPanel')).toHaveCount(accountSections.length)
+  for (const group of ['Profile settings', 'Security settings', 'Social and app access', 'Session management']) {
+    await expect(page.locator(`.accountPanelGroup[aria-label="${group}"]`)).toHaveCount(1)
+  }
+  await expect(page.locator('.accountPanelGroup .settingsPanel')).toHaveCount(accountSections.length)
 }
 
 async function mockApi(page: Page) {
