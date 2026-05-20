@@ -9,7 +9,6 @@ import {
   ApiResourcesPage,
   ApplicationDetailPage,
   ApplicationsPage,
-  AuditLogsPage,
   BrandingPage,
   ConnectorsPage,
   ContentSettingsPage,
@@ -598,12 +597,6 @@ const consoleWebhooksRequestsRoute = createRoute({
   component: () => <WebhooksPage section="requests" />,
 })
 
-const consoleAuditLogsRoute = createRoute({
-  getParentRoute: () => consoleRoute,
-  path: '/audit-logs',
-  component: AuditLogsPage,
-})
-
 const consoleTenantSettingsIndexRoute = createRoute({
   getParentRoute: () => consoleRoute,
   path: '/tenant-settings',
@@ -795,7 +788,6 @@ const routeTree = rootRoute.addChildren([
     consoleWebhooksRoute,
     consoleWebhooksEndpointsRoute,
     consoleWebhooksRequestsRoute,
-    consoleAuditLogsRoute,
     consoleTenantSettingsIndexRoute,
     consoleTenantSettingsOidcRoute,
     consoleOnboardingRoute,

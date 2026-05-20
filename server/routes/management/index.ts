@@ -36,6 +36,7 @@ import { adminUserRoutes } from '../admin/users'
 import type { ManagementAuthApi } from '../auth-api'
 import { readJson } from '../validation'
 import { type ConnectorServiceFactory, createManagementConnectorRoutes } from './connectors'
+import { createManagementWebhookRoutes, type WebhookServiceFactory } from './webhooks'
 
 interface ManagementBindings extends AuthorizationBindings, ConfigzBindings, ApplicationBindings {
   EMAIL?: unknown
@@ -92,6 +93,7 @@ interface ManagementRoutesOptions {
   configzServiceFactory?: ManagementConfigzServiceFactory
   applicationServiceFactory?: ManagementApplicationServiceFactory
   connectorServiceFactory?: ConnectorServiceFactory
+  webhookServiceFactory?: WebhookServiceFactory
 }
 
 export function createManagementRoutes(options: ManagementRoutesOptions) {
@@ -299,6 +301,7 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
   }
 
   app.route('/connectors', createManagementConnectorRoutes(options.connectorServiceFactory))
+  app.route('/webhooks', createManagementWebhookRoutes(options.webhookServiceFactory))
 
   return app
 }

@@ -89,6 +89,18 @@ describe('management API client', () => {
     await management.createApiPermission('resource-1', { key: 'orders.read' })
     await management.updateApiPermission('resource-1', 'permission-1', { key: 'orders.view' })
     await management.deleteApiPermission('resource-1', 'permission-1')
+    await management.listWebhookEndpoints({ search: 'auth', status: 'enabled' })
+    await management.createWebhookEndpoint({
+      url: 'https://app.example.com/webhooks/auth',
+      events: ['user.created'],
+      enabled: true,
+    })
+    await management.updateWebhookEndpoint('wh_1', { enabled: false })
+    await management.deleteWebhookEndpoint('wh_1')
+    await management.rotateWebhookEndpointSecret('wh_1')
+    await management.listWebhookRequests({ endpointId: 'wh_1', status: 'failed' })
+    await management.getWebhookRequest('whr_1')
+    await management.retryWebhookRequest('whr_1')
 
     expect(calls).toEqual([
       ['applications.get'],
@@ -184,6 +196,23 @@ describe('management API client', () => {
         { param: { id: 'resource-1', permissionId: 'permission-1' }, json: { key: 'orders.view' } },
       ],
       ['apiPermissions.delete', { param: { id: 'resource-1', permissionId: 'permission-1' } }],
+      ['webhookEndpoints.get', { query: { search: 'auth', status: 'enabled' } }],
+      [
+        'webhookEndpoints.post',
+        {
+          json: {
+            url: 'https://app.example.com/webhooks/auth',
+            events: ['user.created'],
+            enabled: true,
+          },
+        },
+      ],
+      ['webhookEndpoint.patch', { param: { id: 'wh_1' }, json: { enabled: false } }],
+      ['webhookEndpoint.delete', { param: { id: 'wh_1' } }],
+      ['webhookEndpointSecret.post', { param: { id: 'wh_1' } }],
+      ['webhookRequests.get', { query: { endpointId: 'wh_1', status: 'failed' } }],
+      ['webhookRequest.get', { param: { id: 'whr_1' } }],
+      ['webhookRequestRetry.post', { param: { id: 'whr_1' } }],
     ])
   })
 
@@ -317,6 +346,24 @@ async function loadManagementApi() {
                   $patch: endpoint('apiPermissions.patch'),
                   $delete: endpoint('apiPermissions.delete'),
                 },
+              },
+            },
+          },
+          webhooks: {
+            endpoints: {
+              $get: endpoint('webhookEndpoints.get'),
+              $post: endpoint('webhookEndpoints.post'),
+              ':id': {
+                $patch: endpoint('webhookEndpoint.patch'),
+                $delete: endpoint('webhookEndpoint.delete'),
+                secrets: { $post: endpoint('webhookEndpointSecret.post') },
+              },
+            },
+            requests: {
+              $get: endpoint('webhookRequests.get'),
+              ':id': {
+                $get: endpoint('webhookRequest.get'),
+                retries: { $post: endpoint('webhookRequestRetry.post') },
               },
             },
           },
