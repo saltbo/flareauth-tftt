@@ -1269,14 +1269,16 @@ const journeyAssertions: Record<
         'page',
       )
       await expect(page.getByText('Cloudflare Email', { exact: true }).first()).toBeVisible()
-      await expect(page.getByText('Email and SMS connectors')).toBeVisible()
-      await expect(page.getByText('SMS connector', { exact: true }).first()).toBeVisible()
+      await expect(page.getByText('Email connector')).toBeVisible()
       await expect(page.getByText('Runtime state')).toBeVisible()
       await expect(page.getByText('Magic link', { exact: true })).toBeVisible()
       await expect(page.getByText('Email code', { exact: true })).toBeVisible()
       await expect(page.getByText('EMAIL binding and EMAIL_FROM sender must be present.')).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Managed' })).toBeDisabled()
-      await expect(page.getByRole('button', { name: 'Setup SMS' })).toBeDisabled()
+      await page.getByRole('button', { name: 'Inspect' }).click()
+      const emailDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Cloudflare Email connector' }) })
+      await expect(emailDialog).toBeVisible()
+      await expect(emailDialog.getByText('EMAIL_FROM')).toBeVisible()
+      await expect(page.getByText('SMS connector', { exact: true })).toHaveCount(0)
     },
   },
   'admin-social-connector-inventory': {
@@ -1399,7 +1401,7 @@ const journeyAssertions: Record<
         await expect(previewPanel).toBeVisible()
         await expect(previewPanel.getByText('Live preview')).toBeVisible()
         await expect(previewPanel.getByRole('heading', { name: 'Hosted sign-in' })).toBeVisible()
-        await expect(previewPanel.getByRole('button', { name: 'Continue with identity provider' })).toBeVisible()
+        await expect(previewPanel.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible()
         await expect(previewPanel.getByText('No account yet? Sign up')).toBeVisible()
       }
 
@@ -1535,8 +1537,14 @@ const journeyAssertions: Record<
         },
       })
       await page.getByLabel('Actions for GitHub').click()
-      await page.getByText('View details').click()
+      await page.getByText('Test setup').click()
       await expect(page.getByText('Secret binding available')).toBeVisible()
+      await expect(page.getByLabel('Display name')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Close' }).click()
+      await page.goto('/console/connectors/social')
+      await expect(page.getByText('GitHub', { exact: true })).toBeVisible()
+      await page.getByLabel('Actions for GitHub').click()
+      await page.getByText('Edit connector').click()
       await page.getByLabel('Display name').fill('GitHub Enterprise')
       await page.getByRole('button', { name: 'Save changes' }).click()
       expect(requests).toContainEqual({
@@ -1730,6 +1738,10 @@ test('declares browser E2E journey coverage above target', () => {
   expect(journeyCoverage.honoRpcSmokeJourneys).toEqual(['api-health-smoke'])
   expect(new Set(consoleRoutes.map((route) => route.path)).size).toBe(consoleRoutes.length)
   expect(visualJourneyIds.every((id) => uniqueDeclaredIds.has(id))).toBe(true)
+})
+
+test.beforeEach(() => {
+  resetMockState()
 })
 
 test('public and auth journeys', async ({ page }) => {
@@ -2664,6 +2676,50 @@ const configz = {
   },
   security: { mfaRequired: false, sessionExpiresInSeconds: 3600, passkeysEnabled: true },
   accountCenter: { ...defaultAccountCenter },
+}
+
+function resetMockState() {
+  firstAdminRequired = false
+  adminSetupRequired = false
+  accountSignedIn = true
+  accountApplicationRevoked = false
+  applicationDisabled = false
+  adminUserBanned = false
+  identifierFirstRequired = false
+  accountMfaEnabled = false
+  consentSessionAvailable = true
+
+  Object.assign(configz.signIn, {
+    passwordEnabled: true,
+    signupEnabled: true,
+    socialLoginEnabled: true,
+    magicLinkEnabled: true,
+    emailOtpEnabled: true,
+    usernameEnabled: true,
+    identifierFirst: false,
+  })
+  Object.assign(configz.branding, {
+    logoUrl: null,
+    faviconUrl: null,
+    primaryColor: '#b42318',
+    backgroundColor: '#f7f3ee',
+    customCss: null,
+  })
+  Object.assign(configz.links, {
+    termsUri: null,
+    privacyUri: null,
+    supportEmail: null,
+  })
+  Object.assign(configz.copy, {
+    productName: 'Acme ID',
+    headline: 'Sign in to Acme.',
+    description: 'Hosted identity for Acme apps.',
+  })
+  Object.assign(configz.defaults, {
+    applicationId: null,
+    redirectUri: null,
+  })
+  Object.assign(configz.accountCenter, defaultAccountCenter)
 }
 
 const application = {
