@@ -235,6 +235,15 @@ const consoleRoutes = [
     activeNav: 'Organization template',
   },
   {
+    name: 'organization-template-permissions',
+    path: '/console/organization-template/organization-permissions',
+    heading: 'Organization template',
+    kind: 'settings',
+    journeyId: 'admin-authorization-inventory',
+    sentinel: 'Permission templates use API resources',
+    activeNav: 'Organization template',
+  },
+  {
     name: 'organizations',
     path: '/console/organizations',
     heading: 'Organizations',
@@ -1809,6 +1818,9 @@ test('admin console desktop and mobile screenshot evidence', async ({ page }, te
         fullPage: true,
         path: testInfo.outputPath(`${consoleEvidenceName(route)}-1280x720.png`),
       })
+      if (route.name === 'applications') {
+        await captureApplicationCreateEvidence(page, testInfo, '1280x720')
+      }
     })
   }
 
@@ -1832,6 +1844,9 @@ test('admin console desktop and mobile screenshot evidence', async ({ page }, te
           fullPage: true,
           path: testInfo.outputPath(`${consoleEvidenceName(route)}-${viewport.name}.png`),
         })
+        if (route.name === 'applications') {
+          await captureApplicationCreateEvidence(page, testInfo, viewport.name)
+        }
         if (viewport.name === 'mobile' && route.name === 'dashboard') {
           await page.getByRole('button', { name: 'Open console navigation' }).click()
           await expect(page.getByRole('navigation', { name: 'Console mobile' })).toBeVisible()
@@ -1846,6 +1861,17 @@ test('admin console desktop and mobile screenshot evidence', async ({ page }, te
     }
   }
 })
+
+async function captureApplicationCreateEvidence(page: Page, testInfo: { outputPath: (path: string) => string }, suffix: string) {
+  await page.getByRole('button', { name: 'New application' }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Create application' })).toBeVisible()
+  await page.screenshot({
+    fullPage: true,
+    path: testInfo.outputPath(`admin-applications-create-${suffix}.png`),
+  })
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+}
 
 test('hosted auth account and branding screenshot evidence', async ({ page }, testInfo) => {
   test.setTimeout(60_000)
