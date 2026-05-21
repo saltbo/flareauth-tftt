@@ -6,7 +6,6 @@ import {
   Boxes,
   Building2,
   Cable,
-  ChevronRight,
   Code2,
   Fingerprint,
   Gauge,
@@ -127,12 +126,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [profile, setProfile] = useState<AccountProfileResponse['user'] | null>(null)
-  const currentItem = adminNavGroups
-    .flatMap((group) => group.items)
-    .find((item) => isActive(pathname, getItemMatchPath(item)))
-  const currentGroup = adminNavGroups.find((group) =>
-    group.items.some((item) => isActive(pathname, getItemMatchPath(item))),
-  )
 
   useEffect(() => {
     let active = true
@@ -146,10 +139,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="consoleShell text-foreground">
-      <div className="consoleDesktopAccountMenu hidden lg:block">
-        <ConsoleAccountMenu profile={profile} />
-      </div>
-      <header className="consoleTopbar lg:hidden">
+      <header className="consoleTopbar">
         <div className="flex h-16 items-center justify-between gap-3 px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -167,21 +157,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </button>
             <ConsoleBrand />
           </div>
-          <div className="hidden min-w-0 flex-1 items-center gap-2 px-2 text-sm text-muted-foreground md:flex">
-            <span className="truncate">Console</span>
-            {currentGroup ? (
-              <>
-                <ChevronRight aria-hidden="true" className="size-3 shrink-0" />
-                <span className="truncate">{currentGroup.label}</span>
-              </>
-            ) : null}
-            {currentItem ? (
-              <>
-                <ChevronRight aria-hidden="true" className="size-3 shrink-0" />
-                <span className="truncate font-medium text-foreground">{currentItem.label}</span>
-              </>
-            ) : null}
-          </div>
+          <div className="min-w-0 flex-1" />
           <div className="flex shrink-0 items-center gap-2">
             <div className="hidden h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm lg:flex">
               <Boxes className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -200,7 +176,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             type="button"
           />
           <aside className="relative h-full w-[min(320px,calc(100vw-32px))] border-r border-border bg-background shadow-lg">
-            <nav aria-label="Console mobile" className="h-full overflow-y-auto px-3 py-4">
+            <nav aria-label="Console mobile" className="consoleNavScroll h-full overflow-y-auto px-3 py-4">
               <AdminNavigation onNavigate={() => setMobileNavOpen(false)} pathname={pathname} />
             </nav>
           </aside>
@@ -208,10 +184,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       ) : null}
       <div className="consoleBody lg:flex">
         <aside className="consoleRail hidden lg:flex">
-          <div className="px-4 pb-4 pt-4">
-            <ConsoleBrand />
-          </div>
-          <nav className="min-h-0 flex-1 overflow-y-auto px-4 pb-4" aria-label="Console">
+          <nav className="consoleNavScroll min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-label="Console">
             <AdminNavigation pathname={pathname} />
           </nav>
         </aside>
@@ -225,14 +198,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
 function ConsoleBrand() {
   return (
-    <a className="flex h-10 min-w-0 items-center gap-2.5 text-foreground" href="/console">
+    <a className="flex h-10 min-w-0 items-center gap-3 text-foreground" href="/console">
       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
         F
       </span>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold leading-none">FlareAuth</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">Console</p>
-      </div>
+      <span className="truncate text-sm font-semibold leading-none">FlareAuth</span>
+      <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border" />
+      <span className="truncate text-sm font-medium text-muted-foreground">Admin Console</span>
     </a>
   )
 }

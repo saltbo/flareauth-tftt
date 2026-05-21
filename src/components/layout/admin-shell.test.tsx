@@ -60,14 +60,14 @@ describe('AdminShell', () => {
   it('renders Console navigation and marks the exact dashboard route active', () => {
     render(<AdminShell>Dashboard content</AdminShell>)
 
-    expect(screen.getAllByText('Console').length).toBeGreaterThan(0)
+    expect(screen.getByText('Admin Console')).toBeTruthy()
     expect(screen.getAllByText('Default').length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: 'Account menu' }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('link', { name: /Account center/ })).toBeNull()
     expect(screen.getByText('Dashboard content')).toBeTruthy()
     expect(screen.getByText('Dashboard content').closest('.consoleShell')).toBeTruthy()
     expect(document.querySelector('header')?.className).toContain('consoleTopbar')
-    expect(document.querySelector('header')?.className).toContain('lg:hidden')
+    expect(document.querySelector('header')?.className).not.toContain('lg:hidden')
     expect(document.querySelector('aside')?.className).toContain('consoleRail')
     expect(document.querySelector('main')?.className).toContain('consoleMain')
     expect(screen.getByText('Dashboard content').closest('.consoleContent')).toBeTruthy()

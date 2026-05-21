@@ -146,6 +146,10 @@ textarea {
 }
 
 .consoleShell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
   background: var(--console-canvas);
@@ -153,10 +157,13 @@ textarea {
 }
 
 .consoleTopbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   width: 100%;
   height: 64px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--console-canvas);
 }
 
 .consoleMobileNavLayer {
@@ -166,24 +173,51 @@ textarea {
   background: rgb(24 24 27 / 28%);
 }
 
-.consoleDesktopAccountMenu {
-  position: fixed;
-  top: 18px;
-  right: 24px;
-  z-index: 35;
-}
-
 .consoleBody {
-  height: calc(100dvh - 64px);
+  min-height: 0;
 }
 
 .consoleRail {
   width: 248px;
-  height: 100dvh;
+  height: 100%;
+  min-height: 0;
   flex-shrink: 0;
   flex-direction: column;
   border-right: 0;
   background: var(--console-canvas);
+}
+
+.consoleNavScroll {
+  scrollbar-gutter: stable;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+.consoleNavScroll:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted) 38%, transparent) transparent;
+}
+
+.consoleNavScroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.consoleNavScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.consoleNavScroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: transparent;
+}
+
+.consoleNavScroll:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 38%, transparent);
+}
+
+.consoleNavScroll:hover::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted) 56%, transparent);
 }
 
 .consoleMain {
@@ -202,7 +236,7 @@ textarea {
   flex-direction: column;
   gap: 16px;
   margin: 0 auto 0 8px;
-  padding: 68px 24px 24px 0;
+  padding: 24px 24px 24px 0;
 }
 
 .shell {
@@ -2135,12 +2169,6 @@ main:not(.shell):not(.authShell) h1 {
   .applicationTypeGrid,
   .featureGrid {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 1024px) {
-  .consoleBody {
-    height: 100dvh;
   }
 }
 
