@@ -11,7 +11,7 @@ describe('security routes', () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined)
   })
 
-  it('serves account security state and delegates MFA/passkey enrollment APIs to Better Auth', async () => {
+  it('serves account security state and delegates MFA enrollment APIs to Better Auth', async () => {
     const auth = createAuthMock()
     const security = createSecurityRepositoryMock(securityPolicy({ mfa: { mode: 'required' } }))
     const app = createApp(auth, {
@@ -32,17 +32,6 @@ describe('security routes', () => {
       headers,
       body: JSON.stringify({ code: '123456', trustDevice: true }),
     })
-    await app.request('/api/account/security/passkeys/registration-options', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ name: 'Laptop' }),
-    })
-    await app.request('/api/account/security/passkeys/registration-verification', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ id: 'credential-1', response: {} }),
-    })
-
     expect(state.status).toBe(200)
     await expect(state.json()).resolves.toMatchObject({
       security: {
@@ -65,17 +54,9 @@ describe('security routes', () => {
       body: { code: '123456', trustDevice: true },
       headers: expect.any(Headers),
     })
-    expect(auth.api.generatePasskeyRegistrationOptions).toHaveBeenCalledWith({
-      query: { name: 'Laptop' },
-      headers: expect.any(Headers),
-    })
-    expect(auth.api.verifyPasskeyRegistration).toHaveBeenCalledWith({
-      body: { id: 'credential-1', response: {} },
-      headers: expect.any(Headers),
-    })
   })
 
-  it('serves account MFA/passkey resources and delegates OTP, backup code, and passkey management', async () => {
+  it('serves account MFA/passkey resources and delegates backup code and passkey management', async () => {
     const auth = createAuthMock()
     const security = createSecurityRepositoryMock()
     const app = createApp(auth, {
@@ -86,16 +67,6 @@ describe('security routes', () => {
     const headers = userHeaders()
 
     const mfa = await app.request('/api/account/security/mfa', { headers })
-    await app.request('/api/account/security/mfa/otp', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ password: 'password-1' }),
-    })
-    await app.request('/api/account/security/mfa/otp-verification', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ code: '654321' }),
-    })
     const backupCodes = await app.request('/api/account/security/mfa/backup-codes', {
       method: 'POST',
       headers,
@@ -125,14 +96,6 @@ describe('security routes', () => {
         nextOffset: 9,
       },
     })
-    expect(auth.api.sendTwoFactorOTP).toHaveBeenCalledWith({
-      body: {},
-      headers: expect.any(Headers),
-    })
-    expect(auth.api.verifyTwoFactorOTP).toHaveBeenCalledWith({
-      body: { code: '654321' },
-      headers: expect.any(Headers),
-    })
     expect(auth.api.generateBackupCodes).toHaveBeenCalledWith({
       body: { password: 'password-1' },
       headers: expect.any(Headers),
@@ -146,6 +109,37 @@ describe('security routes', () => {
       headers: expect.any(Headers),
     })
     expect(security.listPasskeys).toHaveBeenCalledWith('user-1', { limit: 3, offset: 6 })
+  })
+
+  it('blocks authenticator app enrollment when the factor is disabled by policy', async () => {
+    const auth = createAuthMock()
+    const security = createSecurityRepositoryMock(
+      securityPolicy({
+        mfa: {
+          mode: 'optional',
+          authenticatorAppEnabled: false,
+          emailOtpEnabled: false,
+          backupCodesEnabled: true,
+        },
+      }),
+    )
+    const app = createApp(auth, {
+      userRepository: createUserRepositoryMock(),
+      securityRepository: security,
+      securityPolicy: securityPolicy(),
+    })
+
+    const response = await app.request('/api/account/security/mfa/totp-enrollment', {
+      method: 'POST',
+      headers: userHeaders(),
+      body: JSON.stringify({ password: 'password-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message: 'Authenticator app MFA is disabled for this deployment.' },
+    })
+    expect(auth.api.enableTwoFactor).not.toHaveBeenCalled()
   })
 
   it('revokes account sessions by resolving the user-owned session token', async () => {
@@ -178,7 +172,7 @@ describe('security routes', () => {
       body: { token: 'session-token-1' },
       headers: expect.any(Headers),
     })
-    expect(auth.api.revokeSessions).toHaveBeenCalledWith({ headers: expect.any(Headers) })
+    expect(auth.api.revokeOtherSessions).toHaveBeenCalledWith({ headers: expect.any(Headers) })
   })
 
   it('blocks account security session endpoints when account center sessions are disabled', async () => {
@@ -217,7 +211,7 @@ describe('security routes', () => {
     expect(users.listSessions).not.toHaveBeenCalled()
     expect(security.getSessionToken).not.toHaveBeenCalled()
     expect(auth.api.revokeSession).not.toHaveBeenCalled()
-    expect(auth.api.revokeSessions).not.toHaveBeenCalled()
+    expect(auth.api.revokeOtherSessions).not.toHaveBeenCalled()
   })
 
   it('revokes authorized application consent for the current account', async () => {
@@ -266,7 +260,7 @@ describe('security routes', () => {
     })
   })
 
-  it('rejects disabled passkey operations before calling Better Auth passkey APIs', async () => {
+  it('rejects disabled passkey management before calling Better Auth passkey APIs', async () => {
     const auth = createAuthMock()
     const policy = securityPolicy({ passkeys: { ...securityPolicy().passkeys, enabled: false } })
     const app = createApp(auth, {
@@ -275,10 +269,9 @@ describe('security routes', () => {
       securityPolicy: policy,
     })
 
-    const response = await app.request('/api/account/security/passkeys/registration-options', {
-      method: 'POST',
+    const response = await app.request('/api/account/security/passkeys/passkey-1', {
+      method: 'DELETE',
       headers: userHeaders(),
-      body: JSON.stringify({ name: 'Laptop' }),
     })
 
     expect(response.status).toBe(400)
@@ -288,7 +281,7 @@ describe('security routes', () => {
         message: 'Passkeys are disabled for this deployment.',
       },
     })
-    expect(auth.api.generatePasskeyRegistrationOptions).not.toHaveBeenCalled()
+    expect(auth.api.deletePasskey).not.toHaveBeenCalled()
   })
 
   it('validates account security request payloads and translates Better Auth errors', async () => {
@@ -609,6 +602,14 @@ describe('security routes', () => {
       }),
       headers: userHeaders(),
     })
+    const weakNativePasswordChange = await app.request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: 'old-password',
+        newPassword: 'abc123abc123',
+      }),
+      headers: { 'content-type': 'application/json' },
+    })
     const weakReset = await app.request('/api/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ token: 'token-1', newPassword: 'abc123abc123' }),
@@ -644,6 +645,10 @@ describe('security routes', () => {
     })
     expect(weakPasswordChange.status).toBe(400)
     await expect(weakPasswordChange.json()).resolves.toMatchObject({
+      error: { message: 'Password must include at least 3 character types.' },
+    })
+    expect(weakNativePasswordChange.status).toBe(400)
+    await expect(weakNativePasswordChange.json()).resolves.toMatchObject({
       error: { message: 'Password must include at least 3 character types.' },
     })
     expect(weakReset.status).toBe(400)
@@ -704,11 +709,6 @@ describe('security routes', () => {
       },
       { TURNSTILE_SECRET: 'secret-1' },
     )
-    const missingMagic = await app.request('/api/auth/sign-in/magic-link', {
-      method: 'POST',
-      body: JSON.stringify({ email: 'user@example.com' }),
-      headers: { 'content-type': 'application/json' },
-    })
     const verifiedOtpRequest = await app.request(
       '/api/auth/email-otp/send-verification-otp',
       {
@@ -747,10 +747,6 @@ describe('security routes', () => {
     expect(missing.status).toBe(400)
     await expect(missing.json()).resolves.toMatchObject({ error: { message: 'CAPTCHA verification is required.' } })
     expect(verified.status).toBe(204)
-    expect(missingMagic.status).toBe(400)
-    await expect(missingMagic.json()).resolves.toMatchObject({
-      error: { message: 'CAPTCHA verification is required.' },
-    })
     expect(verifiedOtpRequest.status).toBe(204)
     expect(missingSecret.status).toBe(400)
     await expect(missingSecret.json()).resolves.toMatchObject({
@@ -794,16 +790,13 @@ function createAuthMock() {
       enableTwoFactor: vi.fn().mockResolvedValue({ totpURI: 'otpauth://totp/FlareAuth', backupCodes: [] }),
       disableTwoFactor: vi.fn().mockResolvedValue({ status: true }),
       verifyTOTP: vi.fn().mockResolvedValue({ status: true }),
-      sendTwoFactorOTP: vi.fn().mockResolvedValue({ status: true }),
-      verifyTwoFactorOTP: vi.fn().mockResolvedValue({ status: true }),
       generateBackupCodes: vi.fn().mockResolvedValue({ status: true, backupCodes: [] }),
       listPasskeys: vi.fn().mockResolvedValue([]),
-      generatePasskeyRegistrationOptions: vi.fn().mockResolvedValue({ challenge: 'challenge-1' }),
-      verifyPasskeyRegistration: vi.fn().mockResolvedValue({ verified: true }),
       deletePasskey: vi.fn().mockResolvedValue({ status: true }),
       updatePasskey: vi.fn().mockResolvedValue({ passkey: { id: 'passkey-1' } }),
       revokeSession: vi.fn().mockResolvedValue({ status: true }),
       revokeSessions: vi.fn().mockResolvedValue({ status: true }),
+      revokeOtherSessions: vi.fn().mockResolvedValue({ status: true }),
       revokeUserSession: vi.fn().mockResolvedValue({ success: true }),
       revokeUserSessions: vi.fn().mockResolvedValue({ success: true }),
       changeEmail: vi.fn().mockResolvedValue({ status: true }),
@@ -895,6 +888,9 @@ function securityPolicy(overrides: Partial<SecurityPolicy> = {}): SecurityPolicy
   return {
     mfa: {
       mode: 'optional',
+      authenticatorAppEnabled: true,
+      emailOtpEnabled: false,
+      backupCodesEnabled: true,
       ...overrides.mfa,
     },
     passkeys: {

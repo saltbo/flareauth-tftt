@@ -62,7 +62,7 @@ export const connectorTemplates: ConnectorTemplate[] = [
     providerId: 'generic-oauth',
     displayName: 'Generic OAuth',
     icon: 'oauth',
-    requiredFields: ['clientId', 'clientSecretBinding', 'issuer or authorizationEndpoint + tokenEndpoint'],
+    requiredFields: ['clientId', 'clientSecret', 'issuer or authorizationEndpoint + tokenEndpoint'],
     optionalFields: [
       'scopes',
       'issuer',
@@ -112,21 +112,18 @@ function requiredSocialFields(providerId: string) {
   if (providerId === 'cognito') {
     return [
       'clientId',
-      'clientSecretBinding',
+      'clientSecret',
       'providerMetadata.domain',
       'providerMetadata.region',
       'providerMetadata.userPoolId',
     ]
   }
-  return ['clientId', 'clientSecretBinding']
+  return ['clientId', 'clientSecret']
 }
 
 function optionalSocialFields(providerId: string) {
-  const fields = ['scopes', 'redirectURI', 'disableImplicitSignUp', 'disableSignUp', 'overrideUserInfo']
-  if (providerId === 'apple') return [...fields, 'appBundleIdentifier', 'audience']
-  if (providerId === 'google') return [...fields, 'accessType', 'display', 'hd']
-  if (providerId === 'cognito') return [...fields, 'requireClientSecret']
-  return fields
+  void providerId
+  return []
 }
 
 function defaultScopes(providerId: string) {

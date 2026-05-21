@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AdminShell } from './admin-shell'
 
 let pathname = '/console'
+const signOut = vi.fn().mockResolvedValue({})
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -27,9 +28,32 @@ vi.mock('@tanstack/react-router', () => ({
     select({ location: { pathname } }),
 }))
 
+vi.mock('@/lib/api/account', () => ({
+  getAccountProfile: () =>
+    Promise.resolve({
+      user: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        emailVerified: true,
+        displayName: 'Admin User',
+        name: 'Admin User',
+        username: 'admin',
+        avatarAssetId: null,
+        image: null,
+        role: 'admin',
+      },
+    }),
+}))
+
+vi.mock('@/lib/auth-client', () => ({
+  signOut: () => signOut(),
+}))
+
 afterEach(() => {
   cleanup()
   pathname = '/console'
+  signOut.mockClear()
+  window.history.pushState(null, '', '/')
 })
 
 describe('AdminShell', () => {
@@ -38,8 +62,8 @@ describe('AdminShell', () => {
 
     expect(screen.getAllByText('Console').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Default').length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: /Open account center/ })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Account center/ }).getAttribute('href')).toBe('/profile')
+    expect(screen.getAllByRole('button', { name: 'Account menu' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /Account center/ })).toBeNull()
     expect(screen.getByText('Dashboard content')).toBeTruthy()
     expect(screen.getByText('Dashboard content').closest('.consoleShell')).toBeTruthy()
     expect(document.querySelector('header')?.className).toContain('consoleTopbar')
@@ -54,6 +78,19 @@ describe('AdminShell', () => {
     expect(screen.queryByText('Tenant health')).toBeNull()
     expect(screen.queryByText('OIDC clients')).toBeNull()
     expect(screen.queryByRole('link', { name: /Onboarding/ })).toBeNull()
+  })
+
+  it('opens the account menu with profile and sign-out actions', async () => {
+    render(<AdminShell>Dashboard content</AdminShell>)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Account menu' })[0])
+
+    expect(screen.getByRole('menuitem', { name: 'Profile' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+
+    fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }))
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
   })
 
   it('marks the dashboard alias active for local visual review', () => {

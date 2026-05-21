@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Env } from '../../../shared/env'
 import type { ConnectorRepository, ConnectorRow } from './repository'
 import { ConnectorService, loadAuthConnectorConfig } from './service'
 
@@ -13,13 +12,13 @@ describe('ConnectorService', () => {
           providerType: 'social',
           providerId: 'google',
           icon: 'google',
-          requiredFields: ['clientId', 'clientSecretBinding'],
+          requiredFields: ['clientId', 'clientSecret'],
           endpoints: expect.objectContaining({ issuer: null }),
         }),
         expect.objectContaining({
           providerType: 'generic_oauth',
           providerId: 'generic-oauth',
-          requiredFields: ['clientId', 'clientSecretBinding', 'issuer or authorizationEndpoint + tokenEndpoint'],
+          requiredFields: ['clientId', 'clientSecret', 'issuer or authorizationEndpoint + tokenEndpoint'],
         }),
       ]),
     )
@@ -32,24 +31,20 @@ describe('ConnectorService', () => {
           connector({
             providerType: 'social',
             providerId: 'google',
-            clientSecretBinding: 'GOOGLE_CLIENT_SECRET',
+            clientSecret: 'google-secret',
             scopes: ['openid', 'email', 'profile'],
             providerMetadata: { clientSecret: 'metadata-secret', redirectURI: 'https://auth.example.com/callback' },
           }),
           connector({
             providerType: 'generic_oauth',
             providerId: 'okta-main',
-            clientSecretBinding: 'OKTA_CLIENT_SECRET',
+            clientSecret: 'okta-secret',
             issuer: 'https://idp.example.com/oauth2/default',
             scopes: ['openid', 'email'],
             providerMetadata: { pkce: true, requireIssuerValidation: true },
           }),
         ],
       }),
-      {
-        GOOGLE_CLIENT_SECRET: 'google-secret',
-        OKTA_CLIENT_SECRET: 'okta-secret',
-      } as unknown as Env,
     )
 
     expect(config.trustedProviders).toEqual(['google', 'okta-main'])
@@ -72,15 +67,14 @@ describe('ConnectorService', () => {
     ])
   })
 
-  it('omits enabled auth connectors when their runtime secret binding is unavailable', async () => {
+  it('omits enabled auth connectors when their stored client secret is missing', async () => {
     const config = await loadAuthConnectorConfig(
       createRepository({
         enabled: [
-          connector({ providerId: 'github', clientSecretBinding: 'GITHUB_CLIENT_SECRET' }),
-          connector({ providerId: 'google', clientSecretBinding: 'GOOGLE_CLIENT_SECRET' }),
+          connector({ providerId: 'github', clientSecret: null }),
+          connector({ providerId: 'google', clientSecret: 'google-secret' }),
         ],
       }),
-      { GOOGLE_CLIENT_SECRET: 'google-secret' } as unknown as Env,
     )
 
     expect(config.trustedProviders).toEqual(['google'])
@@ -88,44 +82,38 @@ describe('ConnectorService', () => {
     expect(config.socialProviders).not.toHaveProperty('github')
     expect(JSON.parse(config.cacheKey)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ secretBinding: 'GITHUB_CLIENT_SECRET', secretAvailable: false }),
-        expect.objectContaining({ secretBinding: 'GOOGLE_CLIENT_SECRET', secretAvailable: true }),
+        expect.objectContaining({ id: 'idp_1', clientSecretConfigured: false }),
+        expect.objectContaining({ id: 'idp_1', clientSecretConfigured: true }),
       ]),
     )
   })
 
-  it('rejects enabled connector writes when the runtime secret binding is unavailable', async () => {
+  it('stores enabled connector writes with the supplied client secret', async () => {
     const repository = createRepository()
     const service = new ConnectorService(repository)
 
     await expect(
-      service.create(
-        {
-          providerType: 'social',
-          providerId: 'github',
-          displayName: 'GitHub',
-          clientId: 'review-client-id',
-          clientSecretBinding: 'REVIEW_CLIENT_SECRET',
-        },
-        {} as Env,
-      ),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.',
-    })
-    expect(repository.create).not.toHaveBeenCalled()
+      service.create({
+        providerType: 'social',
+        providerId: 'github',
+        displayName: 'GitHub',
+        clientId: 'review-client-id',
+        clientSecret: 'review-secret',
+      }),
+    ).resolves.toMatchObject({ providerId: 'google', clientSecretConfigured: true })
+    expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ clientSecret: 'review-secret' }))
   })
 
-  it('allows disabling a connector whose runtime secret binding is unavailable', async () => {
+  it('allows disabling a connector without a stored client secret', async () => {
     const current = connector({
       id: 'idp_github',
       providerId: 'github',
-      clientSecretBinding: 'REVIEW_CLIENT_SECRET',
+      clientSecret: null,
     })
     const repository = createRepository({ byId: current, updateResult: { ...current, enabled: false } })
     const service = new ConnectorService(repository)
 
-    await expect(service.update('idp_github', { enabled: false }, {} as Env)).resolves.toMatchObject({
+    await expect(service.update('idp_github', { enabled: false })).resolves.toMatchObject({
       id: 'idp_github',
       enabled: false,
     })
@@ -135,19 +123,19 @@ describe('ConnectorService', () => {
     })
   })
 
-  it('rejects enabling a connector when its runtime secret binding is unavailable', async () => {
+  it('rejects enabling a connector when its stored client secret is missing', async () => {
     const current = connector({
       id: 'idp_github',
       providerId: 'github',
       enabled: false,
-      clientSecretBinding: 'REVIEW_CLIENT_SECRET',
+      clientSecret: null,
     })
     const repository = createRepository({ byId: current })
     const service = new ConnectorService(repository)
 
-    await expect(service.update('idp_github', { enabled: true }, {})).rejects.toMatchObject({
+    await expect(service.update('idp_github', { enabled: true })).rejects.toMatchObject({
       status: 400,
-      message: 'OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.',
+      message: 'Enabled connector requires clientSecret.',
     })
     expect(repository.update).not.toHaveBeenCalled()
   })
@@ -157,17 +145,14 @@ describe('ConnectorService', () => {
     const service = new ConnectorService(repository)
 
     await expect(
-      service.create(
-        {
-          providerType: 'social',
-          providerId: 'cognito',
-          displayName: 'Cognito',
-          clientId: 'client-id',
-          clientSecretBinding: 'COGNITO_CLIENT_SECRET',
-          providerMetadata: { domain: 'auth.example.com', region: 'us-east-1' },
-        },
-        { COGNITO_CLIENT_SECRET: 'secret' },
-      ),
+      service.create({
+        providerType: 'social',
+        providerId: 'cognito',
+        displayName: 'Cognito',
+        clientId: 'client-id',
+        clientSecret: 'cognito-secret',
+        providerMetadata: { domain: 'auth.example.com', region: 'us-east-1' },
+      }),
     ).rejects.toMatchObject({
       status: 400,
       message: 'Enabled Cognito connector requires providerMetadata.userPoolId.',
@@ -180,34 +165,28 @@ describe('ConnectorService', () => {
     const service = new ConnectorService(repository)
 
     await expect(
-      service.create(
-        {
-          providerType: 'generic_oauth',
-          providerId: 'missing-authorization',
-          displayName: 'Missing authorization',
-          clientId: 'client-id',
-          clientSecretBinding: 'GENERIC_CLIENT_SECRET',
-          tokenEndpoint: 'https://idp.example.com/token',
-        },
-        { GENERIC_CLIENT_SECRET: 'secret' },
-      ),
+      service.create({
+        providerType: 'generic_oauth',
+        providerId: 'missing-authorization',
+        displayName: 'Missing authorization',
+        clientId: 'client-id',
+        clientSecret: 'generic-secret',
+        tokenEndpoint: 'https://idp.example.com/token',
+      }),
     ).rejects.toMatchObject({
       status: 400,
       message: 'Enabled generic OAuth connector requires issuer or authorizationEndpoint.',
     })
 
     await expect(
-      service.create(
-        {
-          providerType: 'generic_oauth',
-          providerId: 'missing-token',
-          displayName: 'Missing token',
-          clientId: 'client-id',
-          clientSecretBinding: 'GENERIC_CLIENT_SECRET',
-          authorizationEndpoint: 'https://idp.example.com/authorize',
-        },
-        { GENERIC_CLIENT_SECRET: 'secret' },
-      ),
+      service.create({
+        providerType: 'generic_oauth',
+        providerId: 'missing-token',
+        displayName: 'Missing token',
+        clientId: 'client-id',
+        clientSecret: 'generic-secret',
+        authorizationEndpoint: 'https://idp.example.com/authorize',
+      }),
     ).rejects.toMatchObject({
       status: 400,
       message: 'Enabled generic OAuth connector requires tokenEndpoint when issuer is not provided.',
@@ -226,7 +205,7 @@ describe('ConnectorService', () => {
         providerId: 'github',
         displayName: 'GitHub',
         clientId: 'client-id',
-        clientSecretBinding: 'GITHUB_CLIENT_SECRET',
+        clientSecret: 'GITHUB_CLIENT_SECRET',
       }),
     ).rejects.toMatchObject({
       status: 400,
@@ -250,18 +229,15 @@ describe('ConnectorService', () => {
       pagination: { limit: 25, offset: 0, total: 0, hasMore: false, nextOffset: null },
     })
     await expect(
-      service.create(
-        {
-          providerType: 'social',
-          providerId: 'github',
-          displayName: 'GitHub',
-          clientId: 'client-id',
-          clientSecretBinding: 'GITHUB_CLIENT_SECRET',
-          scopes: ['read:user'],
-          providerMetadata: { prompt: 'consent' },
-        },
-        { GITHUB_CLIENT_SECRET: 'github-secret' },
-      ),
+      service.create({
+        providerType: 'social',
+        providerId: 'github',
+        displayName: 'GitHub',
+        clientId: 'client-id',
+        clientSecret: 'github-secret',
+        scopes: ['read:user'],
+        providerMetadata: { prompt: 'consent' },
+      }),
     ).resolves.toMatchObject({
       id: 'idp_github',
       providerId: 'github',
@@ -279,7 +255,7 @@ describe('ConnectorService', () => {
         providerId: 'github',
         slug: 'github',
         enabled: true,
-        clientSecretBinding: 'GITHUB_CLIENT_SECRET',
+        clientSecret: 'github-secret',
       }),
     )
     expect(repository.update).toHaveBeenCalledWith('idp_github', {
@@ -305,9 +281,9 @@ describe('ConnectorService', () => {
     const repository = createRepository({ byId: current })
     const service = new ConnectorService(repository)
 
-    await expect(service.update('idp_google', { clientSecretBinding: null })).rejects.toMatchObject({
+    await expect(service.update('idp_google', { clientSecret: null })).rejects.toMatchObject({
       status: 400,
-      message: 'Enabled connector requires clientSecretBinding.',
+      message: 'Enabled connector requires clientSecret.',
     })
     expect(repository.update).not.toHaveBeenCalled()
   })
@@ -320,18 +296,17 @@ describe('ConnectorService', () => {
             connector({
               providerType: 'social',
               providerId: 'cognito',
-              clientSecretBinding: 'COGNITO_CLIENT_SECRET',
+              clientSecret: 'cognito-secret',
               providerMetadata: { domain: 'auth.example.com', region: 'us-east-1' },
             }),
           ],
         }),
-        { COGNITO_CLIENT_SECRET: 'secret' } as unknown as Env,
       ),
     ).resolves.toMatchObject({ trustedProviders: [], socialProviders: {} })
   })
 
   it('accepts disabled incomplete connectors and generic OAuth endpoint configuration', async () => {
-    const disabled = connector({ enabled: false, clientId: null, clientSecretBinding: null })
+    const disabled = connector({ enabled: false, clientId: null, clientSecret: null })
     const repository = createRepository({ createResult: disabled })
     const service = new ConnectorService(repository)
     const endpointConfigured = connector({
@@ -341,7 +316,7 @@ describe('ConnectorService', () => {
       authorizationEndpoint: 'https://idp.example.com/authorize',
       tokenEndpoint: 'https://idp.example.com/token',
       userInfoEndpoint: 'https://idp.example.com/userinfo',
-      clientSecretBinding: 'GENERIC_CLIENT_SECRET',
+      clientSecret: 'GENERIC_CLIENT_SECRET',
       scopes: null,
     })
     await expect(
@@ -352,9 +327,7 @@ describe('ConnectorService', () => {
         enabled: false,
       }),
     ).resolves.toMatchObject({ enabled: false, clientId: null })
-    const config = await loadAuthConnectorConfig(createRepository({ enabled: [endpointConfigured] }), {
-      GENERIC_CLIENT_SECRET: 'generic-secret',
-    } as unknown as Env)
+    const config = await loadAuthConnectorConfig(createRepository({ enabled: [endpointConfigured] }))
 
     expect(config.genericOAuthProviders).toEqual([
       expect.objectContaining({
@@ -367,25 +340,13 @@ describe('ConnectorService', () => {
   })
 
   it('reports configuration readiness without exposing secret values', async () => {
-    const connectorRow = connector({ id: 'idp_google', providerId: 'google', clientSecretBinding: 'GOOGLE_SECRET' })
+    const connectorRow = connector({ id: 'idp_google', providerId: 'google', clientSecret: 'GOOGLE_SECRET' })
     const service = new ConnectorService(createRepository({ byId: connectorRow }))
 
-    await expect(
-      service.readiness('idp_google', { GOOGLE_SECRET: 'resolved-secret' } as unknown as Env),
-    ).resolves.toEqual({
+    await expect(service.readiness('idp_google')).resolves.toEqual({
       connectorId: 'idp_google',
       ready: true,
-      checks: expect.arrayContaining([expect.objectContaining({ key: 'clientSecretAvailable', ok: true })]),
-    })
-    await expect(service.readiness('idp_google', {} as Env)).resolves.toMatchObject({
-      connectorId: 'idp_google',
-      ready: false,
-      checks: expect.arrayContaining([expect.objectContaining({ key: 'clientSecretAvailable', ok: false })]),
-    })
-    await expect(service.readiness('idp_google', { GOOGLE_SECRET: '' } as unknown as Env)).resolves.toMatchObject({
-      connectorId: 'idp_google',
-      ready: false,
-      checks: expect.arrayContaining([expect.objectContaining({ key: 'clientSecretAvailable', ok: false })]),
+      checks: expect.arrayContaining([expect.objectContaining({ key: 'clientSecret', ok: true })]),
     })
 
     const disabledService = new ConnectorService(
@@ -394,11 +355,11 @@ describe('ConnectorService', () => {
           id: 'idp_disabled',
           enabled: false,
           clientId: null,
-          clientSecretBinding: null,
+          clientSecret: null,
         }),
       }),
     )
-    await expect(disabledService.readiness('idp_disabled', {} as Env)).resolves.toMatchObject({
+    await expect(disabledService.readiness('idp_disabled')).resolves.toMatchObject({
       connectorId: 'idp_disabled',
       ready: false,
       checks: expect.arrayContaining([
@@ -421,15 +382,13 @@ describe('ConnectorService', () => {
       id: 'idp_generic',
       providerType: 'generic_oauth',
       providerId: 'generic-oauth',
-      clientSecretBinding: 'GENERIC_SECRET',
+      clientSecret: 'GENERIC_SECRET',
       issuer: 'https://idp.example.com',
       userInfoEndpoint: 'https://idp.example.com/userinfo',
     })
     const service = new ConnectorService(createRepository({ byId: connectorRow }))
 
-    await expect(
-      service.readiness('idp_generic', { GENERIC_SECRET: 'resolved-secret' } as unknown as Env),
-    ).resolves.toEqual({
+    await expect(service.readiness('idp_generic')).resolves.toEqual({
       connectorId: 'idp_generic',
       ready: false,
       checks: expect.arrayContaining([
@@ -449,20 +408,20 @@ describe('ConnectorService', () => {
           id: 'idp_generic',
           providerType: 'generic_oauth',
           providerId: 'generic-oauth',
-          clientSecretBinding: null,
+          clientSecret: null,
           issuer: 'https://idp.example.com',
         }),
       }),
     )
 
-    await expect(service.readiness('idp_generic', {} as Env)).resolves.toEqual({
+    await expect(service.readiness('idp_generic')).resolves.toEqual({
       connectorId: 'idp_generic',
       ready: false,
       checks: expect.arrayContaining([
         expect.objectContaining({
-          key: 'clientSecretBinding',
+          key: 'clientSecret',
           ok: false,
-          message: 'Client secret binding name is missing.',
+          message: 'Client secret is missing.',
         }),
         expect.objectContaining({
           key: 'oauthEndpoints',
@@ -478,16 +437,14 @@ describe('ConnectorService', () => {
           id: 'idp_generic_explicit',
           providerType: 'generic_oauth',
           providerId: 'generic-oauth',
-          clientSecretBinding: 'GENERIC_SECRET',
+          clientSecret: 'GENERIC_SECRET',
           issuer: null,
           authorizationEndpoint: 'https://idp.example.com/authorize',
           tokenEndpoint: 'https://idp.example.com/token',
         }),
       }),
     )
-    await expect(
-      explicitService.readiness('idp_generic_explicit', { GENERIC_SECRET: 'resolved-secret' } as unknown as Env),
-    ).resolves.toEqual({
+    await expect(explicitService.readiness('idp_generic_explicit')).resolves.toEqual({
       connectorId: 'idp_generic_explicit',
       ready: true,
       checks: expect.arrayContaining([
@@ -505,16 +462,14 @@ describe('ConnectorService', () => {
           id: 'idp_generic_incomplete',
           providerType: 'generic_oauth',
           providerId: 'generic-oauth',
-          clientSecretBinding: 'GENERIC_SECRET',
+          clientSecret: 'GENERIC_SECRET',
           issuer: null,
           authorizationEndpoint: null,
           tokenEndpoint: null,
         }),
       }),
     )
-    await expect(
-      incompleteService.readiness('idp_generic_incomplete', { GENERIC_SECRET: 'resolved-secret' } as unknown as Env),
-    ).resolves.toEqual({
+    await expect(incompleteService.readiness('idp_generic_incomplete')).resolves.toEqual({
       connectorId: 'idp_generic_incomplete',
       ready: false,
       checks: expect.arrayContaining([
@@ -527,7 +482,7 @@ describe('ConnectorService', () => {
     })
   })
 
-  it('omits unsupported, incomplete, and unavailable enabled connector rows from auth config', async () => {
+  it('omits unsupported and incomplete enabled connector rows from auth config', async () => {
     const service = new ConnectorService(createRepository())
 
     await expect(
@@ -536,24 +491,16 @@ describe('ConnectorService', () => {
         providerId: 'unsupported',
         displayName: 'Unsupported',
         clientId: 'client-id',
-        clientSecretBinding: 'UNSUPPORTED_SECRET',
+        clientSecret: 'UNSUPPORTED_SECRET',
       }),
     ).rejects.toMatchObject({ status: 400, message: 'Unsupported social provider.' })
     await expect(
-      loadAuthConnectorConfig(createRepository({ enabled: [connector({ clientId: null })] }), {
-        GOOGLE_CLIENT_SECRET: 'google-secret',
-      } as unknown as Env),
-    ).resolves.toMatchObject({ trustedProviders: [] })
+      loadAuthConnectorConfig(createRepository({ enabled: [connector({ clientId: null })] })),
+    ).resolves.toMatchObject({
+      trustedProviders: [],
+    })
     await expect(
-      loadAuthConnectorConfig(createRepository({ enabled: [connector({ clientSecretBinding: null })] }), {
-        GOOGLE_CLIENT_SECRET: 'google-secret',
-      } as unknown as Env),
-    ).resolves.toMatchObject({ trustedProviders: [] })
-    await expect(
-      loadAuthConnectorConfig(
-        createRepository({ enabled: [connector({ clientSecretBinding: 'GOOGLE_CLIENT_SECRET' })] }),
-        { GOOGLE_CLIENT_SECRET: '' } as unknown as Env,
-      ),
+      loadAuthConnectorConfig(createRepository({ enabled: [connector({ clientSecret: null })] })),
     ).resolves.toMatchObject({
       trustedProviders: [],
       socialProviders: {},
@@ -569,11 +516,10 @@ describe('ConnectorService', () => {
               issuer: null,
               authorizationEndpoint: 'https://idp.example.com/authorize',
               tokenEndpoint: null,
-              clientSecretBinding: 'GENERIC_CLIENT_SECRET',
+              clientSecret: 'GENERIC_CLIENT_SECRET',
             }),
           ],
         }),
-        { GENERIC_CLIENT_SECRET: 'generic-secret' } as unknown as Env,
       ),
     ).resolves.toMatchObject({ genericOAuthProviders: [] })
     await expect(
@@ -586,18 +532,17 @@ describe('ConnectorService', () => {
               issuer: null,
               authorizationEndpoint: null,
               tokenEndpoint: 'https://idp.example.com/token',
-              clientSecretBinding: 'GENERIC_CLIENT_SECRET',
+              clientSecret: 'GENERIC_CLIENT_SECRET',
             }),
             connector({
               providerType: 'generic_oauth',
               providerId: 'mixed-generic',
               issuer: 'https://idp.example.com',
               authorizationEndpoint: 'https://idp.example.com/authorize',
-              clientSecretBinding: 'GENERIC_CLIENT_SECRET',
+              clientSecret: 'GENERIC_CLIENT_SECRET',
             }),
           ],
         }),
-        { GENERIC_CLIENT_SECRET: 'generic-secret' } as unknown as Env,
       ),
     ).resolves.toMatchObject({ genericOAuthProviders: [] })
     await expect(
@@ -607,22 +552,21 @@ describe('ConnectorService', () => {
             connector({
               providerType: 'social',
               providerId: 'cognito',
-              clientSecretBinding: 'COGNITO_CLIENT_SECRET',
+              clientSecret: 'COGNITO_CLIENT_SECRET',
               providerMetadata: { domain: 'auth.example.com', region: 'us-east-1' },
             }),
             connector({
               providerType: 'social',
               providerId: 'unsupported',
-              clientSecretBinding: 'UNSUPPORTED_SECRET',
+              clientSecret: 'UNSUPPORTED_SECRET',
             }),
             connector({
               providerType: 'saml',
               providerId: 'google',
-              clientSecretBinding: 'SAML_SECRET',
+              clientSecret: 'SAML_SECRET',
             } as Partial<ConnectorRow>),
           ],
         }),
-        { COGNITO_CLIENT_SECRET: 'secret', UNSUPPORTED_SECRET: 'secret', SAML_SECRET: 'secret' } as unknown as Env,
       ),
     ).resolves.toMatchObject({ trustedProviders: [] })
     await expect(
@@ -631,7 +575,7 @@ describe('ConnectorService', () => {
         providerId: 'mixed',
         displayName: 'Mixed',
         clientId: 'mixed-client',
-        clientSecretBinding: 'MIXED_SECRET',
+        clientSecret: 'MIXED_SECRET',
         issuer: 'https://idp.example.com',
         authorizationEndpoint: 'https://idp.example.com/authorize',
       }),
@@ -672,7 +616,7 @@ function connector(overrides: Partial<ConnectorRow> = {}): ConnectorRow {
     displayName: 'Google',
     enabled: true,
     clientId: 'client-id',
-    clientSecretBinding: 'GOOGLE_CLIENT_SECRET',
+    clientSecret: 'GOOGLE_CLIENT_SECRET',
     issuer: null,
     authorizationEndpoint: null,
     tokenEndpoint: null,

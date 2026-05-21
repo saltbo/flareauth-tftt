@@ -23,13 +23,14 @@ describe('createConfigzService', () => {
     )
 
     expect(service).toBeInstanceOf(ConfigzService)
-    expect((service as unknown as { options: unknown }).options).toEqual({
+    const options = (service as unknown as { options: Record<string, unknown> }).options
+    expect(options).toMatchObject({
       issuer: 'https://auth.example.com',
-      magicLinkEnabled: true,
       emailOtpEnabled: true,
       usernameEnabled: true,
       onboardingRepository,
       securityPolicy,
     })
+    expect(options.availableIdentityProviderIds).toEqual(expect.any(Function))
   })
 })

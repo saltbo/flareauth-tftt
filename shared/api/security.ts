@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 export const mfaPolicyModeSchema = z.enum(['optional', 'required'])
 
+export const mfaPolicySchema = z.object({
+  mode: mfaPolicyModeSchema,
+  authenticatorAppEnabled: z.boolean().optional(),
+  emailOtpEnabled: z.boolean().optional(),
+  backupCodesEnabled: z.boolean().optional(),
+})
+
 export const passwordPolicySchema = z.object({
   minLength: z.number().int().min(8).max(128),
   requiredCharacterTypes: z.number().int().min(1).max(4),
@@ -42,9 +49,7 @@ export const blocklistPolicySchema = z.object({
 })
 
 export const securityPolicySchema = z.object({
-  mfa: z.object({
-    mode: mfaPolicyModeSchema,
-  }),
+  mfa: mfaPolicySchema,
   passkeys: z.object({
     enabled: z.boolean(),
     rpId: z.string().min(1),
@@ -63,14 +68,13 @@ export const securityPolicySchema = z.object({
 })
 
 export const updateSecurityPolicySchema = z.object({
-  policy: securityPolicySchema
-    .pick({
-      mfa: true,
-      password: true,
-      captcha: true,
-      blocklist: true,
-    })
-    .partial(),
+  policy: z.object({
+    mfa: mfaPolicySchema.partial().optional(),
+    passkeys: securityPolicySchema.shape.passkeys.pick({ enabled: true }).partial().optional(),
+    password: passwordPolicySchema.optional(),
+    captcha: captchaPolicySchema.optional(),
+    blocklist: blocklistPolicySchema.optional(),
+  }),
 })
 
 export const securityTotpEnrollmentSchema = z.object({
@@ -83,15 +87,6 @@ export const securityTotpDisableSchema = z.object({
 })
 
 export const securityTotpVerificationSchema = z.object({
-  code: z.string().min(1),
-  trustDevice: z.boolean().optional(),
-})
-
-export const securityOtpRequestSchema = z.object({
-  trustDevice: z.boolean().optional(),
-})
-
-export const securityOtpVerificationSchema = z.object({
   code: z.string().min(1),
   trustDevice: z.boolean().optional(),
 })
@@ -117,8 +112,6 @@ export type UpdateSecurityPolicyInput = z.infer<typeof updateSecurityPolicySchem
 export type SecurityTotpEnrollmentInput = z.infer<typeof securityTotpEnrollmentSchema>
 export type SecurityTotpDisableInput = z.infer<typeof securityTotpDisableSchema>
 export type SecurityTotpVerificationInput = z.infer<typeof securityTotpVerificationSchema>
-export type SecurityOtpRequestInput = z.infer<typeof securityOtpRequestSchema>
-export type SecurityOtpVerificationInput = z.infer<typeof securityOtpVerificationSchema>
 export type SecurityBackupCodesInput = z.infer<typeof securityBackupCodesRequestSchema>
 export type SecurityPasskeyUpdateInput = z.infer<typeof securityPasskeyUpdateSchema>
 export type SecurityPasskeyRegistrationOptionsInput = z.infer<typeof securityPasskeyRegistrationOptionsSchema>

@@ -2,12 +2,14 @@ import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, genericOAuth, jwt, twoFactor } from 'better-auth/plugins'
+import { admin, genericOAuth, jwt, oneTap, phoneNumber, siwe, twoFactor } from 'better-auth/plugins'
 import { createAccessControl } from 'better-auth/plugins/access'
 import { emailOTP } from 'better-auth/plugins/email-otp'
-import { magicLink } from 'better-auth/plugins/magic-link'
 import { organization } from 'better-auth/plugins/organization'
 import { username } from 'better-auth/plugins/username'
+import { verifyMessage } from 'viem'
+import { parseSiweMessage, validateSiweMessage } from 'viem/siwe'
+import type { ManagementSignInSettingsResponse } from '../shared/api/management'
 import type { SecurityPolicy } from '../shared/api/security'
 import type { Database } from './db/client'
 import * as schema from './db/schema'
@@ -63,6 +65,10 @@ export function createAuth(
     genericOAuthProviders: [],
     cacheKey: '[]',
   },
+  options: {
+    builtInProviders?: ManagementSignInSettingsResponse['builtInProviders']
+    twoFactorEmailOtpEnabled?: boolean
+  } = {},
 ) {
   const authorization = new AuthorizationService(createDrizzleAuthorizationRepository(db))
 
@@ -137,14 +143,7 @@ export function createAuth(
         })
       },
       onPasswordReset: async ({ user }) => {
-        await emailSender.send({
-          to: user.email,
-          template: {
-            type: 'security-notification',
-            title: 'Your password was changed',
-            body: 'Your FlareAuth password was changed. If this was not you, reset your password immediately.',
-          },
-        })
+        sendPasswordChangedNotification(emailSender, user.email)
       },
       password: {
         hash: hashPassword,
@@ -173,17 +172,24 @@ export function createAuth(
         allowPasswordless: true,
         twoFactorCookieMaxAge: 60 * 10,
         trustDeviceMaxAge: 60 * 60 * 24 * 30,
-        otpOptions: {
-          sendOTP: async ({ user, otp }) => {
-            await emailSender.send({
-              to: user.email,
-              template: {
-                type: 'otp',
-                otp,
-              },
-            })
-          },
+        totpOptions: {
+          disable: !securityPolicy.mfa.authenticatorAppEnabled,
         },
+        ...(options.twoFactorEmailOtpEnabled
+          ? {
+              otpOptions: {
+                sendOTP: async ({ user, otp }) => {
+                  await emailSender.send({
+                    to: user.email,
+                    template: {
+                      type: 'otp',
+                      otp,
+                    },
+                  })
+                },
+              },
+            }
+          : {}),
       }),
       passkey({
         rpID: securityPolicy.passkeys.rpId,
@@ -194,18 +200,11 @@ export function createAuth(
           userVerification: 'preferred',
         },
       }),
-      magicLink({
-        sendMagicLink: async ({ email, url }) => {
-          await emailSender.send({
-            to: email,
-            template: {
-              type: 'magic-link',
-              url,
-            },
-          })
-        },
-      }),
       emailOTP({
+        changeEmail: {
+          enabled: true,
+          verifyCurrentEmail: false,
+        },
         sendVerificationOTP: async ({ email, otp }) => {
           await emailSender.send({
             to: email,
@@ -216,6 +215,61 @@ export function createAuth(
           })
         },
       }),
+      ...(options.builtInProviders?.phone.enabled
+        ? [
+            phoneNumber({
+              otpLength: options.builtInProviders.phone.otpLength,
+              expiresIn: options.builtInProviders.phone.expiresInSeconds,
+              requireVerification: options.builtInProviders.phone.requireVerification,
+              signUpOnVerification: options.builtInProviders.phone.signUpOnVerification
+                ? {
+                    getTempEmail: (phoneNumber) => `${phoneNumber.replace(/\D/g, '')}@phone.local`,
+                    getTempName: (phoneNumber) => phoneNumber,
+                  }
+                : undefined,
+              sendOTP: async ({ phoneNumber, code }) => {
+                await sendSmsOtp(options.builtInProviders?.phone, phoneNumber, code)
+              },
+              sendPasswordResetOTP: async ({ phoneNumber, code }) => {
+                await sendSmsOtp(options.builtInProviders?.phone, phoneNumber, code)
+              },
+            }),
+          ]
+        : []),
+      ...(options.builtInProviders?.oneTap.enabled
+        ? [
+            oneTap({
+              clientId: options.builtInProviders.oneTap.clientId || undefined,
+              disableSignup: options.builtInProviders.oneTap.disableSignUp,
+            }),
+          ]
+        : []),
+      ...(options.builtInProviders?.web3Wallet.enabled
+        ? [
+            siwe({
+              domain: siweDomain(baseURL, options.builtInProviders.web3Wallet.domain),
+              emailDomainName: options.builtInProviders.web3Wallet.emailDomainName || 'wallet.local',
+              anonymous: options.builtInProviders.web3Wallet.anonymous,
+              getNonce: async () => createNonce(),
+              verifyMessage: async ({ address, chainId, message, signature, cacao }) => {
+                if (!options.builtInProviders?.web3Wallet.chains.includes(chainId)) return false
+                const parsed = parseSiweMessage(message)
+                const valid = validateSiweMessage({
+                  address: address as `0x${string}`,
+                  domain: siweDomain(baseURL, options.builtInProviders.web3Wallet.domain),
+                  message: parsed,
+                  nonce: cacao?.p.nonce,
+                })
+                if (!valid || parsed.chainId !== chainId) return false
+                return verifyMessage({
+                  address: address as `0x${string}`,
+                  message,
+                  signature: signature as `0x${string}`,
+                })
+              },
+            }),
+          ]
+        : []),
       username({
         minUsernameLength: 3,
         maxUsernameLength: 64,
@@ -266,6 +320,109 @@ export function createAuth(
 }
 
 export type Auth = ReturnType<typeof createAuth>
+
+function siweDomain(baseURL: string, configuredDomain: string) {
+  if (configuredDomain.trim()) return configuredDomain.trim()
+  return new URL(baseURL).host
+}
+
+function createNonce() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function sendPasswordChangedNotification(emailSender: TransactionalEmailSender, email: string) {
+  void emailSender
+    .send({
+      to: email,
+      template: {
+        type: 'security-notification',
+        title: 'Your password was changed',
+        body: 'Your FlareAuth password was changed. If this was not you, reset your password immediately.',
+      },
+    })
+    .catch((error: unknown) => {
+      console.error('Failed to send password changed notification.', error)
+    })
+}
+
+async function sendSmsOtp(
+  config: ManagementSignInSettingsResponse['builtInProviders']['phone'] | undefined,
+  phoneNumber: string,
+  code: string,
+) {
+  if (!config) throw new Error('Phone provider is not configured.')
+
+  if (config.smsProvider === 'twilio') {
+    if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFromNumber) {
+      throw new Error('Twilio SMS provider is not configured.')
+    }
+    const body = new URLSearchParams({
+      To: phoneNumber,
+      From: config.twilioFromNumber,
+      Body: `Your verification code is ${code}`,
+    })
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${config.twilioAccountSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${btoa(`${config.twilioAccountSid}:${config.twilioAuthToken}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      },
+    )
+    if (!response.ok) throw new Error('Twilio SMS delivery failed.')
+    return
+  }
+
+  if (config.smsProvider === 'vonage') {
+    if (!config.vonageApiKey || !config.vonageApiSecret || !config.vonageFrom) {
+      throw new Error('Vonage SMS provider is not configured.')
+    }
+    const body = new URLSearchParams({
+      api_key: config.vonageApiKey,
+      api_secret: config.vonageApiSecret,
+      to: phoneNumber,
+      from: config.vonageFrom,
+      text: `Your verification code is ${code}`,
+    })
+    const response = await fetch('https://rest.nexmo.com/sms/json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    if (!response.ok) throw new Error('Vonage SMS delivery failed.')
+    const payload = (await response.json()) as { messages?: Array<{ status?: string }> }
+    if (payload.messages?.[0]?.status !== '0') throw new Error('Vonage SMS delivery failed.')
+    return
+  }
+
+  if (config.smsProvider === 'messagebird') {
+    if (!config.messageBirdAccessKey || !config.messageBirdOriginator) {
+      throw new Error('MessageBird SMS provider is not configured.')
+    }
+    const body = new URLSearchParams({
+      originator: config.messageBirdOriginator,
+      recipients: phoneNumber,
+      body: `Your verification code is ${code}`,
+    })
+    const response = await fetch('https://rest.messagebird.com/messages', {
+      method: 'POST',
+      headers: {
+        Authorization: `AccessKey ${config.messageBirdAccessKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body,
+    })
+    if (!response.ok) throw new Error('MessageBird SMS delivery failed.')
+    return
+  }
+
+  throw new Error(`Unsupported SMS provider: ${config.smsProvider}`)
+}
 
 export function buildOAuthAccessTokenClaims(
   authorization: Pick<AuthorizationService, 'buildTokenClaims'>,

@@ -14,7 +14,7 @@ describe('connector API contracts', () => {
         providerId: 'google',
         displayName: 'Google',
         clientId: 'google-client-id',
-        clientSecretBinding: 'GOOGLE_CLIENT_SECRET',
+        clientSecret: 'GOOGLE_CLIENT_SECRET',
       }),
     ).toMatchObject({
       providerType: 'social',
@@ -29,7 +29,7 @@ describe('connector API contracts', () => {
         displayName: 'Google',
         clientId: 'google-client-id',
       }),
-    ).toThrow(/clientSecretBinding is required/)
+    ).toThrow(/clientSecret is required/)
 
     expect(
       createConnectorRequestSchema.parse({
@@ -51,7 +51,7 @@ describe('connector API contracts', () => {
         providerId: 'okta-main',
         displayName: 'Okta',
         clientId: 'okta-client-id',
-        clientSecretBinding: 'OKTA_CLIENT_SECRET',
+        clientSecret: 'OKTA_CLIENT_SECRET',
         issuer: 'https://idp.example.com/oauth2/default',
       }),
     ).toMatchObject({
@@ -66,7 +66,7 @@ describe('connector API contracts', () => {
         providerId: 'entra-main',
         displayName: 'Microsoft Entra ID',
         clientId: 'entra-client-id',
-        clientSecretBinding: 'ENTRA_CLIENT_SECRET',
+        clientSecret: 'ENTRA_CLIENT_SECRET',
         authorizationEndpoint: 'https://login.example.com/oauth2/v2.0/authorize',
         tokenEndpoint: 'https://login.example.com/oauth2/v2.0/token',
       }),
@@ -82,7 +82,7 @@ describe('connector API contracts', () => {
         providerId: 'broken-main',
         displayName: 'Broken',
         clientId: 'broken-client-id',
-        clientSecretBinding: 'BROKEN_CLIENT_SECRET',
+        clientSecret: 'BROKEN_CLIENT_SECRET',
       }),
     ).toThrow(/Generic OAuth requires issuer or authorizationEndpoint/)
 
@@ -92,7 +92,7 @@ describe('connector API contracts', () => {
         providerId: 'mixed-main',
         displayName: 'Mixed',
         clientId: 'mixed-client-id',
-        clientSecretBinding: 'MIXED_CLIENT_SECRET',
+        clientSecret: 'MIXED_CLIENT_SECRET',
         issuer: 'https://idp.example.com',
         authorizationEndpoint: 'https://idp.example.com/oauth2/v1/authorize',
       }),
@@ -104,7 +104,7 @@ describe('connector API contracts', () => {
         providerId: 'half-configured-main',
         displayName: 'Half Configured',
         clientId: 'half-client-id',
-        clientSecretBinding: 'HALF_CLIENT_SECRET',
+        clientSecret: 'HALF_CLIENT_SECRET',
         authorizationEndpoint: 'https://login.example.com/oauth2/v2.0/authorize',
       }),
     ).toThrow(/Generic OAuth requires tokenEndpoint when issuer is not provided/)
@@ -113,7 +113,7 @@ describe('connector API contracts', () => {
   it('allows nullable connector updates without defaulting omitted scopes', () => {
     const parsed = updateConnectorRequestSchema.parse({
       clientId: null,
-      clientSecretBinding: null,
+      clientSecret: null,
       issuer: null,
       authorizationEndpoint: null,
       tokenEndpoint: null,
@@ -121,7 +121,7 @@ describe('connector API contracts', () => {
 
     expect(parsed).toMatchObject({
       clientId: null,
-      clientSecretBinding: null,
+      clientSecret: null,
       issuer: null,
       authorizationEndpoint: null,
       tokenEndpoint: null,

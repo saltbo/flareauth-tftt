@@ -3,11 +3,7 @@ import { Hono } from 'hono'
 import { paginationMetadata, paginationQuerySchema } from '../../../../shared/api/pagination'
 import {
   securityBackupCodesRequestSchema,
-  securityOtpRequestSchema,
-  securityOtpVerificationSchema,
-  securityPasskeyRegistrationOptionsSchema,
   securityPasskeyUpdateSchema,
-  securityPasskeyVerificationSchema,
   securityTotpDisableSchema,
   securityTotpEnrollmentSchema,
   securityTotpVerificationSchema,
@@ -43,6 +39,7 @@ export function accountSecurityRoutes(
 
   app.post('/mfa/totp-enrollment', async (c) => {
     const body = await readJson(c, securityTotpEnrollmentSchema)
+    await assertAuthenticatorAppEnabled(c, security)
 
     try {
       return c.json(await authApi.enableTwoFactor({ body, headers: c.req.raw.headers }), 201)
@@ -53,6 +50,7 @@ export function accountSecurityRoutes(
 
   app.post('/mfa/totp-verification', async (c) => {
     const body = await readJson(c, securityTotpVerificationSchema)
+    await assertAuthenticatorAppEnabled(c, security)
 
     try {
       return c.json(await authApi.verifyTOTP({ body, headers: c.req.raw.headers }))
@@ -77,26 +75,6 @@ export function accountSecurityRoutes(
     }
   })
 
-  app.post('/mfa/otp', async (c) => {
-    const body = await readJson(c, securityOtpRequestSchema)
-
-    try {
-      return c.json(await authApi.sendTwoFactorOTP({ body, headers: c.req.raw.headers }))
-    } catch (error) {
-      throw toBoundaryError(error)
-    }
-  })
-
-  app.post('/mfa/otp-verification', async (c) => {
-    const body = await readJson(c, securityOtpVerificationSchema)
-
-    try {
-      return c.json(await authApi.verifyTwoFactorOTP({ body, headers: c.req.raw.headers }))
-    } catch (error) {
-      throw toBoundaryError(error)
-    }
-  })
-
   app.post('/mfa/backup-codes', async (c) => {
     const body = await readJson(c, securityBackupCodesRequestSchema)
 
@@ -111,33 +89,6 @@ export function accountSecurityRoutes(
     const state = await security.getSecurityState(currentUserId(c))
     const page = await security.listPasskeys(currentUserId(c), readQuery(c, paginationQuerySchema))
     return c.json({ passkeys: page.items, policy: state.policy.passkeys, pagination: paginationMetadata(page) })
-  })
-
-  app.post('/passkeys/registration-options', async (c) => {
-    await assertPasskeysEnabled(c, security)
-    const query = await readJson(c, securityPasskeyRegistrationOptionsSchema)
-
-    try {
-      return c.json(
-        await authApi.generatePasskeyRegistrationOptions({
-          query,
-          headers: c.req.raw.headers,
-        }),
-      )
-    } catch (error) {
-      throw toBoundaryError(error)
-    }
-  })
-
-  app.post('/passkeys/registration-verification', async (c) => {
-    await assertPasskeysEnabled(c, security)
-    const body = await readJson(c, securityPasskeyVerificationSchema)
-
-    try {
-      return c.json(await authApi.verifyPasskeyRegistration({ body, headers: c.req.raw.headers }), 201)
-    } catch (error) {
-      throw toBoundaryError(error)
-    }
   })
 
   app.patch('/passkeys/:id', async (c) => {
@@ -165,14 +116,19 @@ export function accountSecurityRoutes(
 
   app.get('/sessions', async (c) => {
     await assertSessionsEnabled(c, accountCenterSettings)
-    const page = await users.listSessions(currentUserId(c), readQuery(c, paginationQuerySchema))
-    return c.json({ sessions: page.items, pagination: paginationMetadata(page) })
+    const authContext = getAuthContext(c)
+    const page = await users.listSessions(authContext.user!.id, readQuery(c, paginationQuerySchema))
+    const currentSessionId = authContext.session?.session.id
+    return c.json({
+      sessions: page.items.map((session) => ({ ...session, current: session.id === currentSessionId })),
+      pagination: paginationMetadata(page),
+    })
   })
 
   app.delete('/sessions', async (c) => {
     await assertSessionsEnabled(c, accountCenterSettings)
     try {
-      return c.json(await authApi.revokeSessions({ headers: c.req.raw.headers }))
+      return c.json(await authApi.revokeOtherSessions({ headers: c.req.raw.headers }))
     } catch (error) {
       throw toBoundaryError(error)
     }
@@ -201,6 +157,14 @@ async function assertPasskeysEnabled(c: Context, security: SecurityRepository) {
 
   if (!state.policy.passkeys.enabled) {
     throw badRequest('Passkeys are disabled for this deployment.')
+  }
+}
+
+async function assertAuthenticatorAppEnabled(c: Context, security: SecurityRepository) {
+  const state = await security.getSecurityState(currentUserId(c))
+
+  if (!state.policy.mfa.authenticatorAppEnabled) {
+    throw badRequest('Authenticator app MFA is disabled for this deployment.')
   }
 }
 

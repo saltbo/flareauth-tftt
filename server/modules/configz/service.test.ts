@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { type ConfigzRepository, ConfigzService, defaultAccountCenterSettings } from './service'
 
 describe('ConfigzService', () => {
-  it('composes hosted auth config from defaults without leaking connector secrets', async () => {
+  it('composes hosted auth config without leaking connector secrets', async () => {
     const service = new ConfigzService(createRepository(), {
       issuer: 'https://auth.example.com',
-      magicLinkEnabled: true,
       emailOtpEnabled: true,
       usernameEnabled: true,
     })
@@ -19,10 +18,23 @@ describe('ConfigzService', () => {
         passwordEnabled: true,
         signupEnabled: true,
         socialLoginEnabled: true,
-        magicLinkEnabled: true,
         emailOtpEnabled: true,
         usernameEnabled: true,
         identifierFirst: false,
+      },
+      builtInProviders: {
+        phone: { enabled: false },
+        web3Wallet: { enabled: false, chains: [1] },
+        oneTap: {
+          enabled: false,
+          clientId: '',
+          autoSelect: false,
+          cancelOnTapOutside: true,
+          uxMode: 'popup',
+          context: 'signin',
+          promptBaseDelayMs: 1000,
+          promptMaxAttempts: 5,
+        },
       },
       branding: {
         logoUrl: null,
@@ -42,10 +54,6 @@ describe('ConfigzService', () => {
         headline: 'Sign in to FlareAuth',
         description: 'Use your account to continue securely.',
       },
-      defaults: {
-        applicationId: null,
-        redirectUri: null,
-      },
       auth: {
         basePath: '/api/auth',
         signInEmailPath: '/api/auth/sign-in/email',
@@ -56,7 +64,6 @@ describe('ConfigzService', () => {
         resetPasswordPath: '/api/auth/reset-password',
         sendVerificationEmailPath: '/api/auth/send-verification-email',
         verifyEmailPath: '/api/auth/verify-email',
-        magicLinkPath: '/api/auth/sign-in/magic-link',
         emailOtpPath: '/api/auth/email-otp/send-verification-otp',
         emailOtpSignInPath: '/api/auth/sign-in/email-otp',
         emailOtpVerificationPath: '/api/auth/email-otp/verify-email',
@@ -86,16 +93,14 @@ describe('ConfigzService', () => {
     })
   })
 
-  it('returns configured methods, branding, legal links, copy, defaults, and IdP summaries', async () => {
+  it('returns configured methods, branding, legal links, copy, and IdP summaries', async () => {
     const service = new ConfigzService(
       createRepository({
         settings: {
-          defaultApplicationId: 'app-1',
           passwordEnabled: false,
           signupEnabled: false,
           socialLoginEnabled: true,
           identifierFirst: true,
-          defaultRedirectUri: 'https://client.example.com/callback',
           termsUri: 'https://auth.example.com/terms',
           privacyUri: 'https://auth.example.com/privacy',
           supportEmail: 'support@example.com',
@@ -128,7 +133,6 @@ describe('ConfigzService', () => {
       }),
       {
         issuer: 'https://auth.example.com',
-        magicLinkEnabled: true,
         emailOtpEnabled: true,
         usernameEnabled: true,
       },
@@ -162,10 +166,6 @@ describe('ConfigzService', () => {
         headline: 'Welcome back',
         description: 'Continue to your workspace.',
       },
-      defaults: {
-        applicationId: 'app-1',
-        redirectUri: 'https://client.example.com/callback',
-      },
     })
   })
 
@@ -197,6 +197,44 @@ describe('ConfigzService', () => {
     })
   })
 
+  it('only exposes identity providers that are available to the auth runtime', async () => {
+    const service = new ConfigzService(
+      createRepository({
+        identityProviders: [
+          {
+            slug: 'github',
+            providerType: 'social',
+            providerId: 'github',
+            displayName: 'GitHub',
+            icon: 'github',
+          },
+          {
+            slug: 'google',
+            providerType: 'social',
+            providerId: 'google',
+            displayName: 'Google',
+            icon: 'google',
+          },
+        ],
+      }),
+      {
+        ...defaultOptions(),
+        availableIdentityProviderIds: async () => new Set(['google']),
+      },
+    )
+
+    await expect(service.getConfig()).resolves.toMatchObject({
+      identityProviders: [
+        {
+          slug: 'google',
+          providerType: 'social',
+          providerId: 'google',
+          displayName: 'Google',
+        },
+      ],
+    })
+  })
+
   it('reports effective passwordless method availability when signup is disabled', async () => {
     const service = new ConfigzService(
       createRepository({
@@ -211,8 +249,7 @@ describe('ConfigzService', () => {
     await expect(service.getConfig()).resolves.toMatchObject({
       signIn: {
         signupEnabled: false,
-        magicLinkEnabled: false,
-        emailOtpEnabled: false,
+        emailOtpEnabled: true,
       },
     })
   })
@@ -257,7 +294,6 @@ describe('ConfigzService', () => {
 
     const response = await service.updateManagementSignInSettings({
       signIn: { passwordEnabled: false, identifierFirst: true },
-      defaults: { redirectUri: 'https://app.example.com/callback' },
       links: { supportEmail: 'support@example.com' },
       copy: { productName: 'Acme ID' },
     })
@@ -266,8 +302,6 @@ describe('ConfigzService', () => {
       {
         passwordEnabled: false,
         identifierFirst: true,
-        defaultApplicationId: undefined,
-        defaultRedirectUri: 'https://app.example.com/callback',
         termsUri: undefined,
         privacyUri: undefined,
         supportEmail: 'support@example.com',
@@ -411,7 +445,6 @@ describe('ConfigzService', () => {
 function defaultOptions() {
   return {
     issuer: 'https://auth.example.com',
-    magicLinkEnabled: true,
     emailOtpEnabled: true,
     usernameEnabled: true,
   }
@@ -419,12 +452,10 @@ function defaultOptions() {
 
 function defaultSettings() {
   return {
-    defaultApplicationId: null,
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: true,
     identifierFirst: false,
-    defaultRedirectUri: null,
     termsUri: null,
     privacyUri: null,
     supportEmail: null,

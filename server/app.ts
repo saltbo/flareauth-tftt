@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status'
 import type {
+  AccountEmailChangeConfirmInput,
   AccountEmailChangeInput,
   AccountPasswordChangeInput,
   AccountProfileResponse,
@@ -52,7 +53,11 @@ import type {
   UpdateRoleRequest,
 } from '../shared/api/authorization'
 import type { ConfigzConfigResponse } from '../shared/api/configz'
-import type { ConnectorReadinessResponse, ListConnectorTemplatesResponse } from '../shared/api/connectors'
+import type {
+  ConnectorReadinessResponse,
+  LinkAccountRequest,
+  ListConnectorTemplatesResponse,
+} from '../shared/api/connectors'
 import type {
   CreateManagementConnectorRequest,
   ListManagementConnectorsResponse,
@@ -80,7 +85,6 @@ import type {
 } from '../shared/api/management'
 import type {
   PasskeysResponse,
-  SecurityPasskeyRegistrationOptionsInput,
   SecurityPolicy,
   SecurityTotpDisableInput,
   SecurityTotpEnrollmentInput,
@@ -224,12 +228,66 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
     if (options.onboardingRepository) {
       await requireOnboardingComplete(options.onboardingRepository)
     }
+    if (options.configzServiceFactory) {
+      await requireHostedAuthMethodEnabled(c, options.configzServiceFactory)
+    }
 
     return auth.handler(c.req.raw)
   })
   app.get('/.well-known/oauth-authorization-server/api/auth', (c) => oauthProviderAuthServerMetadata(auth)(c.req.raw))
 
   return app
+}
+
+async function requireHostedAuthMethodEnabled(c: Context, factory: ConfigzServiceFactory) {
+  const path = c.req.path
+  if (!isManagedHostedAuthPath(path)) return
+
+  const config = await factory(c as unknown as Context<{ Bindings: ConfigzBindings }>).getConfig()
+  if (!config.signIn.passwordEnabled && passwordAuthPaths.has(path)) {
+    throw forbidden('Password authentication is disabled.')
+  }
+  if (!config.signIn.signupEnabled && path === '/api/auth/sign-up/email') {
+    throw forbidden('Sign up is disabled.')
+  }
+  if (!config.signIn.emailOtpEnabled && (emailOtpAuthPaths.has(path) || (await isBlockedEmailOtpRequest(c)))) {
+    throw forbidden('Email code authentication is disabled.')
+  }
+  if (!config.signIn.socialLoginEnabled && path === '/api/auth/sign-in/social') {
+    throw forbidden('Social authentication is disabled.')
+  }
+}
+
+const passwordAuthPaths = new Set([
+  '/api/auth/sign-in/email',
+  '/api/auth/sign-in/username',
+  '/api/auth/sign-up/email',
+  '/api/auth/request-password-reset',
+  '/api/auth/reset-password',
+  '/api/auth/email-otp/request-password-reset',
+  '/api/auth/email-otp/reset-password',
+  '/api/auth/change-password',
+])
+
+const emailOtpAuthPaths = new Set(['/api/auth/sign-in/email-otp'])
+
+function isManagedHostedAuthPath(path: string) {
+  return (
+    passwordAuthPaths.has(path) ||
+    emailOtpAuthPaths.has(path) ||
+    path === '/api/auth/email-otp/send-verification-otp' ||
+    path === '/api/auth/sign-in/social'
+  )
+}
+
+async function isBlockedEmailOtpRequest(c: Context) {
+  if (c.req.path !== '/api/auth/email-otp/send-verification-otp') return false
+
+  const body = await c.req.raw
+    .clone()
+    .json()
+    .catch(() => null)
+  return !(body && typeof body === 'object' && 'type' in body && body.type === 'email-verification')
 }
 
 export function createRpcApp(auth: AuthHandler, options: RpcAppOptions) {
@@ -268,11 +326,15 @@ type RpcSchema = {
   '/api/account/email/change': {
     $post: RpcEndpoint<{ json: AccountEmailChangeInput }, EmptyResponse>
   }
+  '/api/account/email/confirm': {
+    $post: RpcEndpoint<{ json: AccountEmailChangeConfirmInput }, EmptyResponse>
+  }
   '/api/account/password/change': {
     $post: RpcEndpoint<{ json: AccountPasswordChangeInput }, EmptyResponse>
   }
   '/api/account/linked-accounts': {
     $get: RpcEndpoint<RpcNoInput, LinkedAccountsResponse>
+    $post: RpcEndpoint<{ json: LinkAccountRequest }, EmptyResponse>
   }
   '/api/account/linked-accounts/:providerId': {
     $delete: RpcEndpoint<{ param: { providerId: string }; query: { accountId: string } }, EmptyResponse>
@@ -300,12 +362,6 @@ type RpcSchema = {
   }
   '/api/account/security/passkeys': {
     $get: RpcEndpoint<RpcNoInput, PasskeysResponse>
-  }
-  '/api/account/security/passkeys/registration-options': {
-    $post: RpcEndpoint<{ json: SecurityPasskeyRegistrationOptionsInput }, EmptyResponse>
-  }
-  '/api/account/security/passkeys/registration-verification': {
-    $post: RpcEndpoint<{ json: Record<string, unknown> }, EmptyResponse, 201>
   }
   '/api/account/security/passkeys/:id': {
     $delete: RpcEndpoint<{ param: { id: string } }, EmptyResponse>

@@ -7,7 +7,6 @@ import type {
   UpdateConnectorRequest,
 } from '../../../shared/api/connectors'
 import { paginationMetadata } from '../../../shared/api/pagination'
-import type { Env } from '../../../shared/env'
 import { badRequest, notFound } from '../../lib/errors'
 import { connectorTemplates, isSupportedProvider } from './provider-templates'
 import type { ConnectorRepository, ConnectorRow } from './repository'
@@ -40,11 +39,11 @@ export class ConnectorService {
     return toResponse(connector)
   }
 
-  async readiness(id: string, env: Env): Promise<ConnectorReadinessResponse> {
+  async readiness(id: string): Promise<ConnectorReadinessResponse> {
     const connector = await this.repository.findById(id)
     if (!connector) throw notFound('Connector not found.')
 
-    const checks = connectorReadinessChecks(connector, env)
+    const checks = connectorReadinessChecks(connector)
     return {
       connectorId: connector.id,
       ready: checks.every((check) => check.ok),
@@ -52,7 +51,7 @@ export class ConnectorService {
     }
   }
 
-  async create(input: CreateConnectorRequest, env?: object) {
+  async create(input: CreateConnectorRequest) {
     assertSupportedProvider(input.providerType, input.providerId)
     await assertProviderAvailable(this.repository, input.providerId)
     const now = new Date()
@@ -64,7 +63,7 @@ export class ConnectorService {
       displayName: input.displayName,
       enabled: input.enabled ?? true,
       clientId: input.clientId ?? null,
-      clientSecretBinding: input.clientSecretBinding ?? null,
+      clientSecret: input.clientSecret ?? null,
       issuer: input.issuer ?? null,
       authorizationEndpoint: input.authorizationEndpoint ?? null,
       tokenEndpoint: input.tokenEndpoint ?? null,
@@ -77,13 +76,12 @@ export class ConnectorService {
       updatedAt: now,
     }
     assertComplete(candidate)
-    assertRuntimeSecretAvailable(candidate, env)
     const connector = await this.repository.create(candidate)
     assertComplete(connector)
     return toResponse(connector)
   }
 
-  async update(id: string, input: UpdateConnectorRequest, env?: object) {
+  async update(id: string, input: UpdateConnectorRequest) {
     const current = await this.repository.findById(id)
     if (!current) throw notFound('Connector not found.')
 
@@ -93,7 +91,6 @@ export class ConnectorService {
       updatedAt: new Date(),
     }
     assertComplete(candidate)
-    assertRuntimeSecretAvailable(candidate, env)
 
     const updated = await this.repository.update(id, {
       ...input,
@@ -111,7 +108,7 @@ export class ConnectorService {
   }
 }
 
-export async function loadAuthConnectorConfig(repository: ConnectorRepository, env: Env): Promise<AuthConnectorConfig> {
+export async function loadAuthConnectorConfig(repository: ConnectorRepository): Promise<AuthConnectorConfig> {
   const connectors = await repository.listEnabled()
   const socialProviders: Record<string, Record<string, unknown>> = {}
   const genericOAuthProviders: GenericOAuthConfig[] = []
@@ -119,9 +116,8 @@ export async function loadAuthConnectorConfig(repository: ConnectorRepository, e
 
   for (const connector of connectors) {
     const clientId = connector.clientId
-    if (!canLoadAuthConnector(connector, env) || !clientId) continue
-    const clientSecret = readSecret(env, connector.clientSecretBinding)
-    if (!clientSecret) continue
+    const clientSecret = connector.clientSecret
+    if (!canLoadAuthConnector(connector) || !clientId || !clientSecret) continue
     trustedProviders.push(connector.providerId)
 
     if (connector.providerType === 'social') {
@@ -160,8 +156,7 @@ export async function loadAuthConnectorConfig(repository: ConnectorRepository, e
         id: connector.id,
         updatedAt: connector.updatedAt.toISOString(),
         enabled: connector.enabled,
-        secretBinding: connector.clientSecretBinding,
-        secretAvailable: hasRuntimeSecret(env, connector.clientSecretBinding),
+        clientSecretConfigured: Boolean(connector.clientSecret),
       })),
     ),
   }
@@ -176,7 +171,7 @@ function assertSupportedProvider(providerType: ConnectorProviderType, providerId
 function assertComplete(connector: ConnectorRow) {
   if (!connector.enabled) return
   if (!connector.clientId) throw badRequest('Enabled connector requires clientId.')
-  if (!connector.clientSecretBinding) throw badRequest('Enabled connector requires clientSecretBinding.')
+  if (!connector.clientSecret) throw badRequest('Enabled connector requires clientSecret.')
   assertSupportedProvider(connector.providerType as ConnectorProviderType, connector.providerId)
   if (connector.providerType === 'social') assertSocialProviderComplete(connector)
   if (connector.providerType === 'generic_oauth') assertGenericOAuthComplete(connector)
@@ -210,13 +205,11 @@ function assertGenericOAuthComplete(connector: ConnectorRow) {
   }
 }
 
-function canLoadAuthConnector(connector: ConnectorRow, env: Env) {
+function canLoadAuthConnector(connector: ConnectorRow) {
   if (connector.providerType !== 'social' && connector.providerType !== 'generic_oauth') return false
   const providerType = connector.providerType
   if (!isSupportedProvider(providerType, connector.providerId)) return false
-  if (!connector.clientId || !connector.clientSecretBinding || !hasRuntimeSecret(env, connector.clientSecretBinding)) {
-    return false
-  }
+  if (!connector.clientId || !connector.clientSecret) return false
   if (providerType === 'social') return canLoadSocialProvider(connector)
   return canLoadGenericOAuth(connector)
 }
@@ -236,17 +229,7 @@ function canLoadGenericOAuth(connector: ConnectorRow) {
   return Boolean(connector.issuer || connector.tokenEndpoint)
 }
 
-function assertRuntimeSecretAvailable(connector: ConnectorRow, env: object | undefined) {
-  if (!env || !connector.enabled) return
-  if (!hasRuntimeSecret(env, connector.clientSecretBinding)) {
-    throw badRequest(
-      `OAuth connector secret binding is not available in this runtime: ${connector.clientSecretBinding}.`,
-    )
-  }
-}
-
-function connectorReadinessChecks(connector: ConnectorRow, env: Env) {
-  const secretAvailable = hasRuntimeSecret(env, connector.clientSecretBinding)
+function connectorReadinessChecks(connector: ConnectorRow) {
   const checks = [
     {
       key: 'enabled',
@@ -261,21 +244,10 @@ function connectorReadinessChecks(connector: ConnectorRow, env: Env) {
       message: connector.clientId ? 'Client ID is configured.' : 'Client ID is missing.',
     },
     {
-      key: 'clientSecretBinding',
-      label: 'Secret binding configured',
-      ok: Boolean(connector.clientSecretBinding),
-      message: connector.clientSecretBinding
-        ? 'Secret binding name is configured.'
-        : 'Client secret binding name is missing.',
-    },
-    {
-      key: 'clientSecretAvailable',
-      label: 'Secret binding available',
-      ok: secretAvailable,
-      message:
-        connector.clientSecretBinding && secretAvailable
-          ? 'Secret binding is available in the runtime.'
-          : 'Secret binding is not available in the runtime.',
+      key: 'clientSecret',
+      label: 'Client secret configured',
+      ok: Boolean(connector.clientSecret),
+      message: connector.clientSecret ? 'Client secret is configured.' : 'Client secret is missing.',
     },
   ]
 
@@ -305,18 +277,6 @@ function hasAnyExplicitEndpoint(connector: ConnectorRow): boolean {
   )
 }
 
-function readSecret(env: Env, binding: string | null): string | null {
-  if (!binding) throw badRequest('Enabled connector requires clientSecretBinding.')
-  const value = env[binding]
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function hasRuntimeSecret(env: object, binding: string | null): boolean {
-  if (!binding) return false
-  const value = (env as Record<string, unknown>)[binding]
-  return typeof value === 'string' && value.length > 0
-}
-
 function toResponse(row: ConnectorRow): ConnectorResponse {
   return {
     id: row.id,
@@ -326,7 +286,7 @@ function toResponse(row: ConnectorRow): ConnectorResponse {
     displayName: row.displayName,
     enabled: row.enabled,
     clientId: row.clientId,
-    clientSecretBinding: row.clientSecretBinding,
+    clientSecretConfigured: Boolean(row.clientSecret),
     issuer: row.issuer,
     authorizationEndpoint: row.authorizationEndpoint,
     tokenEndpoint: row.tokenEndpoint,

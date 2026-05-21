@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Toaster } from '@/components/ui/sonner'
 import { AccountCenter, AccountCenterPage } from './account-center'
 
 const navigateMock = vi.hoisted(() => vi.fn())
@@ -25,19 +26,24 @@ describe('account center', () => {
   it('loads profile, security, session, connection, and application sections', async () => {
     mockAccountFetch({ image: 'https://auth.example.com/api/assets/avatar.png' })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
     expect(screen.queryByRole('navigation', { name: 'Account center' })).toBeNull()
     expect(document.querySelectorAll('.accountContent')).toHaveLength(1)
     expect(document.querySelectorAll('.accountSectionStack')).toHaveLength(1)
     expect(screen.getByRole('heading', { name: 'Profile' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Identifiers' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Account details' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Password' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'MFA' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Multi-factor authentication' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Passkeys' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Linked social accounts' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Sessions and devices' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Linked accounts' })).toBeTruthy()
+    expect(screen.getByText('Google')).toBeTruthy()
+    expect(screen.getByText('GitHub')).toBeTruthy()
+    expect(screen.getByText('Linked')).toBeTruthy()
+    expect(screen.getByText('Available')).toBeTruthy()
+    expect(screen.queryByText('credential')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Active sessions' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Authorized apps' })).toBeTruthy()
     expect(document.querySelectorAll('.accountPanelGroup')).toHaveLength(4)
     expect(document.querySelectorAll('.accountPanelGroup .settingsPanel')).toHaveLength(8)
@@ -46,6 +52,8 @@ describe('account center', () => {
     expect(screen.getByRole('region', { name: 'Social and app access' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Session management' })).toBeTruthy()
 
+    expect(screen.queryByLabelText('Display name')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
     await waitFor(() => expect((screen.getByLabelText('Display name') as HTMLInputElement).value).toBe('Jane Stone'))
     expect(document.querySelector('img.assetPreview')?.getAttribute('width')).toBe('56')
     expect(document.querySelector('img.assetPreview')?.getAttribute('height')).toBe('56')
@@ -69,7 +77,7 @@ describe('account center', () => {
       },
     )
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
     const fetchedPaths = vi.mocked(window.fetch).mock.calls.map(([input]) => String(input))
@@ -81,10 +89,10 @@ describe('account center', () => {
     expect(screen.queryByLabelText('Avatar image')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Identifiers' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Password' })).toBeNull()
-    expect(screen.queryByRole('heading', { name: 'Linked social accounts' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Linked accounts' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Authorized apps' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Sessions and devices' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'MFA' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Multi-factor authentication' })).toBeTruthy()
   })
 
   it('keeps password changes visible when profile editing is disabled independently', async () => {
@@ -99,7 +107,7 @@ describe('account center', () => {
       },
     )
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Profile' })).toBeNull()
@@ -113,7 +121,7 @@ describe('account center', () => {
       return Promise.resolve(jsonResponse({ ok: true }))
     })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     expect(await screen.findByText('Config unavailable.')).toBeTruthy()
     const fetchedPaths = vi.mocked(window.fetch).mock.calls.map(([input]) => String(input))
@@ -124,38 +132,41 @@ describe('account center', () => {
     const user = userEvent.setup()
     const requests = mockAccountFetch()
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    await user.click(screen.getByRole('button', { name: 'Edit profile' }))
     const displayNameInput = (await screen.findByLabelText('Display name')) as HTMLInputElement
     await waitFor(() => expect(displayNameInput.value).toBe('Jane Stone'))
     await user.clear(displayNameInput)
     await user.type(displayNameInput, 'Jane Updated')
     expect(displayNameInput.value).toBe('Jane Updated')
+    await user.click(screen.getByRole('button', { name: 'Save profile' }))
 
-    const usernameInput = screen.getByLabelText('Username') as HTMLInputElement
+    await user.click(screen.getByRole('button', { name: 'Edit username' }))
+    const usernameInput = (await screen.findByLabelText('Username')) as HTMLInputElement
     await user.clear(usernameInput)
     expect(usernameInput.value).toBe('')
     await user.click(screen.getByRole('button', { name: 'Save identifiers' }))
 
-    const emailInput = screen.getByLabelText('Email') as HTMLInputElement
+    await user.click(screen.getByRole('button', { name: 'Change email' }))
+    const emailInput = (await screen.findByLabelText('Email')) as HTMLInputElement
     await user.clear(emailInput)
     await user.type(emailInput, 'new@example.com')
     expect(emailInput.value).toBe('new@example.com')
-    await user.click(screen.getByRole('button', { name: 'Change email' }))
-    expect(
-      screen
-        .getByRole('heading', { name: 'Password' })
-        .closest('section')
-        ?.querySelector('input[autocomplete="username"]'),
-    ).toHaveProperty('value', 'jane@example.com')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Send code' }))
+    const codeInput = (await screen.findByLabelText('Verification code')) as HTMLInputElement
+    await user.type(codeInput, '123456')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Verify code' }))
+
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    const passwordDialog = screen.getByRole('dialog')
+    expect(passwordDialog.querySelector('input[autocomplete="username"]')).toHaveProperty('value', 'jane@example.com')
     expect(screen.getByLabelText('Current password').getAttribute('autocomplete')).toBe('current-password')
     expect(screen.getByLabelText('New password').getAttribute('autocomplete')).toBe('new-password')
-    expect(
-      screen.getByRole('heading', { name: 'MFA' }).closest('section')?.querySelector('input[autocomplete="username"]'),
-    ).toHaveProperty('value', 'jane@example.com')
     await user.type(screen.getByLabelText('Current password'), 'old-password')
     await user.type(screen.getByLabelText('New password'), 'new-password')
-    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Change password' }))
 
     await waitFor(() => {
       expect(requests).toEqual(
@@ -163,12 +174,22 @@ describe('account center', () => {
           {
             path: '/api/account/profile',
             method: 'PATCH',
-            body: { displayName: 'Jane Updated', username: null, avatarAssetId: null },
+            body: { displayName: 'Jane Updated', username: 'jane', avatarAssetId: null },
+          },
+          {
+            path: '/api/account/profile',
+            method: 'PATCH',
+            body: { displayName: 'Jane Stone', username: null, avatarAssetId: null },
           },
           {
             path: '/api/account/email/change',
             method: 'POST',
-            body: { email: 'new@example.com', callbackURL: 'http://localhost:3000/email-verification' },
+            body: { email: 'new@example.com' },
+          },
+          {
+            path: '/api/account/email/confirm',
+            method: 'POST',
+            body: { email: 'new@example.com', otp: '123456' },
           },
           {
             path: '/api/account/password/change',
@@ -187,8 +208,9 @@ describe('account center', () => {
   it('uploads an avatar from the profile section', async () => {
     const requests = mockAccountFetch()
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }))
     const avatarInput = (await screen.findByLabelText('Avatar image')) as HTMLInputElement
     fireEvent.click(screen.getByRole('button', { name: 'Upload image' }))
     const requestsBeforeEmptySelection = requests.length
@@ -213,7 +235,7 @@ describe('account center', () => {
   it('signs out from the top-level account page without reloading protected account data', async () => {
     const requests = mockAccountFetch()
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     const accountGetCount = vi.mocked(window.fetch).mock.calls.filter(([input, init]) => {
@@ -245,7 +267,7 @@ describe('account center', () => {
   it('shows the sign-out error message when sign-out fails with an Error', async () => {
     mockAccountFetch({}, { signOutFailure: new Error('Sign-out unavailable.') })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
@@ -257,7 +279,7 @@ describe('account center', () => {
   it('shows the fallback sign-out error when sign-out fails with a non-Error value', async () => {
     mockAccountFetch({}, { signOutFailure: 'network-down' })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
@@ -269,21 +291,25 @@ describe('account center', () => {
   it('shows TOTP enrollment setup data before verification', async () => {
     const requests = mockAccountFetch()
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll authenticator app' }))
     expect(document.querySelector('input[autocomplete="username"][type="text"][hidden]')).toHaveProperty(
       'value',
       'jane@example.com',
     )
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Enroll authenticator app' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Enroll authenticator app' }))
 
     expect(await screen.findByText('Authenticator setup')).toBeTruthy()
     expect(screen.getByAltText('Authenticator app QR code').getAttribute('width')).toBe('168')
     expect(screen.getByAltText('Authenticator app QR code').getAttribute('height')).toBe('168')
     expect(screen.getByText('otpauth://totp/Acme:jane@example.com?secret=ABC123')).toBeTruthy()
     expect(screen.getByText('ABC123')).toBeTruthy()
+    expect(screen.getByText('Backup codes')).toBeTruthy()
+    expect(screen.getByText('backup-1')).toBeTruthy()
+    expect(screen.getByText('backup-2')).toBeTruthy()
     expect(requests).toContainEqual({
       path: '/api/account/security/mfa/totp-enrollment',
       body: { password: 'password-1' },
@@ -300,20 +326,21 @@ describe('account center', () => {
       },
     })
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
-    fireEvent.change(screen.getByLabelText('Passkey name'), { target: { value: 'MacBook Touch ID' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.change(screen.getByLabelText('Passkey name'), { target: { value: 'MacBook Touch ID' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add passkey' }))
 
     await waitFor(() => {
       expect(requests).toContainEqual({
-        path: '/api/account/security/passkeys/registration-options',
-        body: { name: 'MacBook Touch ID' },
-        method: 'POST',
+        path: '/api/auth/passkey/generate-register-options?name=MacBook+Touch+ID',
+        body: null,
+        method: 'GET',
       })
       expect(requests).toContainEqual({
-        path: '/api/account/security/passkeys/registration-verification',
+        path: '/api/auth/passkey/verify-registration',
         body: {
           name: 'MacBook Touch ID',
           response: {
@@ -341,10 +368,11 @@ describe('account center', () => {
       value: {},
     })
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add passkey' }))
     expect(await screen.findByText('Passkey registration is not supported by this browser.')).toBeTruthy()
 
     cleanup()
@@ -357,10 +385,11 @@ describe('account center', () => {
       },
     })
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add passkey' }))
     expect(await screen.findByText('Passkey registration was cancelled.')).toBeTruthy()
   })
 
@@ -374,7 +403,7 @@ describe('account center', () => {
       if (path === '/api/account/sessions') return Promise.resolve(jsonResponse({ sessions: sessions() }))
       if (path === '/api/account/security') return Promise.resolve(jsonResponse({ security: security() }))
       if (path === '/api/account/security/passkeys') return Promise.resolve(jsonResponse({ passkeys: passkeys() }))
-      if (path === '/api/account/security/passkeys/registration-options') {
+      if (path === '/api/auth/passkey/generate-register-options') {
         return Promise.resolve(
           jsonResponse({
             rp: { name: 'Acme ID', id: 'localhost' },
@@ -392,41 +421,52 @@ describe('account center', () => {
       },
     })
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add passkey' }))
     expect(await screen.findByText('Passkey registration option challenge is required.')).toBeTruthy()
     expect(navigator.credentials.create).not.toHaveBeenCalled()
   })
 
   it('manages MFA verification, linked accounts, sessions, passkeys, and application consent display', async () => {
-    const requests = mockAccountFetch()
+    const requests = mockAccountFetch(
+      {},
+      {
+        security: { ...security(), mfa: { enabled: true, factors: [] } },
+      },
+    )
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     expect(screen.getByText('Laptop key')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Authenticator code'), { target: { value: '123456' } })
+    expect(screen.getByText(/1 passkey added/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
-    clickAndConfirm('Disable MFA', 'Disable authenticator app')
+    fireEvent.change(screen.getByLabelText('Authenticator code'), { target: { value: '123456' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Verify code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Disable MFA' }))
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Password'), { target: { value: 'password-1' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Disable authenticator app' }))
     clickAndConfirm('Remove', 'Remove passkey')
 
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
-    expect(screen.getByText('google')).toBeTruthy()
+    expect(screen.getByText('Google')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     clickAndConfirm('Unlink', 'Unlink account')
 
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
     expect(screen.getByText('Chrome on macOS')).toBeTruthy()
     clickAndConfirm('Revoke other sessions', 'Revoke sessions')
     clickAndConfirm('Revoke', 'Revoke session', 1)
 
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
     expect(screen.getByText('Customer Portal')).toBeTruthy()
     expect(screen.getByText(/openid, email/)).toBeTruthy()
@@ -440,8 +480,17 @@ describe('account center', () => {
             method: 'POST',
             body: { code: '123456', trustDevice: true },
           },
-          { path: '/api/account/security/mfa/totp', method: 'DELETE', body: { password: '' } },
+          { path: '/api/account/security/mfa/totp', method: 'DELETE', body: { password: 'password-1' } },
           { path: '/api/account/security/passkeys/passkey-1', method: 'DELETE', body: null },
+          {
+            path: '/api/auth/link-social',
+            method: 'POST',
+            body: {
+              provider: 'github',
+              callbackURL: 'http://localhost:3000/profile/linked-accounts',
+              errorCallbackURL: 'http://localhost:3000/profile',
+            },
+          },
           { path: '/api/account/linked-accounts/google?accountId=google-account-1', method: 'DELETE', body: null },
           { path: '/api/account/security/sessions', method: 'DELETE', body: null },
           { path: '/api/account/security/sessions/session-1', method: 'DELETE', body: null },
@@ -454,7 +503,7 @@ describe('account center', () => {
   it('does not run destructive account mutations when confirmation is canceled', async () => {
     const requests = mockAccountFetch()
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
     await screen.findByRole('heading', { name: 'Jane Stone' })
     fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' }).at(-1) as HTMLButtonElement)
@@ -480,8 +529,9 @@ describe('account center', () => {
       return Promise.resolve(jsonResponse({ ok: true }))
     })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Save profile' }))
 
     expect(await screen.findByText('Profile rejected.')).toBeTruthy()
@@ -493,7 +543,7 @@ describe('account center', () => {
       return Promise.resolve(jsonResponse({ error: { message: 'Account unavailable.' } }, 503))
     })
 
-    render(<AccountCenterPage />)
+    render(<AccountCenterWithToaster />)
 
     expect(await screen.findByText('Account unavailable.')).toBeTruthy()
   })
@@ -504,7 +554,7 @@ describe('account center', () => {
       const path = String(input)
       const method = init?.method ?? 'GET'
       const body = init?.body ? JSON.parse(String(init.body)) : null
-      if (method !== 'GET') requests.push({ path, method, body })
+      if (method !== 'GET' || path.startsWith('/api/auth/passkey/')) requests.push({ path, method, body })
       if (path === '/api/configz') return Promise.resolve(jsonResponse(configz()))
       if (path === '/api/account/profile') {
         return Promise.resolve(jsonResponse({ user: { ...profile(), emailVerified: false, username: null } }))
@@ -515,7 +565,7 @@ describe('account center', () => {
         return Promise.resolve(jsonResponse({ sessions: [{ ...sessions()[0], ipAddress: null, userAgent: null }] }))
       }
       if (path === '/api/account/security') {
-        return Promise.resolve(jsonResponse({ security: { ...security(), mfa: { enabled: true, factors: ['totp'] } } }))
+        return Promise.resolve(jsonResponse({ security: security() }))
       }
       if (path === '/api/account/security/passkeys') {
         return Promise.resolve(jsonResponse({ passkeys: [{ ...passkeys()[0], name: null, backedUp: false }] }))
@@ -529,7 +579,7 @@ describe('account center', () => {
           }),
         )
       }
-      if (path === '/api/account/security/passkeys/registration-options') {
+      if (path === '/api/auth/passkey/generate-register-options') {
         return Promise.resolve(
           jsonResponse({
             challenge: 'AQID',
@@ -555,47 +605,53 @@ describe('account center', () => {
       },
     })
 
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
 
-    expect(await screen.findByText('Verification required')).toBeTruthy()
+    expect(await screen.findByText('Required')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit username' }))
     await waitFor(() => expect((screen.getByLabelText('Username') as HTMLInputElement).value).toBe(''))
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
-    expect(screen.getByText('Enabled')).toBeTruthy()
+    expect(screen.getByText('No authenticator factor enrolled.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disable MFA' })).toBeNull()
     expect(screen.getByText('Unnamed passkey')).toBeTruthy()
-    expect(screen.getByText('singleDevice')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
+    expect(screen.getByText(/singleDevice/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Enroll authenticator app' }))
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Enroll authenticator app' }))
     expect(await screen.findByText('otpauth://totp/Acme:jane@example.com?secret=XYZ789')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add passkey' }))
 
     await waitFor(() => {
       expect(requests).toContainEqual({
-        path: '/api/account/security/passkeys/registration-options',
-        method: 'POST',
-        body: {},
+        path: '/api/auth/passkey/generate-register-options',
+        method: 'GET',
+        body: null,
       })
       expect(requests).toContainEqual(
         expect.objectContaining({
-          path: '/api/account/security/passkeys/registration-verification',
+          path: '/api/auth/passkey/verify-registration',
         }),
       )
     })
 
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
     expect(screen.getByText(/Unknown device/)).toBeTruthy()
     expect(screen.getByText(/No IP/)).toBeTruthy()
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
-    expect(screen.getByText('No linked social accounts.')).toBeTruthy()
+    expect(screen.getByText('GitHub')).toBeTruthy()
+    expect(screen.getAllByText('Not linked to this account.').length).toBeGreaterThan(0)
     cleanup()
-    render(<AccountCenter />)
+    render(<AccountCenterOnlyWithToaster />)
     await screen.findByRole('heading', { name: 'Jane Stone' })
-    expect(screen.getByText('No application consents.')).toBeTruthy()
+    expect(screen.getByText('No authorized applications yet.')).toBeTruthy()
   })
 })
 
@@ -603,6 +659,24 @@ type RequestRecord = {
   path: string
   method: string
   body: unknown
+}
+
+function AccountCenterWithToaster() {
+  return (
+    <>
+      <AccountCenterPage />
+      <Toaster />
+    </>
+  )
+}
+
+function AccountCenterOnlyWithToaster() {
+  return (
+    <>
+      <AccountCenter />
+      <Toaster />
+    </>
+  )
 }
 
 type MockProfile = Omit<ReturnType<typeof profile>, 'image'> & {
@@ -617,21 +691,29 @@ function clickAndConfirm(triggerName: string, confirmName: string, index = 0) {
 
 function mockAccountFetch(
   profileOverrides: Partial<MockProfile> = {},
-  options: { accountCenter?: ReturnType<typeof configz>['accountCenter']; signOutFailure?: unknown } = {},
+  options: {
+    accountCenter?: ReturnType<typeof configz>['accountCenter']
+    security?: ReturnType<typeof security>
+    signOutFailure?: unknown
+  } = {},
 ) {
   const requests: RequestRecord[] = []
   vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
     const path = String(input)
     const method = init?.method ?? 'GET'
     const body = init?.body instanceof FormData ? '[form-data]' : init?.body ? JSON.parse(String(init.body)) : null
-    if (method !== 'GET') requests.push({ path, method, body })
+    if (method !== 'GET' || path.startsWith('/api/auth/passkey/')) requests.push({ path, method, body })
     if (path === '/api/configz') return Promise.resolve(jsonResponse(configz(options.accountCenter)))
     if (path === '/api/account/profile')
       return Promise.resolve(jsonResponse({ user: { ...profile(), ...profileOverrides } }))
+    if (path === '/api/auth/link-social' && method === 'POST') {
+      return Promise.resolve(jsonResponse({ url: 'https://github.example.com/oauth' }))
+    }
     if (path === '/api/account/linked-accounts') return Promise.resolve(jsonResponse({ accounts: linkedAccounts() }))
     if (path === '/api/account/applications') return Promise.resolve(jsonResponse({ applications: applications() }))
     if (path === '/api/account/sessions') return Promise.resolve(jsonResponse({ sessions: sessions() }))
-    if (path === '/api/account/security') return Promise.resolve(jsonResponse({ security: security() }))
+    if (path === '/api/account/security')
+      return Promise.resolve(jsonResponse({ security: options.security ?? security() }))
     if (path === '/api/account/security/passkeys') return Promise.resolve(jsonResponse({ passkeys: passkeys() }))
     if (path === '/api/account/security/mfa/totp-enrollment') {
       return Promise.resolve(
@@ -639,10 +721,14 @@ function mockAccountFetch(
           qrCode: 'data:image/png;base64,ZmFrZQ',
           totpURI: 'otpauth://totp/Acme:jane@example.com?secret=ABC123',
           secret: 'ABC123',
+          backupCodes: ['backup-1', 'backup-2'],
         }),
       )
     }
-    if (path === '/api/account/security/passkeys/registration-options') {
+    if (
+      path === '/api/auth/passkey/generate-register-options' ||
+      path.startsWith('/api/auth/passkey/generate-register-options?')
+    ) {
       return Promise.resolve(
         jsonResponse({
           challenge: 'AQID',
@@ -683,7 +769,6 @@ function configz(accountCenter: typeof defaultAccountCenterSettings = defaultAcc
       passwordEnabled: true,
       signupEnabled: true,
       socialLoginEnabled: false,
-      magicLinkEnabled: false,
       emailOtpEnabled: false,
       usernameEnabled: true,
       identifierFirst: false,
@@ -695,14 +780,16 @@ function configz(accountCenter: typeof defaultAccountCenterSettings = defaultAcc
       backgroundColor: '#f7f3ee',
       customCss: null,
     },
-    identityProviders: [],
+    identityProviders: [
+      { slug: 'google', providerType: 'social', providerId: 'google', displayName: 'Google', icon: 'google' },
+      { slug: 'github', providerType: 'social', providerId: 'github', displayName: 'GitHub', icon: 'github' },
+    ],
     links: { termsUri: null, privacyUri: null, supportEmail: null },
     copy: {
       productName: 'Acme ID',
       headline: 'Sign in.',
       description: 'Hosted identity.',
     },
-    defaults: { applicationId: null, redirectUri: null },
     auth: {
       basePath: '/api/auth',
       signInEmailPath: '/api/auth/sign-in/email',
@@ -713,7 +800,6 @@ function configz(accountCenter: typeof defaultAccountCenterSettings = defaultAcc
       resetPasswordPath: '/api/auth/reset-password',
       sendVerificationEmailPath: '/api/auth/send-verification-email',
       verifyEmailPath: '/api/auth/verify-email',
-      magicLinkPath: '/api/auth/sign-in/magic-link',
       emailOtpPath: '/api/auth/email-otp/send-verification-otp',
       emailOtpSignInPath: '/api/auth/sign-in/email-otp',
       emailOtpVerificationPath: '/api/auth/email-otp/verify-email',
@@ -761,6 +847,12 @@ function profile() {
 function linkedAccounts() {
   return [
     { id: 'linked-1', accountId: 'google-account-1', providerId: 'google', createdAt: '2026-01-01T00:00:00.000Z' },
+    {
+      id: 'linked-credential',
+      accountId: 'credential-account-1',
+      providerId: 'credential',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
   ]
 }
 

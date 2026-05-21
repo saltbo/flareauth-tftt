@@ -12,6 +12,11 @@ export const accountEmailChangeSchema = z.object({
   callbackURL: z.string().optional(),
 })
 
+export const accountEmailChangeConfirmSchema = z.object({
+  email: z.email(),
+  otp: z.string().min(1),
+})
+
 export const accountPasswordChangeSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),
@@ -20,6 +25,7 @@ export const accountPasswordChangeSchema = z.object({
 
 export type AccountProfileUpdateInput = z.infer<typeof accountProfileUpdateSchema>
 export type AccountEmailChangeInput = z.infer<typeof accountEmailChangeSchema>
+export type AccountEmailChangeConfirmInput = z.infer<typeof accountEmailChangeConfirmSchema>
 export type AccountPasswordChangeInput = z.infer<typeof accountPasswordChangeSchema>
 
 export type AccountProfileResponse = {

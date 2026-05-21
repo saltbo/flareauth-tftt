@@ -1,7 +1,21 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Fingerprint, KeyRound, LoaderCircle, Mail, Upload, UserRound } from 'lucide-react'
+import {
+  Fingerprint,
+  KeyRound,
+  Laptop,
+  Link2,
+  LoaderCircle,
+  LockKeyhole,
+  Mail,
+  Pencil,
+  ShieldCheck,
+  Upload,
+  UserRound,
+} from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { BrandIdentity, brandingStyle } from '@/components/layout/auth-layout'
+import { ProviderIcon } from '@/components/provider-icon'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,11 +30,13 @@ import { Status } from '@/components/ui/status'
 import { useConfigz } from '@/features/auth/hooks'
 import {
   changeAccountPassword,
+  confirmAccountEmailChange,
   createPasskeyRegistrationOptions,
   deletePasskey,
   disableTotp,
   getAccountProfile,
   getAccountSecurity,
+  linkAccount,
   listAccountSessions,
   listConsentedApplications,
   listLinkedAccounts,
@@ -55,6 +71,14 @@ type LinkedAccount = {
   createdAt: string
 }
 
+type IdentityProvider = {
+  slug: string
+  providerType: string
+  providerId: string
+  displayName: string
+  icon: string
+}
+
 type ConsentedApplication = {
   id: string
   applicationName: string
@@ -70,6 +94,7 @@ type UserSessionDevice = {
   createdAt: string
   ipAddress: string | null
   userAgent: string | null
+  current?: boolean
 }
 
 type SecurityState = {
@@ -90,6 +115,7 @@ type TotpEnrollmentDisplay = {
   qrCode: string | null
   otpAuthUri: string | null
   secret: string | null
+  backupCodes: string[]
 }
 
 type AccountData = {
@@ -121,14 +147,11 @@ export function AccountCenter() {
   const accountCenter = config?.accountCenter ?? defaultAccountCenterSettings
   const [data, setData] = useState(emptyAccountData)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<DestructiveConfirmation | null>(null)
 
   const reload = useCallback(async () => {
     if (!config) return
     setLoading(true)
-    setError(null)
     try {
       const [profile, linkedAccounts, applications, sessions, security, passkeys] = await Promise.all([
         getAccountProfile(),
@@ -147,7 +170,7 @@ export function AccountCenter() {
         passkeys: passkeys.passkeys,
       })
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load account center.')
+      toast.error(loadError instanceof Error ? loadError.message : 'Unable to load account center.')
     } finally {
       setLoading(false)
     }
@@ -156,7 +179,7 @@ export function AccountCenter() {
   useEffect(() => {
     if (configState.loading) return
     if (configState.error) {
-      setError(configState.error)
+      toast.error(configState.error)
       setLoading(false)
       return
     }
@@ -166,33 +189,31 @@ export function AccountCenter() {
   async function mutate<T>(
     label: string,
     operation: () => Promise<T>,
-    options: { reload?: boolean } = {},
+    options: { onError?: (message: string) => void; reload?: boolean } = {},
   ): Promise<T | undefined> {
-    setMessage(null)
-    setError(null)
     try {
       const result = await operation()
-      setMessage(label)
+      toast.success(label)
       if (options.reload !== false) await reload()
       return result
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : 'Account update failed.')
+      const message = mutationError instanceof Error ? mutationError.message : 'Account update failed.'
+      options.onError?.(message)
+      toast.error(message)
       return undefined
     }
   }
 
   async function signOutFromAccount() {
-    setMessage(null)
-    setError(null)
     try {
       await signOut()
       setData(emptyAccountData)
       setLoading(false)
       setConfirmation(null)
-      setMessage('Signed out.')
+      toast.success('Signed out.')
       await navigate({ to: '/sign-in' })
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : 'Account update failed.')
+      toast.error(mutationError instanceof Error ? mutationError.message : 'Account update failed.')
     }
   }
 
@@ -215,56 +236,111 @@ export function AccountCenter() {
               Loading account
             </Status>
           ) : null}
-          {error ? <Status tone="error">{error}</Status> : null}
-          {message ? <Status tone="success">{message}</Status> : null}
           {!loading && data.profile ? (
             <div className="accountSectionStack">
               <section className="accountHero" aria-label="Profile summary">
-                {data.profile.image ? (
-                  <img alt="" className="accountHeaderAvatar" src={data.profile.image} width="64" height="64" />
-                ) : (
-                  <div className="accountHeaderAvatar" aria-hidden="true">
-                    <UserRound size={30} />
+                <div className="accountHeroIdentity">
+                  {data.profile.image ? (
+                    <img alt="" className="accountHeaderAvatar" src={data.profile.image} width="64" height="64" />
+                  ) : (
+                    <div className="accountHeaderAvatar" aria-hidden="true">
+                      <UserRound size={30} />
+                    </div>
+                  )}
+                  <div className="accountHeaderMeta">
+                    <p className="eyebrow">Profile</p>
+                    <h1>{data.profile.displayName}</h1>
+                    <p>{data.profile.email}</p>
                   </div>
-                )}
-                <div className="accountHeaderMeta">
-                  <p className="eyebrow">Profile</p>
-                  <h1>{data.profile.displayName}</h1>
-                  <p>{data.profile.email}</p>
-                  <div className="accountHeaderBadges">
-                    <span>{data.profile.emailVerified ? 'Verified email' : 'Email verification required'}</span>
-                    <span>{data.security?.mfa.enabled ? 'MFA enabled' : 'MFA not enrolled'}</span>
-                    <span>{data.passkeys.length} passkeys</span>
-                  </div>
+                </div>
+                <div className="accountSummaryStrip">
+                  <StatusPill label={data.profile.emailVerified ? 'Verified' : 'Required'} value="Email" />
+                  <StatusPill label={data.security?.mfa.enabled ? 'Enabled' : 'Off'} value="MFA" />
+                  <StatusPill label={String(data.passkeys.length)} value="Passkeys" />
+                  <StatusPill label={String(data.sessions.length)} value="Sessions" />
                 </div>
                 <Button onClick={() => void signOutFromAccount()} variant="secondary">
                   Sign out
                 </Button>
               </section>
-              {accountCenter.profileEditingEnabled || accountCenter.passwordChangeEnabled ? (
-                <section className="accountPanelGroup" aria-label="Profile settings">
-                  <ProfileSections accountCenter={accountCenter} profile={data.profile} mutate={mutate} />
+              <div className="accountDashboardGrid">
+                {accountCenter.profileEditingEnabled || accountCenter.passwordChangeEnabled ? (
+                  <section className="accountPanelGroup accountDashboardPanel" aria-label="Profile settings">
+                    <div className="accountPanelHeader">
+                      <PanelTitle
+                        description="Profile information and sign-in identifiers."
+                        icon={<UserRound size={18} />}
+                        title="Account details"
+                      />
+                    </div>
+                    <ProfileSections accountCenter={accountCenter} profile={data.profile} mutate={mutate} />
+                  </section>
+                ) : null}
+                <section className="accountPanelGroup accountDashboardPanel" aria-label="Security settings">
+                  <div className="accountPanelHeader">
+                    <PanelTitle
+                      description="Credentials and second-factor controls."
+                      icon={<ShieldCheck size={18} />}
+                      title="Sign-in security"
+                    />
+                  </div>
+                  <SecuritySections
+                    confirm={setConfirmation}
+                    data={data}
+                    mutate={mutate}
+                    profileEmail={data.profile.email}
+                  />
                 </section>
-              ) : null}
-              <section className="accountPanelGroup" aria-label="Security settings">
-                <SecuritySections
-                  confirm={setConfirmation}
-                  data={data}
-                  mutate={mutate}
-                  profileEmail={data.profile.email}
-                />
-              </section>
-              {accountCenter.connectedAccountsEnabled ? (
-                <section className="accountPanelGroup" aria-label="Social and app access">
-                  <ConnectionsSection accounts={data.linkedAccounts} confirm={setConfirmation} mutate={mutate} />
-                  <ApplicationsSection applications={data.applications} confirm={setConfirmation} mutate={mutate} />
-                </section>
-              ) : null}
-              {accountCenter.sessionsViewEnabled ? (
-                <section className="accountPanelGroup" aria-label="Session management">
-                  <SessionsSection confirm={setConfirmation} sessions={data.sessions} mutate={mutate} />
-                </section>
-              ) : null}
+                {accountCenter.connectedAccountsEnabled ? (
+                  <section className="accountPanelGroup accountDashboardPanel" aria-label="Social and app access">
+                    <div className="accountPanelHeader">
+                      <PanelTitle
+                        description="Linked identities and authorized applications."
+                        icon={<Link2 size={18} />}
+                        title="Connections and apps"
+                      />
+                    </div>
+                    <ConnectionsSection
+                      accounts={data.linkedAccounts}
+                      confirm={setConfirmation}
+                      mutate={mutate}
+                      providers={config?.identityProviders ?? []}
+                    />
+                    <ApplicationsSection applications={data.applications} confirm={setConfirmation} mutate={mutate} />
+                  </section>
+                ) : null}
+                {accountCenter.sessionsViewEnabled ? (
+                  <section
+                    className="accountPanelGroup accountDashboardPanel accountDashboardPanelWide"
+                    aria-label="Session management"
+                  >
+                    <div className="accountPanelHeader">
+                      <PanelTitle
+                        action={
+                          <Button
+                            onClick={() =>
+                              setConfirmation({
+                                title: 'Revoke other sessions',
+                                description: 'Every other active session for this account will be signed out.',
+                                actionLabel: 'Revoke sessions',
+                                onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
+                              })
+                            }
+                            type="button"
+                            variant="secondary"
+                          >
+                            Revoke other sessions
+                          </Button>
+                        }
+                        description="Devices currently signed in to this account."
+                        icon={<Laptop size={18} />}
+                        title="Active sessions"
+                      />
+                    </div>
+                    <SessionsSection confirm={setConfirmation} sessions={data.sessions} mutate={mutate} />
+                  </section>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </section>
@@ -295,13 +371,17 @@ function ProfileSections({
   profile: UserProfile
   mutate: MutationHandler
 }) {
+  const [dialog, setDialog] = useState<'profile' | 'username' | 'email' | 'password' | null>(null)
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [username, setUsername] = useState(profile.username ?? '')
   const [avatarAssetId, setAvatarAssetId] = useState(profile.avatarAssetId ?? '')
   const [avatarPreview, setAvatarPreview] = useState(profile.image ?? '')
   const [email, setEmail] = useState(profile.email)
+  const [emailOtp, setEmailOtp] = useState('')
+  const [emailStep, setEmailStep] = useState<'request' | 'confirm'>('request')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
 
   useEffect(() => {
     setDisplayName(profile.displayName)
@@ -309,31 +389,57 @@ function ProfileSections({
     setAvatarAssetId(profile.avatarAssetId ?? '')
     setAvatarPreview(profile.image ?? '')
     setEmail(profile.email)
+    setEmailOtp('')
+    setEmailStep('request')
   }, [profile])
 
-  function saveProfile(event: FormEvent) {
+  async function saveProfile(event: FormEvent) {
     event.preventDefault()
-    return mutate('Profile updated.', () =>
+    const result = await mutate('Profile updated.', () =>
       updateAccountProfile({
         displayName,
         username: username || null,
         avatarAssetId: avatarAssetId || null,
       }),
     )
+    if (result) setDialog(null)
   }
 
-  function changeEmail(event: FormEvent) {
+  async function changeEmail(event: FormEvent) {
     event.preventDefault()
-    return mutate('Email change requested.', () =>
-      requestAccountEmailChange({ email, callbackURL: `${window.location.origin}/email-verification` }),
-    )
+    if (emailStep === 'request') {
+      const result = await mutate('Verification code sent.', () => requestAccountEmailChange({ email }), {
+        reload: false,
+      })
+      if (result) {
+        setEmailOtp('')
+        setEmailStep('confirm')
+      }
+      return
+    }
+
+    const result = await mutate('Email changed.', () => confirmAccountEmailChange({ email, otp: emailOtp }))
+    if (result) {
+      setEmailOtp('')
+      setEmailStep('request')
+      setDialog(null)
+    }
   }
 
-  function changePassword(event: FormEvent) {
+  async function changePassword(event: FormEvent) {
     event.preventDefault()
-    return mutate('Password changed.', () =>
-      changeAccountPassword({ currentPassword, newPassword, revokeOtherSessions: true }),
+    setPasswordError(null)
+    const result = await mutate(
+      'Password changed.',
+      () => changeAccountPassword({ currentPassword, newPassword, revokeOtherSessions: true }),
+      { onError: setPasswordError },
     )
+    if (result) {
+      setCurrentPassword('')
+      setNewPassword('')
+      setPasswordError(null)
+      setDialog(null)
+    }
   }
 
   function uploadAvatar(file: File | undefined) {
@@ -351,64 +457,137 @@ function ProfileSections({
     <>
       {accountCenter.profileEditingEnabled ? (
         <section className="settingsPanel">
-          <PanelTitle title="Profile" description="Public identity and avatar shown across trusted applications." />
-          <form className="formStack" onSubmit={saveProfile}>
-            {accountCenter.avatarEditable ? (
-              <div className="avatarUploadControl">
-                {avatarPreview ? (
-                  <img alt="" className="assetPreview" src={avatarPreview} width="56" height="56" />
-                ) : (
-                  <div className="assetPreview" aria-hidden="true">
-                    <UserRound size={28} />
-                  </div>
-                )}
-                <div className="avatarUploadMeta">
-                  <span className="avatarUploadLabel">Avatar image</span>
-                  <span className="avatarUploadHelp">PNG, JPEG, or WebP up to 2 MB.</span>
-                  <button
-                    className="avatarUploadButton"
-                    onClick={() => document.getElementById('account-avatar-upload')?.click()}
-                    type="button"
-                  >
-                    <Upload size={16} />
-                    Upload image
-                  </button>
-                  <input
-                    accept="image/png,image/jpeg,image/webp"
-                    aria-label="Avatar image"
-                    className="visuallyHidden"
-                    id="account-avatar-upload"
-                    onChange={(event) => uploadAvatar(event.currentTarget.files?.[0])}
-                    tabIndex={-1}
-                    type="file"
-                  />
-                </div>
-              </div>
-            ) : null}
-            {accountCenter.displayNameEditable ? (
-              <Field label="Display name">
-                <TextInput
-                  autoComplete="name"
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  required
-                  value={displayName}
-                />
-              </Field>
-            ) : null}
-            {accountCenter.displayNameEditable || accountCenter.avatarEditable ? (
-              <Button type="submit">Save profile</Button>
-            ) : null}
-          </form>
+          <SettingsAction
+            action={
+              accountCenter.displayNameEditable || accountCenter.avatarEditable ? (
+                <Button onClick={() => setDialog('profile')} type="button" variant="secondary">
+                  <Pencil size={16} />
+                  Edit profile
+                </Button>
+              ) : null
+            }
+            icon={<UserRound size={18} />}
+            meta={
+              accountCenter.avatarEditable ? 'Avatar can be updated in the edit dialog.' : 'Profile editing is limited.'
+            }
+            title="Profile"
+            value={profile.displayName}
+          />
         </section>
       ) : null}
       {accountCenter.profileEditingEnabled && (accountCenter.usernameEditable || accountCenter.emailChangeEnabled) ? (
         <section className="settingsPanel">
-          <PanelTitle
-            title="Identifiers"
-            description={profile.emailVerified ? 'Verified email address' : 'Verification required'}
-          />
           {accountCenter.usernameEditable ? (
-            <form className="formStack" onSubmit={saveProfile}>
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('username')} type="button" variant="secondary">
+                  Edit username
+                </Button>
+              }
+              icon={<UserRound size={18} />}
+              meta={profile.username ? `@${profile.username}` : 'No username set'}
+              title="Username"
+            />
+          ) : null}
+          {accountCenter.emailChangeEnabled ? (
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('email')} type="button" variant="secondary">
+                  <Mail size={18} />
+                  Change email
+                </Button>
+              }
+              icon={<Mail size={18} />}
+              meta={profile.email}
+              title="Email"
+            />
+          ) : null}
+        </section>
+      ) : null}
+      {accountCenter.passwordChangeEnabled ? (
+        <section className="settingsPanel">
+          <SettingsAction
+            action={
+              <Button onClick={() => setDialog('password')} type="button" variant="secondary">
+                <KeyRound size={18} />
+                Change password
+              </Button>
+            }
+            icon={<LockKeyhole size={18} />}
+            meta="Use this when you need to rotate your hosted sign-in password."
+            title="Password"
+            value="Hosted sign-in"
+          />
+        </section>
+      ) : null}
+      <Dialog open={dialog === 'profile'}>
+        <DialogContent>
+          <form onSubmit={saveProfile}>
+            <DialogHeader>
+              <DialogTitle>Edit profile</DialogTitle>
+              <DialogDescription>Update the name and avatar shown across trusted applications.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              {accountCenter.avatarEditable ? (
+                <div className="avatarUploadControl">
+                  {avatarPreview ? (
+                    <img alt="" className="assetPreview" src={avatarPreview} width="56" height="56" />
+                  ) : (
+                    <div className="assetPreview" aria-hidden="true">
+                      <UserRound size={28} />
+                    </div>
+                  )}
+                  <div className="avatarUploadMeta">
+                    <span className="avatarUploadLabel">Avatar image</span>
+                    <span className="avatarUploadHelp">PNG, JPEG, or WebP up to 2 MB.</span>
+                    <button
+                      className="avatarUploadButton"
+                      onClick={() => document.getElementById('account-avatar-upload')?.click()}
+                      type="button"
+                    >
+                      <Upload size={16} />
+                      Upload image
+                    </button>
+                    <input
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Avatar image"
+                      className="visuallyHidden"
+                      id="account-avatar-upload"
+                      onChange={(event) => uploadAvatar(event.currentTarget.files?.[0])}
+                      tabIndex={-1}
+                      type="file"
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {accountCenter.displayNameEditable ? (
+                <Field label="Display name">
+                  <TextInput
+                    autoComplete="name"
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    required
+                    value={displayName}
+                  />
+                </Field>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
+              <Button type="submit">Save profile</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'username'}>
+        <DialogContent>
+          <form onSubmit={saveProfile}>
+            <DialogHeader>
+              <DialogTitle>Edit username</DialogTitle>
+              <DialogDescription>Choose the username associated with this hosted account.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
               <Field label="Username">
                 <TextInput
                   autoComplete="username"
@@ -416,61 +595,126 @@ function ProfileSections({
                   value={username}
                 />
               </Field>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
               <Button type="submit" variant="secondary">
                 Save identifiers
               </Button>
-            </form>
-          ) : null}
-          {accountCenter.emailChangeEnabled ? (
-            <form className="formStack" onSubmit={changeEmail}>
-              <Field label="Email">
-                <TextInput
-                  autoComplete="email"
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  type="email"
-                  value={email}
-                />
-              </Field>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'email'}>
+        <DialogContent>
+          <form onSubmit={changeEmail}>
+            <DialogHeader>
+              <DialogTitle>Change email</DialogTitle>
+              <DialogDescription>
+                {emailStep === 'request'
+                  ? 'A verification code will be sent to the new email address.'
+                  : `Enter the verification code sent to ${email}.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              {emailStep === 'request' ? (
+                <Field label="Email">
+                  <TextInput
+                    autoComplete="email"
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    type="email"
+                    value={email}
+                  />
+                </Field>
+              ) : (
+                <Field label="Verification code">
+                  <TextInput
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    onChange={(event) => setEmailOtp(event.target.value)}
+                    required
+                    value={emailOtp}
+                  />
+                </Field>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setDialog(null)
+                  setEmailStep('request')
+                  setEmailOtp('')
+                }}
+                type="button"
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+              {emailStep === 'confirm' ? (
+                <Button
+                  onClick={() => {
+                    setEmailStep('request')
+                    setEmailOtp('')
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  Back
+                </Button>
+              ) : null}
               <Button type="submit" variant="secondary">
                 <Mail size={18} />
-                Change email
+                {emailStep === 'request' ? 'Send code' : 'Verify code'}
               </Button>
-            </form>
-          ) : null}
-        </section>
-      ) : null}
-      {accountCenter.passwordChangeEnabled ? (
-        <section className="settingsPanel">
-          <PanelTitle title="Password" description="Change the password used for hosted sign-in." />
-          <form className="formStack" onSubmit={changePassword}>
-            <input autoComplete="username" hidden readOnly type="text" value={profile.email} />
-            <Field label="Current password">
-              <TextInput
-                autoComplete="current-password"
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-                type="password"
-                value={currentPassword}
-              />
-            </Field>
-            <Field label="New password">
-              <TextInput
-                autoComplete="new-password"
-                minLength={8}
-                onChange={(event) => setNewPassword(event.target.value)}
-                required
-                type="password"
-                value={newPassword}
-              />
-            </Field>
-            <Button type="submit" variant="secondary">
-              <KeyRound size={18} />
-              Change password
-            </Button>
+            </DialogFooter>
           </form>
-        </section>
-      ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'password'}>
+        <DialogContent>
+          <form onSubmit={changePassword}>
+            <DialogHeader>
+              <DialogTitle>Change password</DialogTitle>
+              <DialogDescription>Rotates the hosted sign-in password and revokes other sessions.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              {passwordError ? <Status tone="error">{passwordError}</Status> : null}
+              <input autoComplete="username" hidden readOnly type="text" value={profile.email} />
+              <Field label="Current password">
+                <TextInput
+                  autoComplete="current-password"
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={currentPassword}
+                />
+              </Field>
+              <Field label="New password">
+                <TextInput
+                  autoComplete="new-password"
+                  minLength={8}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={newPassword}
+                />
+              </Field>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
+              <Button type="submit" variant="secondary">
+                <KeyRound size={18} />
+                Change password
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -486,101 +730,76 @@ function SecuritySections({
   mutate: MutationHandler
   profileEmail: string
 }) {
+  const [dialog, setDialog] = useState<'mfa-enroll' | 'mfa-verify' | 'mfa-disable' | 'passkey' | null>(null)
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [passkeyName, setPasskeyName] = useState('')
   const [totpEnrollment, setTotpEnrollment] = useState<TotpEnrollmentDisplay | null>(null)
   const mfaRequired = data.security?.policy.mfa.mode === 'required'
+  const mfaEnabled = Boolean(data.security?.mfa.enabled)
 
   return (
     <>
       <section className="settingsPanel">
-        <PanelTitle
-          title="MFA"
-          description={data.security?.mfa.enabled ? 'Enabled' : 'No authenticator factor enrolled'}
-        />
-        <form
-          className="formStack"
-          onSubmit={(event) => {
-            event.preventDefault()
-            return mutate(
-              'TOTP enrollment started.',
-              async () => {
-                const enrollment = await startTotpEnrollment({ password })
-                setTotpEnrollment(readTotpEnrollment(enrollment))
-                return enrollment
-              },
-              { reload: false },
-            )
-          }}
-        >
-          <input autoComplete="username" hidden readOnly type="text" value={profileEmail} />
-          <Field label="Password">
-            <TextInput
-              autoComplete="current-password"
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              value={password}
-            />
-          </Field>
-          <Button type="submit" variant="secondary">
-            Enroll authenticator app
-          </Button>
-        </form>
-        {totpEnrollment ? <TotpEnrollmentDetails enrollment={totpEnrollment} /> : null}
-        <form
-          className="formStack compactForm"
-          onSubmit={(event) => {
-            event.preventDefault()
-            return mutate('MFA challenge verified.', () => verifyTotp({ code, trustDevice: true }))
-          }}
-        >
-          <Field label="Authenticator code">
-            <TextInput inputMode="numeric" onChange={(event) => setCode(event.target.value)} value={code} />
-          </Field>
-          <Button type="submit" variant="secondary">
-            Verify code
-          </Button>
-        </form>
-        <Button
-          disabled={mfaRequired}
-          onClick={() =>
-            confirm({
-              title: 'Disable MFA',
-              description: 'This removes authenticator app protection from your account.',
-              actionLabel: 'Disable authenticator app',
-              onConfirm: () => mutate('MFA disabled.', () => disableTotp({ password })),
-            })
+        <SettingsAction
+          action={
+            <div className="settingsActionButtons">
+              {mfaEnabled ? (
+                <>
+                  <Button onClick={() => setDialog('mfa-verify')} type="button" variant="secondary">
+                    Verify code
+                  </Button>
+                  <Button
+                    disabled={mfaRequired}
+                    onClick={() => setDialog('mfa-disable')}
+                    type="button"
+                    variant="danger"
+                  >
+                    Disable MFA
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setDialog('mfa-enroll')} type="button" variant="secondary">
+                  Enroll authenticator app
+                </Button>
+              )}
+            </div>
           }
-          type="button"
-          variant="danger"
-        >
-          Disable MFA
-        </Button>
+          icon={<ShieldCheck size={18} />}
+          meta={data.security?.mfa.enabled ? 'Authenticator app is enabled.' : 'No authenticator factor enrolled.'}
+          title="Multi-factor authentication"
+        />
       </section>
       <section className="settingsPanel">
-        <PanelTitle title="Passkeys" description="Manage hardware-backed sign-in credentials." />
-        <form
-          className="formStack"
-          onSubmit={(event) => {
-            event.preventDefault()
-            return mutate('Passkey enrolled.', () => enrollPasskey(passkeyName))
-          }}
-        >
-          <Field label="Passkey name">
-            <TextInput onChange={(event) => setPasskeyName(event.target.value)} value={passkeyName} />
-          </Field>
-          <Button disabled={!data.security?.policy.passkeys.enabled} type="submit" variant="secondary">
-            <Fingerprint size={18} />
-            Add passkey
-          </Button>
-        </form>
+        <SettingsAction
+          action={
+            <Button
+              disabled={!data.security?.policy.passkeys.enabled}
+              onClick={() => setDialog('passkey')}
+              type="button"
+              variant="secondary"
+            >
+              <Fingerprint size={18} />
+              Add passkey
+            </Button>
+          }
+          icon={<Fingerprint size={18} />}
+          meta={
+            data.passkeys.length === 1
+              ? '1 passkey added for passwordless sign-in.'
+              : `${data.passkeys.length} passkeys added for passwordless sign-in.`
+          }
+          title="Passkeys"
+        />
         <ItemList
-          empty="No passkeys enrolled."
+          empty="No passkeys have been added yet."
           items={data.passkeys.map((passkey) => ({
             id: passkey.id,
+            icon: <Fingerprint size={16} />,
             title: passkey.name ?? 'Unnamed passkey',
-            meta: `${passkey.deviceType}${passkey.backedUp ? ' / backed up' : ''}`,
+            meta: `${passkey.deviceType}${passkey.backedUp ? ' / backed up' : ' / not backed up'}${
+              passkey.createdAt ? ` / added ${formatDate(passkey.createdAt)}` : ''
+            }`,
             action: (
               <Button
                 onClick={() =>
@@ -600,6 +819,174 @@ function SecuritySections({
           }))}
         />
       </section>
+      <Dialog open={dialog === 'mfa-enroll'}>
+        <DialogContent>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              if (totpEnrollment) {
+                const result = await mutate('MFA enabled.', () => verifyTotp({ code, trustDevice: true }))
+                if (result) {
+                  setCode('')
+                  setPassword('')
+                  setTotpEnrollment(null)
+                  setDialog(null)
+                }
+                return
+              }
+
+              await mutate(
+                'TOTP enrollment started.',
+                async () => {
+                  const enrollment = await startTotpEnrollment({ password })
+                  setTotpEnrollment(readTotpEnrollment(enrollment))
+                  return enrollment
+                },
+                { reload: false },
+              )
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Enroll authenticator app</DialogTitle>
+              <DialogDescription>Confirm your password, then scan the generated setup code.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              <input autoComplete="username" hidden readOnly type="text" value={profileEmail} />
+              <Field label="Password">
+                <TextInput
+                  autoComplete="current-password"
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  value={password}
+                />
+              </Field>
+              {totpEnrollment ? (
+                <>
+                  <TotpEnrollmentDetails enrollment={totpEnrollment} />
+                  <Field label="Authenticator code">
+                    <TextInput inputMode="numeric" onChange={(event) => setCode(event.target.value)} value={code} />
+                  </Field>
+                </>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setTotpEnrollment(null)
+                  setDialog(null)
+                }}
+                type="button"
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="secondary">
+                {totpEnrollment ? 'Verify code' : 'Enroll authenticator app'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'mfa-verify'}>
+        <DialogContent>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const result = await mutate('MFA challenge verified.', () => verifyTotp({ code, trustDevice: true }))
+              if (result) setDialog(null)
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Verify authenticator code</DialogTitle>
+              <DialogDescription>Enter the current code from your authenticator app.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              <Field label="Authenticator code">
+                <TextInput inputMode="numeric" onChange={(event) => setCode(event.target.value)} value={code} />
+              </Field>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
+              <Button type="submit" variant="secondary">
+                Verify code
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'mfa-disable'}>
+        <DialogContent>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const result = await mutate('MFA disabled.', () => disableTotp({ password }))
+              if (result) {
+                setPassword('')
+                setDialog(null)
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Disable MFA</DialogTitle>
+              <DialogDescription>Confirm your password to remove authenticator app protection.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              <input autoComplete="username" hidden readOnly type="text" value={profileEmail} />
+              <Field label="Password">
+                <TextInput
+                  autoComplete="current-password"
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  value={password}
+                />
+              </Field>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
+              <Button disabled={mfaRequired} type="submit" variant="danger">
+                Disable authenticator app
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'passkey'}>
+        <DialogContent>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const result = await mutate('Passkey enrolled.', () => enrollPasskey(passkeyName))
+              if (result) {
+                setPasskeyName('')
+                setDialog(null)
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Add passkey</DialogTitle>
+              <DialogDescription>Create a hardware-backed passkey for this account.</DialogDescription>
+            </DialogHeader>
+            <div className="dialogFormBody formStack">
+              <Field label="Passkey name">
+                <TextInput onChange={(event) => setPasskeyName(event.target.value)} value={passkeyName} />
+              </Field>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setDialog(null)} type="button" variant="secondary">
+                Cancel
+              </Button>
+              <Button disabled={!data.security?.policy.passkeys.enabled} type="submit" variant="secondary">
+                <Fingerprint size={18} />
+                Add passkey
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -608,38 +995,69 @@ function ConnectionsSection({
   accounts,
   confirm,
   mutate,
+  providers,
 }: {
   accounts: LinkedAccount[]
   confirm: ConfirmDestructiveHandler
   mutate: MutationHandler
+  providers: IdentityProvider[]
 }) {
+  const externalAccounts = accounts.filter((account) => account.providerId !== 'credential')
+  const accountByProvider = new Map(externalAccounts.map((account) => [account.providerId, account]))
+
+  async function connectProvider(provider: IdentityProvider) {
+    const result = await mutate(
+      `Redirecting to ${provider.displayName}.`,
+      () =>
+        linkAccount({
+          providerType: provider.providerType === 'generic_oauth' ? 'generic_oauth' : 'social',
+          providerId: provider.providerId,
+          callbackURL: `${window.location.origin}/profile/linked-accounts`,
+          errorCallbackURL: `${window.location.origin}/profile`,
+        }),
+      { reload: false },
+    )
+    const redirectUrl = readRedirectUrl(result)
+    if (redirectUrl) window.location.assign(redirectUrl)
+  }
+
   return (
     <section className="settingsPanel">
-      <PanelTitle title="Linked social accounts" description="External identities connected to this account." />
+      <SubsectionTitle title="Linked accounts" description="External sign-in identities connected to this account." />
       <ItemList
-        empty="No linked social accounts."
-        items={accounts.map((account) => ({
-          id: account.id,
-          title: account.providerId,
-          meta: `Linked ${formatDate(account.createdAt)}`,
-          action: (
-            <Button
-              onClick={() =>
-                confirm({
-                  title: 'Unlink account',
-                  description: `${account.providerId} will no longer be connected to your account.`,
-                  actionLabel: 'Unlink account',
-                  onConfirm: () =>
-                    mutate('Linked account removed.', () => unlinkAccount(account.providerId, account.accountId)),
-                })
-              }
-              type="button"
-              variant="ghost"
-            >
-              Unlink
-            </Button>
-          ),
-        }))}
+        empty="No sign-in connectors are available."
+        emptyDescription="Enable a social or OAuth connector before users can link one here."
+        items={providers.map((provider) => {
+          const account = accountByProvider.get(provider.providerId)
+          return {
+            id: provider.slug,
+            icon: <ProviderIcon className="providerIcon providerIconLarge" provider={provider} />,
+            title: provider.displayName,
+            meta: account ? `Linked ${formatDate(account.createdAt)}` : 'Not linked to this account.',
+            status: account ? 'Linked' : 'Available',
+            action: account ? (
+              <Button
+                onClick={() =>
+                  confirm({
+                    title: 'Unlink account',
+                    description: `${provider.displayName} will no longer be connected to your account.`,
+                    actionLabel: 'Unlink account',
+                    onConfirm: () =>
+                      mutate('Linked account removed.', () => unlinkAccount(provider.providerId, account.accountId)),
+                  })
+                }
+                type="button"
+                variant="ghost"
+              >
+                Unlink
+              </Button>
+            ) : (
+              <Button onClick={() => void connectProvider(provider)} type="button" variant="secondary">
+                Connect
+              </Button>
+            ),
+          }
+        })}
       />
     </section>
   )
@@ -656,29 +1074,13 @@ function SessionsSection({
 }) {
   return (
     <section className="settingsPanel">
-      <PanelTitle title="Sessions and devices" description="Active browser sessions for this account." />
       <div className="settingsBody">
-        <div className="settingsBodyHeader">
-          <Button
-            onClick={() =>
-              confirm({
-                title: 'Revoke other sessions',
-                description: 'Every other active session for this account will be signed out.',
-                actionLabel: 'Revoke sessions',
-                onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
-              })
-            }
-            type="button"
-            variant="secondary"
-          >
-            Revoke other sessions
-          </Button>
-        </div>
         <ItemList
           empty="No active sessions."
           items={sessions.map((session) => ({
             id: session.id,
-            title: session.userAgent ?? 'Unknown device',
+            icon: <Laptop size={16} />,
+            title: formatSessionDevice(session.userAgent),
             meta: `${session.ipAddress ?? 'No IP'} / expires ${formatDate(session.expiresAt)}`,
             action: (
               <Button
@@ -687,7 +1089,18 @@ function SessionsSection({
                     title: 'Revoke session',
                     description: 'This device session will be signed out.',
                     actionLabel: 'Revoke session',
-                    onConfirm: () => mutate('Session revoked.', () => revokeSession(session.id)),
+                    onConfirm: async () => {
+                      const result = await mutate('Session revoked.', () => revokeSession(session.id), {
+                        reload: !session.current,
+                      })
+                      if (result && session.current) {
+                        try {
+                          await signOut()
+                        } finally {
+                          window.location.assign('/sign-in')
+                        }
+                      }
+                    },
                   })
                 }
                 type="button"
@@ -714,13 +1127,14 @@ function ApplicationsSection({
 }) {
   return (
     <section className="settingsPanel">
-      <PanelTitle title="Authorized apps" description="Applications with consent to access this account." />
+      <SubsectionTitle title="Authorized apps" description="Applications with consent to access this account." />
       <ItemList
-        empty="No application consents."
+        empty="No authorized applications yet."
         items={applications.map((application) => ({
           id: application.id,
+          icon: <Link2 size={16} />,
           title: application.applicationName,
-          meta: `${application.scopes.join(', ')} / granted ${formatDate(application.grantedAt)}`,
+          meta: `Scopes: ${application.scopes.join(', ')} / Granted ${formatDate(application.grantedAt)}`,
           action: (
             <Button
               onClick={() =>
@@ -744,19 +1158,85 @@ function ApplicationsSection({
   )
 }
 
-function PanelTitle({ title, description }: { title: string; description: string }) {
+function SubsectionTitle({ title, description }: { title: string; description: string }) {
   return (
-    <div className="panelTitle">
-      <h2>{title}</h2>
+    <div className="subsectionTitle">
+      <h3>{title}</h3>
       <p>{description}</p>
     </div>
+  )
+}
+
+function PanelTitle({
+  action,
+  title,
+  description,
+  icon,
+}: {
+  action?: ReactNode
+  title: string
+  description: string
+  icon: ReactNode
+}) {
+  return (
+    <div className="panelTitle">
+      <div className="panelTitleMain">
+        <div className="panelTitleIcon" aria-hidden="true">
+          {icon}
+        </div>
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function StatusPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="statusPill">
+      <span>{value}</span>
+      <strong>{label}</strong>
+    </div>
+  )
+}
+
+function SettingsAction({
+  action,
+  icon,
+  meta,
+  title,
+  value,
+}: {
+  action?: ReactNode
+  icon: ReactNode
+  meta: string
+  title: string
+  value?: string
+}) {
+  return (
+    <article className="settingsAction">
+      <div className="settingsActionMain">
+        <div className="settingsActionIcon" aria-hidden="true">
+          {icon}
+        </div>
+        <div>
+          <h3>{title}</h3>
+          {value ? <strong>{value}</strong> : null}
+          <p>{meta}</p>
+        </div>
+      </div>
+      {action}
+    </article>
   )
 }
 
 type MutationHandler = <T>(
   label: string,
   operation: () => Promise<T>,
-  options?: { reload?: boolean },
+  options?: { onError?: (message: string) => void; reload?: boolean },
 ) => Promise<T | undefined>
 
 type DestructiveConfirmation = {
@@ -807,25 +1287,52 @@ function DestructiveConfirmationDialog({
 
 type ListItem = {
   id: string
+  icon?: ReactNode
   title: string
   meta: string
   action?: ReactNode
+  status?: string
 }
 
-function ItemList({ empty, items }: { empty: string; items: ListItem[] }) {
-  if (items.length === 0) return <p className="emptyState">{empty}</p>
-
+function ItemList({
+  empty,
+  emptyDescription = 'Nothing needs attention here.',
+  items,
+}: {
+  empty: string
+  emptyDescription?: string
+  items: ListItem[]
+}) {
   return (
     <div className="itemList">
-      {items.map((item) => (
-        <article className="itemRow" key={item.id}>
+      {items.length === 0 ? (
+        <article className="itemRow itemRowEmpty">
           <div>
-            <h3>{item.title}</h3>
-            <p>{item.meta}</p>
+            <h3>{empty}</h3>
+            <p>{emptyDescription}</p>
           </div>
-          {item.action}
         </article>
-      ))}
+      ) : (
+        items.map((item) => (
+          <article className="itemRow" key={item.id}>
+            <div className="itemRowMain">
+              {item.icon ? (
+                <div className="itemRowIcon" aria-hidden="true">
+                  {item.icon}
+                </div>
+              ) : null}
+              <div>
+                <div className="itemRowTitle">
+                  <h3>{item.title}</h3>
+                  {item.status ? <span>{item.status}</span> : null}
+                </div>
+                <p>{item.meta}</p>
+              </div>
+            </div>
+            {item.action}
+          </article>
+        ))
+      )}
     </div>
   )
 }
@@ -849,6 +1356,16 @@ function TotpEnrollmentDetails({ enrollment }: { enrollment: TotpEnrollmentDispl
           <code>{enrollment.secret}</code>
         </p>
       ) : null}
+      {enrollment.backupCodes.length ? (
+        <div>
+          <strong>Backup codes</strong>
+          <div className="backupCodeGrid">
+            {enrollment.backupCodes.map((code) => (
+              <code key={code}>{code}</code>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -864,7 +1381,12 @@ function readTotpEnrollment(value: unknown): TotpEnrollmentDisplay {
       readString(record.totpUri) ??
       readString(record.uri),
     secret: readString(record.secret),
+    backupCodes: readStringArray(record.backupCodes),
   }
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []
 }
 
 async function enrollPasskey(name: string) {
@@ -970,4 +1492,38 @@ function readRequiredString(value: unknown, field: string) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
+}
+
+function readRedirectUrl(response: unknown) {
+  if (typeof response !== 'object' || response === null) return null
+  if ('url' in response && typeof response.url === 'string') return response.url
+  if ('redirectTo' in response && typeof response.redirectTo === 'string') return response.redirectTo
+  if ('callbackURL' in response && typeof response.callbackURL === 'string') return response.callbackURL
+  return null
+}
+
+function formatSessionDevice(userAgent: string | null) {
+  if (!userAgent) return 'Unknown device'
+  if (!userAgent.includes('/')) return userAgent
+
+  const browser = userAgent.includes('Edg/')
+    ? 'Edge'
+    : userAgent.includes('Chrome/')
+      ? 'Chrome'
+      : userAgent.includes('Firefox/')
+        ? 'Firefox'
+        : userAgent.includes('Safari/')
+          ? 'Safari'
+          : 'Browser'
+  const platform = userAgent.includes('Mac OS X')
+    ? 'macOS'
+    : userAgent.includes('Windows')
+      ? 'Windows'
+      : userAgent.includes('Android')
+        ? 'Android'
+        : userAgent.includes('iPhone') || userAgent.includes('iPad')
+          ? 'iOS'
+          : null
+
+  return platform ? `${browser} on ${platform}` : `${browser} session`
 }

@@ -2,11 +2,15 @@ import { createApp } from '../server/app'
 import { type Auth, createAuth } from '../server/auth'
 import { createDb } from '../server/db/client'
 import { createEmailSender } from '../server/lib/email/sender'
+import { createConfigzService } from '../server/modules/configz/context'
+import { createDrizzleConfigzRepository } from '../server/modules/configz/drizzle-repository'
+import { defaultBuiltInProviders } from '../server/modules/configz/service'
 import { createConnectorRepository } from '../server/modules/connectors/repository'
 import { loadAuthConnectorConfig } from '../server/modules/connectors/service'
 import { createOnboardingRepository } from '../server/modules/onboarding/repository'
 import { createSecurityRepository } from '../server/modules/security/repository'
 import { createUserRepository } from '../server/modules/users/repository'
+import { managementBuiltInProviderSettingsSchema } from '../shared/api/management'
 import { type Env, type RuntimeConfig, validateEnv } from '../shared/env'
 
 let cachedAuth: Auth | null = null
@@ -27,13 +31,18 @@ export default {
       securityRepository,
       onboardingRepository: createOnboardingRepository(env.DB),
       securityPolicy,
+      configzServiceFactory: createConfigzService,
     }).fetch(request, env, ctx)
   },
 }
 
 async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
   const db = createDb(env.DB)
-  const connectors = await loadAuthConnectorConfig(createConnectorRepository(db), env)
+  const connectors = await loadAuthConnectorConfig(createConnectorRepository(db))
+  const storedBuiltInProviders = (await createDrizzleConfigzRepository(db).getSettings())?.metadata?.builtInProviders
+  const builtInProviders = managementBuiltInProviderSettingsSchema.parse(
+    mergeBuiltInProviders(defaultBuiltInProviders, storedBuiltInProviders),
+  )
   const cacheKey = [
     config.authSecret,
     config.baseURL,
@@ -41,6 +50,7 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
     config.emailFromName ?? '',
     config.trustedOrigins.join(','),
     JSON.stringify(config.securityPolicy),
+    JSON.stringify(builtInProviders ?? {}),
     connectors.cacheKey,
   ].join('\n')
 
@@ -58,6 +68,10 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
       emailSender,
       config.securityPolicy,
       connectors,
+      {
+        builtInProviders,
+        twoFactorEmailOtpEnabled: config.securityPolicy.mfa.emailOtpEnabled,
+      },
     )
     cachedKey = cacheKey
     cachedDb = env.DB
@@ -65,4 +79,22 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
   }
 
   return cachedAuth
+}
+
+function mergeBuiltInProviders(
+  defaults: typeof defaultBuiltInProviders,
+  stored: unknown,
+): typeof defaultBuiltInProviders {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return defaults
+  const input = stored as Partial<Record<keyof typeof defaultBuiltInProviders, unknown>>
+  return {
+    phone: mergeProvider(defaults.phone, input.phone),
+    web3Wallet: mergeProvider(defaults.web3Wallet, input.web3Wallet),
+    oneTap: mergeProvider(defaults.oneTap, input.oneTap),
+  }
+}
+
+function mergeProvider<T extends Record<string, unknown>>(defaults: T, stored: unknown): T {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return defaults
+  return { ...defaults, ...stored }
 }

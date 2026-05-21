@@ -1,24 +1,43 @@
-import { ArrowLeft, ArrowRight, CircleAlert, Eye, EyeOff, KeyRound, LinkIcon, LoaderCircle, Mail } from 'lucide-react'
-import { type ComponentProps, type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  KeyRound,
+  LoaderCircle,
+  Mail,
+  Smartphone,
+  Wallet,
+} from 'lucide-react'
+import { type ComponentProps, type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createSiweMessage } from 'viem/siwe'
 import { AuthLayout } from '@/components/layout/auth-layout'
+import { ProviderIcon } from '@/components/provider-icon'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Field, TextInput } from '@/components/ui/field'
 import { Status } from '@/components/ui/status'
 import {
   requestEmailOtp,
   requestEmailOtpPasswordReset,
-  requestEmailVerification,
-  requestMagicLink,
   requestPasswordReset,
+  requestPhoneOtp,
+  requestWalletNonce,
   resetPassword,
   resetPasswordWithEmailOtp,
   signInWithEmailOtp,
+  signInWithOneTap,
+  signInWithPasskey,
   signInWithPassword,
   signInWithSocial,
   signInWithUsername,
+  signInWithWallet,
   signUp,
   verifyEmail,
   verifyEmailOtp,
+  verifyPhoneNumber,
+  verifySignInTotp,
 } from '@/lib/auth-client'
 import { callbackURL, safeRedirectPath, useConfigz } from './hooks'
 
@@ -28,7 +47,8 @@ type SubmitState = {
   error: string | null
 }
 
-type SignInMode = 'password' | 'magic' | 'otp'
+type SignInMode = 'password' | 'otp' | 'phone'
+type SignInStep = 'credential' | 'otp-code'
 
 declare global {
   interface Window {
@@ -44,7 +64,36 @@ declare global {
       ) => string
       remove: (widget: string) => void
     }
+    google?: {
+      accounts: {
+        id: {
+          initialize: (options: {
+            client_id: string
+            callback: (response: { credential?: string }) => void
+            auto_select?: boolean
+            cancel_on_tap_outside?: boolean
+            context?: 'signin' | 'signup' | 'use'
+            ux_mode?: 'popup' | 'redirect'
+            use_fedcm_for_prompt?: boolean
+          }) => void
+          prompt: (listener?: (notification: GooglePromptNotification) => void) => void
+        }
+      }
+    }
+    googleScriptInitialized?: boolean
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+    }
   }
+}
+
+type GooglePromptNotification = {
+  getDismissedReason?: () => string
+  getNotDisplayedReason?: () => string
+  getSkippedReason?: () => string
+  isDismissedMoment?: () => boolean
+  isNotDisplayed?: () => boolean
+  isSkippedMoment?: () => boolean
 }
 
 const initialSubmitState: SubmitState = {
@@ -55,25 +104,42 @@ const initialSubmitState: SubmitState = {
 
 export function SignInPage() {
   const { data: config, error, loading } = useConfigz()
-  const [mode, setMode] = useState<SignInMode>('password')
+  const [mode, setMode] = useState<SignInMode | null>(null)
+  const [step, setStep] = useState<SignInStep>('credential')
   const [submit, setSubmit] = useState(initialSubmitState)
   const [identifier, setIdentifier] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
   const [identifierConfirmed, setIdentifierConfirmed] = useState(false)
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [twoFactorMethods, setTwoFactorMethods] = useState<string[] | null>(null)
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const enabled = config?.signIn
   const callback = callbackURL()
   const authContext = authRequestContext('sign-in')
   const identifierFirst = enabled?.identifierFirst === true
-  const showIdentifierStep = identifierFirst && !identifierConfirmed
 
   const socialProviders = config?.identityProviders ?? []
-  const methods = useMemo(() => (enabled ? signInMethods(enabled) : []), [enabled])
-  const activeMode = methods.some((method) => method.id === mode) ? mode : (methods[0]?.id ?? mode)
+  const primaryMode = useMemo(() => (enabled ? primarySignInMode(enabled) : null), [enabled])
+  const activeMode = mode ?? primaryMode
+  const showIdentifierStep = identifierFirst && !identifierConfirmed && activeMode !== null
   const needsEmailIdentifier = identifierFirst && activeMode !== 'password' && !identifier.includes('@')
   const resetCaptcha = () => resetCaptchaState(config, setCaptchaToken, setCaptchaResetKey)
+  const backToSignIn = () => {
+    setMode(null)
+    setStep('credential')
+    setOtp('')
+    setSubmit(initialSubmitState)
+    resetCaptcha()
+  }
+
+  useEffect(() => {
+    setMode((current) => (current === primaryMode ? current : null))
+    setStep('credential')
+    setOtp('')
+  }, [primaryMode])
 
   async function onPasswordSubmit(event: FormEvent) {
     event.preventDefault()
@@ -95,6 +161,10 @@ export function SignInPage() {
               rememberMe: true,
               captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
             })
+        if (requiresTwoFactor(response)) {
+          setTwoFactorMethods(response.twoFactorMethods ?? [])
+          return 'Enter your verification code to finish signing in.'
+        }
         navigateAfterAuth(response, callback)
         return 'Signed in. Redirecting to the requested application.'
       } finally {
@@ -103,37 +173,20 @@ export function SignInPage() {
     })
   }
 
-  async function onMagicSubmit(event: FormEvent) {
+  async function onTwoFactorSubmit(event: FormEvent) {
     event.preventDefault()
     await submitRequest(setSubmit, async () => {
-      try {
-        await requestMagicLink({
-          email: identifier,
-          callbackURL: callback,
-          errorCallbackURL: authPageHref('/sign-in'),
-          captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
-        })
-        return 'Magic link sent. Check your email to continue.'
-      } finally {
-        resetCaptcha()
-      }
+      const response = await verifySignInTotp({ code: twoFactorCode, trustDevice: true })
+      navigateAfterAuth(response, callback)
+      return 'Code accepted. Redirecting to the requested application.'
     })
   }
 
   async function onOtpSubmit(event: FormEvent) {
     event.preventDefault()
     await submitRequest(setSubmit, async () => {
-      if (!otp) {
-        try {
-          await requestEmailOtp({
-            email: identifier,
-            type: 'sign-in',
-            captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
-          })
-          return 'One-time code sent. Enter it here to finish signing in.'
-        } finally {
-          resetCaptcha()
-        }
+      if (step !== 'otp-code') {
+        return sendOtpCode()
       }
 
       const response = await signInWithEmailOtp({ email: identifier, otp })
@@ -141,6 +194,91 @@ export function SignInPage() {
       return 'Code accepted. Redirecting to the requested application.'
     })
   }
+
+  async function onPhoneSubmit(event: FormEvent) {
+    event.preventDefault()
+    await submitRequest(setSubmit, async () => {
+      if (step !== 'otp-code') {
+        await requestPhoneOtp({ phoneNumber })
+        setOtp('')
+        setStep('otp-code')
+        return 'One-time code sent. Enter it here to finish signing in.'
+      }
+
+      const response = await verifyPhoneNumber({ phoneNumber, code: otp })
+      navigateAfterAuth(response, callback)
+      return 'Code accepted. Redirecting to the requested application.'
+    })
+  }
+
+  async function onPasskeySubmit() {
+    await submitRequest(setSubmit, async () => {
+      const response = await signInWithPasskey()
+      navigateAfterAuth(response, callback)
+      return 'Signed in with passkey. Redirecting to the requested application.'
+    })
+  }
+
+  async function onWalletSubmit() {
+    await submitRequest(setSubmit, async () => {
+      const response = await signInWithEthereum(config?.builtInProviders.web3Wallet.chains ?? [1], callback)
+      navigateAfterAuth(response, callback)
+      return 'Signed in with wallet. Redirecting to the requested application.'
+    })
+  }
+
+  async function onOneTapSubmit() {
+    await submitRequest(setSubmit, async () => {
+      const response = await signInWithGoogleOneTap(config?.builtInProviders.oneTap, callback)
+      navigateAfterAuth(response, callback)
+      return 'Signed in with Google One Tap. Redirecting to the requested application.'
+    })
+  }
+
+  async function sendOtpCode() {
+    try {
+      await requestEmailOtp({
+        email: identifier,
+        type: 'sign-in',
+        captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
+      })
+      setOtp('')
+      setStep('otp-code')
+      return 'One-time code sent. Enter it here to finish signing in.'
+    } finally {
+      resetCaptcha()
+    }
+  }
+
+  const methodButtons =
+    !showIdentifierStep && enabled ? (
+      <SignInMethodButtons
+        callback={callback}
+        emailEnabled={enabled.emailOtpEnabled}
+        onEmailClick={() => {
+          setMode('otp')
+          setStep('credential')
+          setPassword('')
+          setOtp('')
+        }}
+        onPasskeyClick={onPasskeySubmit}
+        onPhoneClick={() => {
+          setMode('phone')
+          setStep('credential')
+          setPassword('')
+          setOtp('')
+        }}
+        onOneTapClick={onOneTapSubmit}
+        onWalletClick={onWalletSubmit}
+        oneTapEnabled={Boolean(config?.builtInProviders?.oneTap?.enabled)}
+        passkeyEnabled={Boolean(config?.security.passkeysEnabled)}
+        phoneEnabled={Boolean(config?.builtInProviders?.phone?.enabled)}
+        phoneVisible={Boolean(config?.builtInProviders?.phone?.enabled)}
+        providers={socialProviders}
+        walletEnabled={Boolean(config?.builtInProviders?.web3Wallet?.enabled)}
+      />
+    ) : null
+  const hasPrimarySignInSurface = Boolean(!twoFactorMethods && !showIdentifierStep && activeMode)
 
   return (
     <AuthLayout
@@ -155,70 +293,53 @@ export function SignInPage() {
     >
       {loading ? <LoadingMessage label="Loading sign-in options" /> : null}
       {error ? <Status tone="error">{error}</Status> : null}
-      {!loading && !error && methods.length === 0 ? (
+      {!loading &&
+      !error &&
+      !primaryMode &&
+      socialProviders.length === 0 &&
+      !config?.builtInProviders.phone.enabled &&
+      !config?.security.passkeysEnabled &&
+      !config?.builtInProviders.web3Wallet.enabled &&
+      !config?.builtInProviders.oneTap.enabled ? (
         <Status tone="warning">No sign-in methods are enabled. Contact the workspace administrator.</Status>
       ) : null}
 
-      <div className="authCardHeader">
-        <h2>{showIdentifierStep ? 'Enter your identifier' : 'Choose how to continue'}</h2>
-        <p>
-          {showIdentifierStep ? 'Start with the email or username for your hosted account.' : methodHelp(activeMode)}
-        </p>
-      </div>
+      <SignInCardBody
+        footer={<SubmitStatus state={submit} />}
+        methodButtons={methodButtons}
+        showDivider={Boolean(methodButtons && hasPrimarySignInSurface)}
+      >
+        {twoFactorMethods ? <Status>Enter the current code from your authenticator app.</Status> : null}
+        {step === 'otp-code' ? <Status>Code sent to {identifier}. Enter it below to continue.</Status> : null}
 
-      {showIdentifierStep ? (
-        <form
-          className="formStack"
-          onSubmit={(event) => {
-            event.preventDefault()
-            setIdentifierConfirmed(true)
-          }}
-        >
-          <Field label={enabled?.usernameEnabled ? 'Email or username' : 'Email'}>
-            <TextInput
-              autoComplete="username"
-              onChange={(event) => setIdentifier(event.target.value)}
-              required
-              type="text"
-              value={identifier}
-            />
-          </Field>
-          <Button type="submit">
-            <ArrowRight size={18} />
-            Continue
-          </Button>
-        </form>
-      ) : null}
+        {twoFactorMethods ? (
+          <form className="formStack" onSubmit={onTwoFactorSubmit}>
+            <h2 className="authStepTitle">Verify your sign-in</h2>
+            <Field label="Authenticator code">
+              <TextInput
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                onChange={(event) => setTwoFactorCode(event.target.value)}
+                required
+                value={twoFactorCode}
+              />
+            </Field>
+            <Button disabled={submit.loading} type="submit">
+              <KeyRound size={18} />
+              Verify code
+            </Button>
+          </form>
+        ) : null}
 
-      {!showIdentifierStep && methods.length > 1 ? (
-        <div className="segmented" role="tablist" aria-label="Sign-in method">
-          {methods.map((method) => (
-            <button
-              className={activeMode === method.id ? 'active' : ''}
-              key={method.id}
-              onClick={() => setMode(method.id)}
-              type="button"
-            >
-              {method.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {!showIdentifierStep && identifierFirst && !needsEmailIdentifier ? (
-        <div className="identitySummary">
-          <span>Signing in as</span>
-          <strong>{identifier}</strong>
-          <button onClick={() => setIdentifierConfirmed(false)} type="button">
-            Change
-          </button>
-        </div>
-      ) : null}
-
-      {!showIdentifierStep && activeMode === 'password' && enabled?.passwordEnabled ? (
-        <form className="formStack" onSubmit={onPasswordSubmit}>
-          {!identifierFirst ? (
-            <Field label={enabled.usernameEnabled ? 'Email or username' : 'Email'}>
+        {!twoFactorMethods && showIdentifierStep ? (
+          <form
+            className="formStack"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setIdentifierConfirmed(true)
+            }}
+          >
+            <Field label={enabled?.usernameEnabled ? 'Email or username' : 'Email'}>
               <TextInput
                 autoComplete="username"
                 onChange={(event) => setIdentifier(event.target.value)}
@@ -227,80 +348,167 @@ export function SignInPage() {
                 value={identifier}
               />
             </Field>
-          ) : null}
-          <Field label="Password">
-            <PasswordInput
-              autoComplete="current-password"
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              value={password}
-            />
-          </Field>
-          <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
-          <Button disabled={submit.loading} type="submit">
-            <KeyRound size={18} />
-            Sign in
-          </Button>
-        </form>
-      ) : null}
+            <Button type="submit">
+              <ArrowRight size={18} />
+              Continue
+            </Button>
+          </form>
+        ) : null}
 
-      {!showIdentifierStep && activeMode === 'magic' && enabled?.magicLinkEnabled ? (
-        <form className="formStack" onSubmit={onMagicSubmit}>
-          {!identifierFirst || needsEmailIdentifier ? (
-            <Field label="Email">
-              <TextInput
-                autoComplete="email"
-                onChange={(event) => setIdentifier(event.target.value)}
+        {!twoFactorMethods && !showIdentifierStep && identifierFirst && !needsEmailIdentifier ? (
+          <div className="identitySummary">
+            <span>Signing in as</span>
+            <strong>{identifier}</strong>
+            <button onClick={() => setIdentifierConfirmed(false)} type="button">
+              Change
+            </button>
+          </div>
+        ) : null}
+
+        {!twoFactorMethods && !showIdentifierStep && activeMode === 'password' && enabled?.passwordEnabled ? (
+          <form className="formStack" onSubmit={onPasswordSubmit}>
+            {!identifierFirst ? (
+              <Field label={enabled.usernameEnabled ? 'Email or username' : 'Email'}>
+                <TextInput
+                  autoComplete="username"
+                  onChange={(event) => setIdentifier(event.target.value)}
+                  required
+                  type="text"
+                  value={identifier}
+                />
+              </Field>
+            ) : null}
+            <Field label="Password">
+              <PasswordInput
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
                 required
-                type="email"
-                value={identifier}
+                value={password}
               />
             </Field>
-          ) : null}
-          <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
-          <Button disabled={submit.loading} type="submit">
-            <LinkIcon size={18} />
-            Send magic link
-          </Button>
-        </form>
-      ) : null}
+            {enabled.passwordEnabled ? (
+              <a className="authFieldLink" href={authPageHref('/forgot-password')}>
+                Forgot password?
+              </a>
+            ) : null}
+            <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
+            <Button disabled={submit.loading} type="submit">
+              <KeyRound size={18} />
+              Sign in
+            </Button>
+            {enabled.signupEnabled ? (
+              <p className="authSignupPrompt">
+                No account yet? <a href={authPageHref('/sign-up')}>Create account</a>
+              </p>
+            ) : null}
+          </form>
+        ) : null}
 
-      {!showIdentifierStep && activeMode === 'otp' && enabled?.emailOtpEnabled ? (
-        <form className="formStack" onSubmit={onOtpSubmit}>
-          {!identifierFirst || needsEmailIdentifier ? (
-            <Field label="Email">
-              <TextInput
-                autoComplete="email"
-                onChange={(event) => setIdentifier(event.target.value)}
-                required
-                type="email"
-                value={identifier}
-              />
-            </Field>
-          ) : null}
-          <Field label="One-time code" help="Request a code first, then enter the code from your email.">
-            <TextInput
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              onChange={(event) => setOtp(event.target.value)}
-              value={otp}
-            />
-          </Field>
-          {!otp ? <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} /> : null}
-          <Button disabled={submit.loading} type="submit">
-            <Mail size={18} />
-            {otp ? 'Verify code' : 'Send code'}
-          </Button>
-        </form>
-      ) : null}
+        {!twoFactorMethods && !showIdentifierStep && activeMode === 'otp' && enabled?.emailOtpEnabled ? (
+          <form className="formStack" onSubmit={onOtpSubmit}>
+            {step !== 'otp-code' && (!identifierFirst || needsEmailIdentifier) ? (
+              <Field label="Email">
+                <TextInput
+                  autoComplete="email"
+                  onChange={(event) => setIdentifier(event.target.value)}
+                  required
+                  type="email"
+                  value={identifier}
+                />
+              </Field>
+            ) : null}
+            {step === 'otp-code' ? (
+              <Field label="Verification code" help="Enter the code from your email.">
+                <TextInput
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  onChange={(event) => setOtp(event.target.value)}
+                  required
+                  value={otp}
+                />
+              </Field>
+            ) : null}
+            {step !== 'otp-code' ? (
+              <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
+            ) : null}
+            <Button disabled={submit.loading} type="submit">
+              <Mail size={18} />
+              {step === 'otp-code' ? 'Verify code' : 'Send code'}
+            </Button>
+            {step !== 'otp-code' ? (
+              <button className="authBackAction" onClick={backToSignIn} type="button">
+                Back to sign in
+              </button>
+            ) : null}
+            {step === 'otp-code' ? (
+              <button
+                className="authInlineAction"
+                disabled={submit.loading}
+                onClick={() => submitRequest(setSubmit, sendOtpCode)}
+                type="button"
+              >
+                Resend code
+              </button>
+            ) : null}
+          </form>
+        ) : null}
 
-      {!showIdentifierStep ? <SocialButtons callback={callback} providers={socialProviders} /> : null}
-      <SubmitStatus state={submit} />
-
-      <div className="authLinks">
-        {enabled?.signupEnabled ? <a href={authPageHref('/sign-up')}>Create account</a> : null}
-        {enabled?.passwordEnabled ? <a href={authPageHref('/forgot-password')}>Forgot password?</a> : null}
-      </div>
+        {!twoFactorMethods &&
+        !showIdentifierStep &&
+        activeMode === 'phone' &&
+        config?.builtInProviders?.phone?.enabled ? (
+          <form className="formStack" onSubmit={onPhoneSubmit}>
+            {step !== 'otp-code' ? (
+              <Field label="Phone">
+                <TextInput
+                  autoComplete="tel"
+                  inputMode="tel"
+                  onChange={(event) => setPhoneNumber(event.target.value)}
+                  placeholder="+15555550123"
+                  required
+                  type="tel"
+                  value={phoneNumber}
+                />
+              </Field>
+            ) : null}
+            {step === 'otp-code' ? (
+              <Field label="Verification code" help="Enter the code from your phone.">
+                <TextInput
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  onChange={(event) => setOtp(event.target.value)}
+                  required
+                  value={otp}
+                />
+              </Field>
+            ) : null}
+            <Button disabled={submit.loading} type="submit">
+              <Smartphone size={18} />
+              {step === 'otp-code' ? 'Verify code' : 'Send code'}
+            </Button>
+            {step !== 'otp-code' ? (
+              <button className="authBackAction" onClick={backToSignIn} type="button">
+                Back to sign in
+              </button>
+            ) : null}
+            {step === 'otp-code' ? (
+              <button
+                className="authInlineAction"
+                disabled={submit.loading}
+                onClick={() =>
+                  submitRequest(setSubmit, async () => {
+                    await requestPhoneOtp({ phoneNumber })
+                    return 'One-time code sent. Enter it here to finish signing in.'
+                  })
+                }
+                type="button"
+              >
+                Resend code
+              </button>
+            ) : null}
+          </form>
+        ) : null}
+      </SignInCardBody>
     </AuthLayout>
   )
 }
@@ -318,6 +526,7 @@ export function SignUpPage() {
   const authContext = authRequestContext('sign-up')
   const callback = callbackURL()
   const socialProviders = config?.identityProviders ?? []
+  const signupEnabled = config?.signIn.signupEnabled !== false
   const resetCaptcha = () => resetCaptchaState(config, setCaptchaToken, setCaptchaResetKey)
 
   async function onSubmit(event: FormEvent) {
@@ -346,55 +555,283 @@ export function SignUpPage() {
       title={authContext.title ?? 'Start with your identity.'}
       description={authContext.description ?? 'Create a hosted account for every connected application.'}
     >
+      {signupEnabled ? (
+        <SignUpCardBody
+          created={created}
+          form={
+            <SignUpForm
+              captchaConfig={config}
+              captchaResetKey={captchaResetKey}
+              email={email}
+              name={name}
+              onCaptchaChange={setCaptchaToken}
+              onEmailChange={setEmail}
+              onNameChange={setName}
+              onPasswordChange={setPassword}
+              onSubmit={onSubmit}
+              onUsernameChange={setUsername}
+              password={password}
+              submitLoading={submit.loading}
+              username={username}
+              usernameEnabled={config?.signIn.usernameEnabled}
+            />
+          }
+          signInAction={<a href={authPageHref('/sign-in')}>Already have an account?</a>}
+          socialButtons={<SocialButtons callback={callback} providers={socialProviders} />}
+          status={<SubmitStatus state={submit} />}
+        />
+      ) : (
+        <SignUpDisabled signInAction={<a href={authPageHref('/sign-in')}>Back to sign in</a>} />
+      )}
+    </AuthLayout>
+  )
+}
+
+async function signInWithEthereum(enabledChains: number[], callback: string | undefined) {
+  const ethereum = window.ethereum
+  if (!ethereum) throw new Error('No wallet provider was found in this browser.')
+
+  const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
+  const walletAddress = readFirstString(accounts)
+  if (!walletAddress) throw new Error('No wallet account was selected.')
+
+  const chainValue = await ethereum.request({ method: 'eth_chainId' })
+  const chainId = readChainId(chainValue)
+  if (!enabledChains.includes(chainId)) {
+    throw new Error(`This wallet network is not enabled. Switch to chain ${enabledChains[0]}.`)
+  }
+
+  const { nonce } = await requestWalletNonce({ walletAddress, chainId })
+  const message = createSiweMessage({
+    address: walletAddress as `0x${string}`,
+    chainId,
+    domain: window.location.host,
+    nonce,
+    statement: 'Sign in to FlareAuth.',
+    uri: window.location.origin,
+    version: '1',
+  })
+  const signature = readString(
+    await ethereum.request({
+      method: 'personal_sign',
+      params: [message, walletAddress],
+    }),
+  )
+  if (!signature) throw new Error('Wallet did not return a signature.')
+
+  return signInWithWallet({
+    message,
+    signature,
+    walletAddress,
+    chainId,
+    email: undefined,
+  }).then((response) => ({ ...response, callbackURL: callback }))
+}
+
+async function signInWithGoogleOneTap(
+  config: NonNullable<ReturnType<typeof useConfigz>['data']>['builtInProviders']['oneTap'] | undefined,
+  callback: string | undefined,
+) {
+  if (!config?.clientId) throw new Error('Google One Tap Client ID is not configured.')
+  await loadGoogleIdentityScript()
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (result: unknown) => {
+      settled = true
+      resolve(result)
+    }
+    const fail = (message: string) => {
+      settled = true
+      reject(new Error(message))
+    }
+    const timeout = window.setTimeout(() => {
+      if (!settled) fail('Google One Tap did not return a credential.')
+    }, 15000)
+    window.google?.accounts.id.initialize({
+      client_id: config.clientId,
+      auto_select: config.autoSelect,
+      cancel_on_tap_outside: config.cancelOnTapOutside,
+      context: config.context,
+      ux_mode: config.uxMode,
+      use_fedcm_for_prompt: true,
+      callback: async (response) => {
+        try {
+          if (!response.credential) throw new Error('Google One Tap did not return a credential.')
+          const result = await signInWithOneTap({ idToken: response.credential })
+          window.clearTimeout(timeout)
+          finish({ ...result, callbackURL: callback })
+        } catch (error) {
+          window.clearTimeout(timeout)
+          reject(error)
+        }
+      },
+    })
+    window.google?.accounts.id.prompt((notification) => {
+      if (settled) return
+      if (notification.isNotDisplayed?.()) {
+        window.clearTimeout(timeout)
+        fail(`Google One Tap was not displayed: ${notification.getNotDisplayedReason?.() ?? 'unknown reason'}.`)
+        return
+      }
+      if (notification.isSkippedMoment?.()) {
+        window.clearTimeout(timeout)
+        fail(`Google One Tap was skipped: ${notification.getSkippedReason?.() ?? 'unknown reason'}.`)
+        return
+      }
+      if (notification.isDismissedMoment?.()) {
+        window.clearTimeout(timeout)
+        fail(`Google One Tap was dismissed: ${notification.getDismissedReason?.() ?? 'unknown reason'}.`)
+      }
+    })
+  })
+}
+
+function loadGoogleIdentityScript() {
+  return new Promise<void>((resolve, reject) => {
+    if (window.googleScriptInitialized) {
+      resolve()
+      return
+    }
+    const script = document.createElement('script')
+    script.async = true
+    script.defer = true
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.onload = () => {
+      window.googleScriptInitialized = true
+      resolve()
+    }
+    script.onerror = () => reject(new Error('Failed to load Google Identity Services.'))
+    document.head.appendChild(script)
+  })
+}
+
+function readFirstString(value: unknown) {
+  return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : null
+}
+
+function readString(value: unknown) {
+  return typeof value === 'string' ? value : null
+}
+
+function readChainId(value: unknown) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && value.startsWith('0x')) return Number.parseInt(value, 16)
+  if (typeof value === 'string') return Number(value)
+  throw new Error('Wallet did not return a chain ID.')
+}
+
+function SignUpDisabled({ signInAction }: { signInAction: ReactNode }) {
+  return (
+    <>
+      <div className="authCardHeader">
+        <h2>Sign up is not available</h2>
+        <p>This deployment is not accepting new self-service accounts.</p>
+      </div>
+      <div className="authLinks">{signInAction}</div>
+    </>
+  )
+}
+
+export function SignUpCardBody({
+  created,
+  form,
+  signInAction,
+  socialButtons,
+  status,
+}: {
+  created: boolean
+  form: ReactNode
+  signInAction: ReactNode
+  socialButtons?: ReactNode
+  status?: ReactNode
+}) {
+  return (
+    <>
       {created ? (
         <div className="authCardHeader">
           <h2>Check your inbox</h2>
           <p>Use the verification message if this deployment requires confirmed email before continuing.</p>
         </div>
-      ) : null}
-      {created ? null : (
-        <form className="formStack" onSubmit={onSubmit}>
-          <Field label="Name">
-            <TextInput autoComplete="name" onChange={(event) => setName(event.target.value)} required value={name} />
-          </Field>
-          <Field label="Email">
-            <TextInput
-              autoComplete={config?.signIn.usernameEnabled ? 'email' : 'username'}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              type="email"
-              value={email}
-            />
-          </Field>
-          {config?.signIn.usernameEnabled ? (
-            <Field label="Username">
-              <TextInput
-                autoComplete="username"
-                onChange={(event) => setUsername(event.target.value)}
-                value={username}
-              />
-            </Field>
-          ) : null}
-          <Field label="Password">
-            <PasswordInput
-              autoComplete="new-password"
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              value={password}
-            />
-          </Field>
-          <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
-          <Button disabled={submit.loading} type="submit">
-            Create account
-          </Button>
-        </form>
+      ) : (
+        form
       )}
-      {created ? null : <SocialButtons callback={callback} providers={socialProviders} />}
-      <SubmitStatus state={submit} />
-      <div className="authLinks">
-        <a href={authPageHref('/sign-in')}>Already have an account?</a>
-      </div>
-    </AuthLayout>
+      {created ? null : socialButtons}
+      {status}
+      <div className="authLinks">{signInAction}</div>
+    </>
+  )
+}
+
+export function SignUpForm({
+  captchaConfig,
+  captchaResetKey,
+  email,
+  name,
+  onCaptchaChange,
+  onEmailChange,
+  onNameChange,
+  onPasswordChange,
+  onSubmit,
+  onUsernameChange,
+  password,
+  submitLoading = false,
+  username,
+  usernameEnabled,
+}: {
+  captchaConfig?: Parameters<typeof CaptchaTokenField>[0]['config']
+  captchaResetKey?: string | number
+  email: string
+  name: string
+  onCaptchaChange?: (token: string) => void
+  onEmailChange: (value: string) => void
+  onNameChange: (value: string) => void
+  onPasswordChange: (value: string) => void
+  onSubmit: (event: FormEvent) => void
+  onUsernameChange: (value: string) => void
+  password: string
+  submitLoading?: boolean
+  username: string
+  usernameEnabled?: boolean
+}) {
+  return (
+    <form className="formStack" onSubmit={onSubmit}>
+      <Field label="Name">
+        <TextInput autoComplete="name" onChange={(event) => onNameChange(event.target.value)} required value={name} />
+      </Field>
+      <Field label="Email">
+        <TextInput
+          autoComplete={usernameEnabled ? 'email' : 'username'}
+          onChange={(event) => onEmailChange(event.target.value)}
+          required
+          type="email"
+          value={email}
+        />
+      </Field>
+      {usernameEnabled ? (
+        <Field label="Username">
+          <TextInput
+            autoComplete="username"
+            onChange={(event) => onUsernameChange(event.target.value)}
+            value={username}
+          />
+        </Field>
+      ) : null}
+      <Field label="Password">
+        <PasswordInput
+          autoComplete="new-password"
+          onChange={(event) => onPasswordChange(event.target.value)}
+          required
+          value={password}
+        />
+      </Field>
+      {captchaConfig && onCaptchaChange ? (
+        <CaptchaTokenField key={captchaResetKey} config={captchaConfig} onChange={onCaptchaChange} />
+      ) : null}
+      <Button disabled={submitLoading} type="submit">
+        Create account
+      </Button>
+    </form>
   )
 }
 
@@ -574,8 +1011,8 @@ export function EmailVerificationPage() {
         return 'Email verified.'
       }
 
-      await requestEmailVerification({ email, callbackURL: callbackURL() })
-      return 'Verification email sent.'
+      await requestEmailOtp({ email, type: 'email-verification' })
+      return 'Verification code sent.'
     })
   }
 
@@ -602,7 +1039,7 @@ export function EmailVerificationPage() {
             />
           </Field>
         ) : null}
-        {config?.signIn.emailOtpEnabled && !token ? (
+        {!token ? (
           <Field label="One-time code">
             <TextInput
               autoComplete="one-time-code"
@@ -685,16 +1122,46 @@ function readCallbackState(search: string): { loading: false; message: string; h
   }
 }
 
-function SocialButtons({
+export function SignInMethodButtons({
   callback,
+  emailEnabled,
+  onEmailClick,
+  onPasskeyClick,
+  onPhoneClick,
+  onProviderClick,
+  onOneTapClick,
+  onWalletClick,
+  oneTapEnabled,
+  passkeyEnabled,
+  phoneEnabled,
+  phoneVisible,
   providers,
+  walletEnabled,
 }: {
   callback: string | undefined
+  emailEnabled: boolean
+  onEmailClick: () => void
+  onOneTapClick?: () => void
+  onPasskeyClick?: () => void
+  onPhoneClick?: () => void
+  onProviderClick?: (provider: { providerId: string }) => void
+  onWalletClick?: () => void
+  oneTapEnabled?: boolean
+  passkeyEnabled?: boolean
+  phoneEnabled: boolean
+  phoneVisible: boolean
   providers: Array<{ slug: string; providerId: string; displayName: string; icon: string }>
+  walletEnabled?: boolean
 }) {
-  if (providers.length === 0) return null
+  if (!emailEnabled && !phoneVisible && !passkeyEnabled && !walletEnabled && !oneTapEnabled && providers.length === 0) {
+    return null
+  }
 
   async function onSocialClick(provider: { providerId: string }) {
+    if (onProviderClick) {
+      onProviderClick(provider)
+      return
+    }
     const response = await signInWithSocial({ provider: provider.providerId, callbackURL: callback })
     const redirectUrl = readRedirectUrl(response, { allowExternal: true })
     if (redirectUrl) window.location.assign(redirectUrl)
@@ -702,12 +1169,48 @@ function SocialButtons({
 
   return (
     <fieldset className="socialGrid">
-      <legend>Social sign-in providers</legend>
+      <legend>Available sign-in methods</legend>
+      {emailEnabled ? (
+        <button className="socialButton" onClick={onEmailClick} type="button">
+          <span aria-hidden="true" className="providerIcon">
+            <Mail size={16} />
+          </span>
+          <span className="socialButtonText">Continue with Email</span>
+        </button>
+      ) : null}
+      {phoneVisible ? (
+        <button className="socialButton" disabled={!phoneEnabled} onClick={onPhoneClick} type="button">
+          <span aria-hidden="true" className="providerIcon">
+            <Smartphone size={16} />
+          </span>
+          <span className="socialButtonText">Continue with Phone</span>
+        </button>
+      ) : null}
+      {passkeyEnabled ? (
+        <button className="socialButton" onClick={onPasskeyClick} type="button">
+          <span aria-hidden="true" className="providerIcon">
+            <Fingerprint size={16} />
+          </span>
+          <span className="socialButtonText">Continue with Passkey</span>
+        </button>
+      ) : null}
+      {walletEnabled ? (
+        <button className="socialButton" onClick={onWalletClick} type="button">
+          <span aria-hidden="true" className="providerIcon">
+            <Wallet size={16} />
+          </span>
+          <span className="socialButtonText">Continue with Web3 wallet</span>
+        </button>
+      ) : null}
+      {oneTapEnabled ? (
+        <button className="socialButton" onClick={onOneTapClick} type="button">
+          <ProviderIcon provider={{ displayName: 'OneTap', icon: 'onetap', providerId: 'one-tap' }} />
+          <span className="socialButtonText">Continue with OneTap</span>
+        </button>
+      ) : null}
       {providers.map((provider) => (
         <button className="socialButton" key={provider.slug} onClick={() => onSocialClick(provider)} type="button">
-          <span aria-hidden="true" className="providerIcon">
-            {providerIconLabel(provider)}
-          </span>
+          <ProviderIcon provider={provider} />
           <span className="socialButtonText">Continue with {provider.displayName}</span>
         </button>
       ))}
@@ -715,28 +1218,61 @@ function SocialButtons({
   )
 }
 
-function providerIconLabel(provider: { displayName: string; icon: string }) {
-  if (provider.icon === 'github') return 'GH'
-  if (provider.icon === 'google') return 'G'
-  if (provider.icon === 'microsoft') return 'MS'
-  if (provider.icon === 'gitlab') return 'GL'
-  if (provider.icon === 'facebook') return 'f'
-  if (provider.icon === 'apple') return 'A'
-  return provider.displayName.slice(0, 2).toUpperCase()
+export function SignInCardBody({
+  children,
+  footer,
+  methodButtons,
+  showDivider,
+}: {
+  children: ReactNode
+  footer?: ReactNode
+  methodButtons?: ReactNode
+  showDivider: boolean
+}) {
+  return (
+    <>
+      {children}
+      {showDivider ? <AuthMethodDivider /> : null}
+      {methodButtons}
+      {footer}
+    </>
+  )
 }
 
-function signInMethods(enabled: NonNullable<ReturnType<typeof useConfigz>['data']>['signIn']) {
-  const methods: Array<{ id: SignInMode; label: string }> = []
-  if (enabled.passwordEnabled) methods.push({ id: 'password', label: 'Password' })
-  if (enabled.magicLinkEnabled) methods.push({ id: 'magic', label: 'Magic link' })
-  if (enabled.emailOtpEnabled) methods.push({ id: 'otp', label: 'OTP' })
-  return methods
+function AuthMethodDivider() {
+  return (
+    <div className="authMethodDivider" aria-hidden="true">
+      <span>or</span>
+    </div>
+  )
 }
 
-function methodHelp(mode: SignInMode) {
-  if (mode === 'magic') return 'Receive a secure sign-in link at your email address.'
-  if (mode === 'otp') return 'Use a short one-time code sent to your email.'
-  return 'Use your password for this hosted account.'
+function SocialButtons({
+  callback,
+  providers,
+}: {
+  callback: string | undefined
+  providers: Array<{ slug: string; providerId: string; displayName: string; icon: string }>
+}) {
+  return (
+    <SignInMethodButtons
+      callback={callback}
+      emailEnabled={false}
+      onEmailClick={() => undefined}
+      oneTapEnabled={false}
+      passkeyEnabled={false}
+      phoneEnabled={false}
+      phoneVisible={false}
+      providers={providers}
+      walletEnabled={false}
+    />
+  )
+}
+
+function primarySignInMode(enabled: NonNullable<ReturnType<typeof useConfigz>['data']>['signIn']): SignInMode | null {
+  if (enabled.passwordEnabled) return 'password'
+  if (enabled.emailOtpEnabled) return 'otp'
+  return null
 }
 
 function authRequestContext(intent: 'sign-in' | 'sign-up' | 'recovery' | 'verification') {
@@ -830,6 +1366,15 @@ function navigateAfterAuth(response: unknown, callback: string | undefined) {
 
 export function resolveAuthRedirect(response: unknown, callback: string | undefined) {
   return readRedirectUrl(response) ?? safeRedirectPath(callback) ?? '/profile'
+}
+
+function requiresTwoFactor(response: unknown): response is { twoFactorRedirect: true; twoFactorMethods?: string[] } {
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    'twoFactorRedirect' in response &&
+    response.twoFactorRedirect === true
+  )
 }
 
 function readRedirectUrl(response: unknown, options: { allowExternal?: boolean } = {}): string | null {

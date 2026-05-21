@@ -10,8 +10,6 @@ const mfaEnrollmentPaths = new Set([
   '/api/account/security/mfa',
   '/api/account/security/mfa/totp-enrollment',
   '/api/account/security/mfa/totp-verification',
-  '/api/account/security/mfa/otp',
-  '/api/account/security/mfa/otp-verification',
   '/api/account/security/mfa/backup-codes',
 ])
 
@@ -67,6 +65,10 @@ async function enforceHostedAuthPolicy(request: Request, policy: SecurityPolicy,
     validatePasswordPolicy(readString(body, 'password'), policy.password, { email: readOptionalString(body, 'email') })
   }
 
+  if (path === '/api/auth/change-password') {
+    validatePasswordPolicy(readString(body, 'newPassword'), policy.password)
+  }
+
   if (requiresCaptcha(path)) {
     await verifyCaptcha(readOptionalString(body, 'captchaToken'), policy.captcha, env)
   }
@@ -76,7 +78,6 @@ function requiresCaptcha(path: string) {
   return new Set([
     '/api/auth/sign-in/email',
     '/api/auth/sign-in/username',
-    '/api/auth/sign-in/magic-link',
     '/api/auth/email-otp/send-verification-otp',
     '/api/auth/sign-up/email',
     '/api/auth/request-password-reset',

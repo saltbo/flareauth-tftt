@@ -12,7 +12,14 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     tailwindcss(),
     react(),
-    ...(mode === 'test' ? [] : [cloudflare({ configPath: process.env.CF_WRANGLER_CONFIG ?? 'wrangler.toml' })]),
+    ...(mode === 'test'
+      ? []
+      : [
+          cloudflare({
+            configPath: process.env.CF_WRANGLER_CONFIG ?? 'wrangler.toml',
+            persistState: process.env.CF_PERSIST_STATE_PATH ? { path: process.env.CF_PERSIST_STATE_PATH } : true,
+          }),
+        ]),
   ],
   resolve: {
     alias: {
@@ -22,7 +29,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    port: 5173,
+    port: 4179,
   },
   test: {
     coverage: {

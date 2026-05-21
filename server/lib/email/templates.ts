@@ -13,11 +13,6 @@ export type EmailTemplate =
       inviterName: string
     }
   | {
-      type: 'magic-link'
-      url: string
-      otp?: string
-    }
-  | {
       type: 'otp'
       otp: string
     }
@@ -48,18 +43,6 @@ export function renderEmailTemplate(template: EmailTemplate): RenderedEmail {
       `${template.inviterName} invited you to FlareAuth`,
       template.url,
     )
-  }
-
-  if (template.type === 'magic-link') {
-    const otpText = template.otp ? `\n\nYour one-time code is ${template.otp}.` : ''
-    const rendered = renderActionEmail('Sign in to FlareAuth', 'Sign in to FlareAuth', template.url)
-    return {
-      ...rendered,
-      text: `${rendered.text}${otpText}`,
-      html: template.otp
-        ? `${rendered.html}<p>Your one-time code is <strong>${escapeHtml(template.otp)}</strong>.</p>`
-        : rendered.html,
-    }
   }
 
   if (template.type === 'otp') {

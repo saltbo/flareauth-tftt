@@ -5,8 +5,8 @@ import {
   requestEmailOtp,
   requestEmailOtpPasswordReset,
   requestEmailVerification,
-  requestMagicLink,
   requestPasswordReset,
+  requestPhoneOtp,
   resetPassword,
   resetPasswordWithEmailOtp,
   signInWithEmailOtp,
@@ -17,6 +17,7 @@ import {
   signUp,
   verifyEmail,
   verifyEmailOtp,
+  verifyPhoneNumber,
 } from './auth-client'
 
 afterEach(() => {
@@ -103,9 +104,10 @@ describe('native auth client', () => {
     await requestPasswordReset({ email: 'jane@example.com', redirectTo: '/forgot-password' })
     await resetPassword({ token: 'token-1', newPassword: 'new-password' })
     await requestEmailVerification({ email: 'jane@example.com', callbackURL: '/account' })
-    await requestMagicLink({ email: 'jane@example.com', callbackURL: '/account' })
     await requestEmailOtp({ email: 'jane@example.com', type: 'sign-in' })
     await signInWithEmailOtp({ email: 'jane@example.com', otp: '123456' })
+    await requestPhoneOtp({ phoneNumber: '+15555550123' })
+    await verifyPhoneNumber({ phoneNumber: '+15555550123', code: '123456' })
     await verifyEmailOtp({ email: 'jane@example.com', otp: '123456' })
     await requestEmailOtpPasswordReset({ email: 'jane@example.com' })
     await resetPasswordWithEmailOtp({ email: 'jane@example.com', otp: '123456', password: 'new-password' })
@@ -118,9 +120,10 @@ describe('native auth client', () => {
       '/api/auth/request-password-reset',
       '/api/auth/reset-password',
       '/api/auth/send-verification-email',
-      '/api/auth/sign-in/magic-link',
       '/api/auth/email-otp/send-verification-otp',
       '/api/auth/sign-in/email-otp',
+      '/api/auth/phone-number/send-otp',
+      '/api/auth/phone-number/verify',
       '/api/auth/email-otp/verify-email',
       '/api/auth/email-otp/request-password-reset',
       '/api/auth/email-otp/reset-password',

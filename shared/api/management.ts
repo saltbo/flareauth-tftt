@@ -42,12 +42,47 @@ export const managementErrorResponseSchema = z.object({
   }),
 })
 
+export const managementBuiltInProviderSettingsSchema = z.object({
+  phone: z.object({
+    enabled: z.boolean(),
+    smsProvider: z.enum(['twilio', 'vonage', 'messagebird']),
+    otpLength: z.number().int().min(4).max(10),
+    expiresInSeconds: z.number().int().min(30).max(3600),
+    signUpOnVerification: z.boolean(),
+    requireVerification: z.boolean(),
+    twilioAccountSid: z.string(),
+    twilioAuthToken: z.string(),
+    twilioFromNumber: z.string(),
+    vonageApiKey: z.string(),
+    vonageApiSecret: z.string(),
+    vonageFrom: z.string(),
+    messageBirdAccessKey: z.string(),
+    messageBirdOriginator: z.string(),
+  }),
+  web3Wallet: z.object({
+    enabled: z.boolean(),
+    chains: z.array(z.number().int().positive()),
+    domain: z.string(),
+    emailDomainName: z.string(),
+    anonymous: z.boolean(),
+    ensLookupEnabled: z.boolean(),
+  }),
+  oneTap: z.object({
+    enabled: z.boolean(),
+    clientId: z.string(),
+    autoSelect: z.boolean(),
+    cancelOnTapOutside: z.boolean(),
+    uxMode: z.enum(['popup', 'redirect']),
+    context: z.enum(['signin', 'signup', 'use']),
+    promptBaseDelayMs: z.number().int().min(0).max(60000),
+    promptMaxAttempts: z.number().int().min(1).max(20),
+    disableSignUp: z.boolean(),
+  }),
+})
+
 export const managementSignInSettingsResponseSchema = z.object({
   signIn: configzMethodSchema,
-  defaults: z.object({
-    applicationId: z.string().nullable(),
-    redirectUri: z.string().nullable(),
-  }),
+  builtInProviders: managementBuiltInProviderSettingsSchema,
   links: z.object({
     termsUri: z.string().nullable(),
     privacyUri: z.string().nullable(),
@@ -76,13 +111,15 @@ export const updateManagementSignInSettingsRequestSchema = z.object({
       signupEnabled: true,
       socialLoginEnabled: true,
       identifierFirst: true,
+      emailOtpEnabled: true,
     })
     .partial()
     .optional(),
-  defaults: z
+  builtInProviders: z
     .object({
-      applicationId: z.string().trim().min(1).nullable(),
-      redirectUri: nullableHttpsUrlSchema,
+      phone: managementBuiltInProviderSettingsSchema.shape.phone.partial(),
+      web3Wallet: managementBuiltInProviderSettingsSchema.shape.web3Wallet.partial(),
+      oneTap: managementBuiltInProviderSettingsSchema.shape.oneTap.partial(),
     })
     .partial()
     .optional(),

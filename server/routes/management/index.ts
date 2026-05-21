@@ -45,7 +45,6 @@ interface ManagementBindings extends AuthorizationBindings, ConfigzBindings, App
 
 interface ManagementConfigz {
   signIn: ManagementSignInSettingsResponse['signIn']
-  defaults: ManagementSignInSettingsResponse['defaults']
   links: ManagementSignInSettingsResponse['links']
   copy: ManagementSignInSettingsResponse['copy']
   branding: ManagementBrandingSettingsResponse['branding']
@@ -215,13 +214,8 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
       const identityProviderCount =
         'identityProviders' in config && Array.isArray(config.identityProviders) ? config.identityProviders.length : 0
       const hasSocialSignInMethod = config.signIn.socialLoginEnabled && identityProviderCount > 0
-      const hasSignInMethod =
-        config.signIn.passwordEnabled ||
-        config.signIn.magicLinkEnabled ||
-        config.signIn.emailOtpEnabled ||
-        hasSocialSignInMethod
-      const emailMethodsEnabled =
-        config.signIn.magicLinkEnabled || config.signIn.emailOtpEnabled || config.signIn.signupEnabled
+      const hasSignInMethod = config.signIn.passwordEnabled || config.signIn.emailOtpEnabled || hasSocialSignInMethod
+      const emailMethodsEnabled = config.signIn.emailOtpEnabled || config.signIn.signupEnabled
       const emailDeliveryReady = !emailMethodsEnabled || (Boolean(c.env?.EMAIL) && Boolean(c.env?.EMAIL_FROM))
       const brandingReady =
         config.copy.productName !== 'FlareAuth' ||
@@ -252,8 +246,7 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
         readinessItem({
           id: 'email_delivery',
           label: 'Confirm email delivery',
-          description:
-            'Email binding and sender settings are needed for verification, OTP, magic link, and reset flows.',
+          description: 'Email binding and sender settings are needed for verification, OTP, and reset flows.',
           complete: emailDeliveryReady,
           href: '/console/tenant-settings/oidc-configs',
           action: 'Review deployment',
@@ -279,7 +272,7 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
           label: 'Check connector status',
           description: 'Social sign-in should have at least one enabled connector, or stay disabled until configured.',
           complete: connectorReady,
-          href: '/console/connectors/passwordless',
+          href: '/console/connectors',
           action: 'Review connectors',
         }),
       ]
@@ -331,7 +324,43 @@ async function managementSignInSettingsFromConfig(
 ): Promise<ManagementSignInSettingsResponse> {
   return {
     signIn: config.signIn,
-    defaults: config.defaults,
+    builtInProviders: {
+      phone: {
+        enabled: false,
+        smsProvider: 'twilio',
+        otpLength: 6,
+        expiresInSeconds: 300,
+        signUpOnVerification: false,
+        requireVerification: true,
+        twilioAccountSid: '',
+        twilioAuthToken: '',
+        twilioFromNumber: '',
+        vonageApiKey: '',
+        vonageApiSecret: '',
+        vonageFrom: '',
+        messageBirdAccessKey: '',
+        messageBirdOriginator: '',
+      },
+      web3Wallet: {
+        enabled: false,
+        chains: [1],
+        domain: '',
+        emailDomainName: '',
+        anonymous: true,
+        ensLookupEnabled: false,
+      },
+      oneTap: {
+        enabled: false,
+        clientId: '',
+        autoSelect: false,
+        cancelOnTapOutside: true,
+        uxMode: 'popup',
+        context: 'signin',
+        promptBaseDelayMs: 1000,
+        promptMaxAttempts: 5,
+        disableSignUp: false,
+      },
+    },
     links: config.links,
     copy: config.copy,
   }

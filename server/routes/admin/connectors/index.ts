@@ -19,7 +19,7 @@ adminConnectorsRoute.get('/', zValidator('query', paginationQuerySchema), async 
 )
 
 adminConnectorsRoute.post('/', zValidator('json', createConnectorRequestSchema), async (c) => {
-  const connector = await createConnectorService(c).create(c.req.valid('json'), c.env)
+  const connector = await createConnectorService(c).create(c.req.valid('json'))
   return c.json(connector, 201)
 })
 
@@ -28,7 +28,7 @@ adminConnectorsRoute.get('/:connectorId', async (c) =>
 )
 
 adminConnectorsRoute.patch('/:connectorId', zValidator('json', updateConnectorRequestSchema), async (c) =>
-  c.json(await createConnectorService(c).update(c.req.param('connectorId'), c.req.valid('json'), c.env)),
+  c.json(await createConnectorService(c).update(c.req.param('connectorId'), c.req.valid('json'))),
 )
 
 adminConnectorsRoute.delete('/:connectorId', async (c) => {

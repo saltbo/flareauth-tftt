@@ -62,7 +62,7 @@ describe('createSecurityRepository', () => {
     })
   })
 
-  it('persists editable policy sections without overwriting deployment-owned passkeys or sessions', async () => {
+  it('persists editable policy sections without overwriting deployment-owned session settings', async () => {
     const db = new FakeDb({
       settingsRows: [
         settingsRow({
@@ -164,6 +164,7 @@ describe('createSecurityRepository', () => {
             retained: 'metadata',
             securityPolicy: {
               mfa: { mode: 'required' },
+              passkeys: { enabled: false },
               password: {
                 minLength: 16,
                 requiredCharacterTypes: 4,
@@ -193,6 +194,7 @@ describe('createSecurityRepository', () => {
               retained: 'metadata',
               securityPolicy: {
                 mfa: { mode: 'required' },
+                passkeys: { enabled: false },
                 password: {
                   minLength: 16,
                   requiredCharacterTypes: 4,
@@ -244,7 +246,6 @@ describe('createSecurityRepository', () => {
     await repository.updatePolicy({ policy: { mfa: { mode: 'required' } } })
     expect(db.writes[0]?.values).toEqual(
       expect.objectContaining({
-        defaultApplicationId: null,
         passwordEnabled: true,
         signupEnabled: true,
         socialLoginEnabled: true,
@@ -326,12 +327,10 @@ class FakeSelect {
 function settingsRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'default',
-    defaultApplicationId: null,
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: true,
     identifierFirst: false,
-    defaultRedirectUri: null,
     termsUri: null,
     privacyUri: null,
     supportEmail: null,

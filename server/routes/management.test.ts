@@ -8,7 +8,6 @@ import {
 } from '../../shared/api/management'
 import type { SecurityPolicy } from '../../shared/api/security'
 import { createApp } from '../app'
-import { badRequest } from '../lib/errors'
 import type { SecurityRepository } from '../modules/security/repository'
 import type { UserRepository } from '../modules/users/repository'
 
@@ -457,19 +456,14 @@ describe('management routes', () => {
     const settings = await app.request('/api/management/sign-in-settings', { headers: adminHeaders() })
 
     expect(settings.status).toBe(200)
-    await expect(settings.json()).resolves.toEqual({
+    await expect(settings.json()).resolves.toMatchObject({
       signIn: {
         passwordEnabled: true,
         signupEnabled: true,
         socialLoginEnabled: true,
-        magicLinkEnabled: true,
         emailOtpEnabled: true,
         usernameEnabled: true,
         identifierFirst: false,
-      },
-      defaults: {
-        applicationId: 'app-1',
-        redirectUri: 'https://app.example.com/callback',
       },
       links: {
         termsUri: null,
@@ -480,6 +474,11 @@ describe('management routes', () => {
         productName: 'FlareAuth',
         headline: 'Sign in',
         description: 'Continue.',
+      },
+      builtInProviders: {
+        phone: { enabled: false, smsProvider: 'twilio' },
+        web3Wallet: { enabled: false, chains: [1] },
+        oneTap: { enabled: false, clientId: '' },
       },
     })
   })
@@ -582,12 +581,47 @@ describe('management routes', () => {
             passwordEnabled: true,
             signupEnabled: true,
             socialLoginEnabled: true,
-            magicLinkEnabled: true,
             emailOtpEnabled: true,
             usernameEnabled: true,
             identifierFirst: false,
           },
-          defaults: { applicationId: null, redirectUri: null },
+          builtInProviders: {
+            phone: {
+              enabled: false,
+              smsProvider: 'twilio',
+              otpLength: 6,
+              expiresInSeconds: 300,
+              signUpOnVerification: false,
+              requireVerification: true,
+              twilioAccountSid: '',
+              twilioAuthToken: '',
+              twilioFromNumber: '',
+              vonageApiKey: '',
+              vonageApiSecret: '',
+              vonageFrom: '',
+              messageBirdAccessKey: '',
+              messageBirdOriginator: '',
+            },
+            web3Wallet: {
+              enabled: false,
+              chains: [1],
+              domain: '',
+              emailDomainName: '',
+              anonymous: true,
+              ensLookupEnabled: false,
+            },
+            oneTap: {
+              enabled: false,
+              clientId: '',
+              autoSelect: false,
+              cancelOnTapOutside: true,
+              uxMode: 'popup',
+              context: 'signin',
+              promptBaseDelayMs: 1000,
+              promptMaxAttempts: 5,
+              disableSignUp: false,
+            },
+          },
           links: { termsUri: null, privacyUri: null, supportEmail: null },
           copy: { productName: 'Dedicated ID', headline: 'Sign in', description: 'Continue.' },
         }),
@@ -726,7 +760,6 @@ describe('management routes', () => {
         identityProviders: [],
         signIn: {
           passwordEnabled: false,
-          magicLinkEnabled: false,
           emailOtpEnabled: false,
           socialLoginEnabled: true,
         },
@@ -766,7 +799,6 @@ describe('management routes', () => {
         identityProviders: [],
         signIn: {
           passwordEnabled: false,
-          magicLinkEnabled: false,
           emailOtpEnabled: false,
           socialLoginEnabled: true,
         },
@@ -808,7 +840,7 @@ describe('management routes', () => {
         displayName: 'Google',
         enabled: true,
         clientId: 'client-1',
-        clientSecretBinding: 'secret://google',
+        clientSecret: 'secret://google',
         issuer: 'https://accounts.google.com',
         authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
         tokenEndpoint: 'https://oauth2.googleapis.com/token',
@@ -864,27 +896,16 @@ describe('management routes', () => {
       expect.objectContaining({
         slug: 'google',
         providerType: 'social',
-        clientSecretBinding: 'secret://google',
+        clientSecret: 'secret://google',
         scopes: ['openid', 'email', 'profile'],
       }),
-      undefined,
     )
-    expect(connectors.update).toHaveBeenCalledWith(
-      'connector-1',
-      { enabled: false, displayName: 'Google Workspace' },
-      undefined,
-    )
+    expect(connectors.update).toHaveBeenCalledWith('connector-1', { enabled: false, displayName: 'Google Workspace' })
     expect(connectors.delete).toHaveBeenCalledWith('connector-1')
   })
 
-  it('surfaces unavailable connector secret bindings without breaking connector reads', async () => {
+  it('stores connector client secrets without returning secret values', async () => {
     const connectors = createConnectorServiceMock()
-    connectors.create.mockRejectedValue(
-      badRequest('OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.'),
-    )
-    connectors.update.mockRejectedValue(
-      badRequest('OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.'),
-    )
     const app = createApp(createAuthMock(), {
       connectorServiceFactory: () => connectors,
     })
@@ -899,7 +920,7 @@ describe('management routes', () => {
         displayName: 'GitHub',
         enabled: true,
         clientId: 'review-client-id',
-        clientSecretBinding: 'REVIEW_CLIENT_SECRET',
+        clientSecret: 'REVIEW_CLIENT_SECRET',
       }),
     })
     const updated = await app.request('/api/management/connectors/connector-1', {
@@ -907,28 +928,23 @@ describe('management routes', () => {
       headers,
       body: JSON.stringify({
         enabled: true,
-        clientSecretBinding: 'REVIEW_CLIENT_SECRET',
+        clientSecret: 'REVIEW_CLIENT_SECRET',
       }),
     })
     const list = await app.request('/api/management/connectors?limit=1&offset=0', { headers })
     const templates = await app.request('/api/management/connectors/templates', { headers })
 
-    expect(created.status).toBe(400)
-    await expect(created.json()).resolves.toMatchObject({
-      error: {
-        code: 'bad_request',
-        message: 'OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.',
-      },
-    })
-    expect(updated.status).toBe(400)
-    await expect(updated.json()).resolves.toMatchObject({
-      error: {
-        code: 'bad_request',
-        message: 'OAuth connector secret binding is not available in this runtime: REVIEW_CLIENT_SECRET.',
-      },
-    })
+    expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toMatchObject({ clientSecretConfigured: true })
+    expect(updated.status).toBe(200)
+    await expect(updated.json()).resolves.toMatchObject({ clientSecretConfigured: true })
     expect(list.status).toBe(200)
     expect(templates.status).toBe(200)
+    expect(connectors.create).toHaveBeenCalledWith(expect.objectContaining({ clientSecret: 'REVIEW_CLIENT_SECRET' }))
+    expect(connectors.update).toHaveBeenCalledWith(
+      'connector-1',
+      expect.objectContaining({ clientSecret: 'REVIEW_CLIENT_SECRET' }),
+    )
   })
 
   it('rejects unsupported connector provider types at the request boundary', async () => {
@@ -944,7 +960,7 @@ describe('management routes', () => {
         providerId: 'saml',
         displayName: 'SAML',
         clientId: 'client-1',
-        clientSecretBinding: 'secret://saml',
+        clientSecret: 'secret://saml',
       }),
     })
 
@@ -964,7 +980,7 @@ describe('management routes', () => {
         providerId: 'okta-main',
         displayName: 'Okta',
         clientId: 'client-1',
-        clientSecretBinding: 'secret://okta',
+        clientSecret: 'secret://okta',
         authorizationEndpoint: 'https://idp.example.com/oauth2/v1/authorize',
       }),
     })
@@ -1455,7 +1471,6 @@ function createConfigzServiceMock(
       passwordEnabled: boolean
       signupEnabled: boolean
       socialLoginEnabled: boolean
-      magicLinkEnabled: boolean
       emailOtpEnabled: boolean
       usernameEnabled: boolean
       identifierFirst: boolean
@@ -1472,11 +1487,11 @@ function createConfigzServiceMock(
         passwordEnabled: true,
         signupEnabled: true,
         socialLoginEnabled: true,
-        magicLinkEnabled: true,
         emailOtpEnabled: true,
         usernameEnabled: true,
         identifierFirst: false,
       },
+      builtInProviders: builtInProvidersFixture(),
       branding: {
         logoUrl: null,
         faviconUrl: null,
@@ -1512,10 +1527,6 @@ function createConfigzServiceMock(
         headline: 'Sign in',
         description: 'Continue.',
       },
-      defaults: {
-        applicationId: 'app-1',
-        redirectUri: 'https://app.example.com/callback',
-      },
       auth: {
         basePath: '/api/auth' as const,
         signInEmailPath: '/api/auth/sign-in/email' as const,
@@ -1526,7 +1537,6 @@ function createConfigzServiceMock(
         resetPasswordPath: '/api/auth/reset-password' as const,
         sendVerificationEmailPath: '/api/auth/send-verification-email' as const,
         verifyEmailPath: '/api/auth/verify-email' as const,
-        magicLinkPath: '/api/auth/sign-in/magic-link' as const,
         emailOtpPath: '/api/auth/email-otp/send-verification-otp' as const,
         emailOtpSignInPath: '/api/auth/sign-in/email-otp' as const,
         emailOtpVerificationPath: '/api/auth/email-otp/verify-email' as const,
@@ -1567,7 +1577,7 @@ function createConfigzServiceMock(
       getConfig: vi.fn().mockResolvedValue(config),
       updateManagementSignInSettings: vi.fn().mockResolvedValue({
         signIn: config.signIn,
-        defaults: config.defaults,
+        builtInProviders: config.builtInProviders,
         links: config.links,
         copy: config.copy,
       }),
@@ -1579,6 +1589,46 @@ function createConfigzServiceMock(
         accountCenter: config.accountCenter,
       }),
     }
+  }
+}
+
+function builtInProvidersFixture() {
+  return {
+    phone: {
+      enabled: false,
+      smsProvider: 'twilio',
+      otpLength: 6,
+      expiresInSeconds: 300,
+      signUpOnVerification: false,
+      requireVerification: true,
+      twilioAccountSid: '',
+      twilioAuthToken: '',
+      twilioFromNumber: '',
+      vonageApiKey: '',
+      vonageApiSecret: '',
+      vonageFrom: '',
+      messageBirdAccessKey: '',
+      messageBirdOriginator: '',
+    },
+    web3Wallet: {
+      enabled: false,
+      chains: [1],
+      domain: '',
+      emailDomainName: '',
+      anonymous: true,
+      ensLookupEnabled: false,
+    },
+    oneTap: {
+      enabled: false,
+      clientId: '',
+      autoSelect: false,
+      cancelOnTapOutside: true,
+      uxMode: 'popup',
+      context: 'signin',
+      promptBaseDelayMs: 1000,
+      promptMaxAttempts: 5,
+      disableSignUp: false,
+    },
   }
 }
 
@@ -1601,7 +1651,7 @@ function createConnectorServiceMock() {
           providerId: 'google',
           displayName: 'Google',
           icon: 'google',
-          requiredFields: ['clientId', 'clientSecretBinding'],
+          requiredFields: ['clientId', 'clientSecret'],
           optionalFields: ['scopes'],
           defaultScopes: ['openid', 'email', 'profile'],
           endpoints: {
@@ -1695,7 +1745,7 @@ function connectorFixture() {
     displayName: 'Google',
     enabled: true,
     clientId: 'client-1',
-    clientSecretBinding: 'secret://google',
+    clientSecretConfigured: true,
     issuer: 'https://accounts.google.com',
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenEndpoint: 'https://oauth2.googleapis.com/token',

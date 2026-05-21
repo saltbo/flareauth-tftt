@@ -34,12 +34,10 @@ describe('createDrizzleConfigzRepository', () => {
     const repository = createDrizzleConfigzRepository(db as unknown as Database)
 
     await expect(repository.getSettings()).resolves.toEqual({
-      defaultApplicationId: 'app-1',
       passwordEnabled: true,
       signupEnabled: true,
       socialLoginEnabled: true,
       identifierFirst: false,
-      defaultRedirectUri: 'https://app.example.com/callback',
       termsUri: 'https://example.com/terms',
       privacyUri: 'https://example.com/privacy',
       supportEmail: 'support@example.com',
@@ -526,12 +524,10 @@ function isDefaultBrandingRow(row: unknown) {
 
 function settingsRow() {
   return {
-    defaultApplicationId: 'app-1',
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: true,
     identifierFirst: false,
-    defaultRedirectUri: 'https://app.example.com/callback',
     termsUri: 'https://example.com/terms',
     privacyUri: 'https://example.com/privacy',
     supportEmail: 'support@example.com',

@@ -123,7 +123,7 @@ function connectorRow() {
     displayName: 'Google',
     enabled: true,
     clientId: 'google-client',
-    clientSecretBinding: 'GOOGLE_SECRET',
+    clientSecret: 'GOOGLE_SECRET',
     issuer: 'https://accounts.google.com',
     authorizationEndpoint: null,
     tokenEndpoint: null,

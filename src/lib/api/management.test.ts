@@ -42,7 +42,7 @@ describe('management API client', () => {
       providerType: 'social',
       displayName: 'Google',
       clientId: 'google-client',
-      clientSecretBinding: 'GOOGLE_SECRET',
+      clientSecret: 'GOOGLE_SECRET',
     })
     await management.listConnectorTemplates()
     await management.getConnector('connector-1')
@@ -139,7 +139,7 @@ describe('management API client', () => {
             providerType: 'social',
             displayName: 'Google',
             clientId: 'google-client',
-            clientSecretBinding: 'GOOGLE_SECRET',
+            clientSecret: 'GOOGLE_SECRET',
           },
         },
       ],

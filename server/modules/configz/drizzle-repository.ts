@@ -144,29 +144,62 @@ async function findBranding(db: Database, where: SQL) {
 }
 
 function toSettingsPatch(input: UpdateConfigzSettingsInput, metadata: Record<string, unknown> | null) {
+  const nextMetadata =
+    input.copy || input.builtInProviders || input.emailOtpEnabled !== undefined
+      ? {
+          ...(metadata ?? {}),
+          ...(input.copy ? { copy: { ...readCopyMetadata(metadata), ...input.copy } } : {}),
+          ...(input.builtInProviders
+            ? {
+                builtInProviders: {
+                  ...mergeBuiltInProviderMetadata(
+                    readObjectMetadata(metadata, 'builtInProviders'),
+                    input.builtInProviders,
+                  ),
+                },
+              }
+            : {}),
+          ...(input.emailOtpEnabled !== undefined ? { emailOtpEnabled: input.emailOtpEnabled } : {}),
+        }
+      : undefined
+
   return withoutUndefined({
     passwordEnabled: input.passwordEnabled,
     signupEnabled: input.signupEnabled,
     socialLoginEnabled: input.socialLoginEnabled,
     identifierFirst: input.identifierFirst,
-    defaultApplicationId: input.defaultApplicationId,
-    defaultRedirectUri: input.defaultRedirectUri,
     termsUri: input.termsUri,
     privacyUri: input.privacyUri,
     supportEmail: input.supportEmail,
-    metadata: input.copy ? { ...(metadata ?? {}), copy: { ...readCopyMetadata(metadata), ...input.copy } } : undefined,
+    metadata: nextMetadata,
     updatedAt: new Date(),
   })
 }
 
+function mergeBuiltInProviderMetadata(
+  current: Record<string, unknown>,
+  patch: NonNullable<UpdateConfigzSettingsInput['builtInProviders']>,
+) {
+  return Object.fromEntries(
+    [...new Set([...Object.keys(current), ...Object.keys(patch)])].map((key) => {
+      const currentValue = current[key]
+      const patchValue = patch[key as keyof typeof patch]
+      if (isPlainObject(currentValue) && isPlainObject(patchValue)) return [key, { ...currentValue, ...patchValue }]
+      return [key, patchValue ?? currentValue]
+    }),
+  )
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function settingsInsertDefaults(settings: ConfigzSettings | null) {
   return {
-    defaultApplicationId: settings?.defaultApplicationId ?? null,
     passwordEnabled: settings?.passwordEnabled ?? true,
     signupEnabled: settings?.signupEnabled ?? true,
     socialLoginEnabled: settings?.socialLoginEnabled ?? true,
     identifierFirst: settings?.identifierFirst ?? false,
-    defaultRedirectUri: settings?.defaultRedirectUri ?? null,
     termsUri: settings?.termsUri ?? null,
     privacyUri: settings?.privacyUri ?? null,
     supportEmail: settings?.supportEmail ?? null,
@@ -226,6 +259,12 @@ function readCopyMetadata(metadata: Record<string, unknown> | null) {
     : {}
 }
 
+function readObjectMetadata(metadata: Record<string, unknown> | null, key: string) {
+  return metadata && typeof metadata[key] === 'object' && metadata[key] !== null
+    ? (metadata[key] as Record<string, unknown>)
+    : {}
+}
+
 function withoutUndefined<T extends Record<string, unknown>>(input: T) {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) as {
     [K in keyof T as undefined extends T[K] ? K : K]: Exclude<T[K], undefined>
@@ -238,12 +277,10 @@ type AccountCenterSettingRow = typeof accountCenterSetting.$inferSelect
 
 function toSettings(row: SignInExperienceRow): ConfigzSettings {
   return {
-    defaultApplicationId: row.defaultApplicationId,
     passwordEnabled: row.passwordEnabled,
     signupEnabled: row.signupEnabled,
     socialLoginEnabled: row.socialLoginEnabled,
     identifierFirst: row.identifierFirst,
-    defaultRedirectUri: row.defaultRedirectUri,
     termsUri: row.termsUri,
     privacyUri: row.privacyUri,
     supportEmail: row.supportEmail,

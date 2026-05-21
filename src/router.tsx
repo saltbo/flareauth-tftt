@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRootRoute, createRoute, createRouter, Outlet, RouterProvider, redirect } from '@tanstack/react-router'
 import { AdminShell } from '@/components/layout/admin-shell'
+import { Toaster } from '@/components/ui/sonner'
 import {
   AccountCenterSettingsPage,
   AdminDashboardPage,
@@ -18,13 +19,11 @@ import {
   OrganizationDetailPage,
   OrganizationsPage,
   OrganizationTemplatePage,
-  PasswordlessConnectorsPage,
   RoleDetailPage,
   RolesPage,
   SecurityBlocklistPage,
   SecurityCaptchaPage,
   SecurityGeneralPage,
-  SecurityPasswordPolicyPage,
   SignInSettingsPage,
   UserDetailPage,
   UsersPage,
@@ -326,20 +325,6 @@ const consoleUserDetailOperationsRoute = createRoute({
 const consoleConnectorsIndexRoute = createRoute({
   getParentRoute: () => consoleRoute,
   path: '/connectors',
-  beforeLoad: () => {
-    throw redirect({ to: '/console/connectors/passwordless' })
-  },
-})
-
-const consoleConnectorsPasswordlessRoute = createRoute({
-  getParentRoute: () => consoleRoute,
-  path: '/connectors/passwordless',
-  component: PasswordlessConnectorsPage,
-})
-
-const consoleConnectorsSocialRoute = createRoute({
-  getParentRoute: () => consoleRoute,
-  path: '/connectors/social',
   component: ConnectorsPage,
 })
 
@@ -409,14 +394,16 @@ const consoleSecurityIndexRoute = createRoute({
   getParentRoute: () => consoleRoute,
   path: '/security',
   beforeLoad: () => {
-    throw redirect({ to: '/console/security/password-policy' })
+    throw redirect({ to: '/console/security/captcha' })
   },
 })
 
 const consoleSecurityPasswordPolicyRoute = createRoute({
   getParentRoute: () => consoleRoute,
   path: '/security/password-policy',
-  component: SecurityPasswordPolicyPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/console/sign-in-experience/sign-up-and-sign-in' })
+  },
 })
 
 const consoleSecurityCaptchaRoute = createRoute({
@@ -751,8 +738,6 @@ const routeTree = rootRoute.addChildren([
     consoleUserDetailApplicationsRoute,
     consoleUserDetailOperationsRoute,
     consoleConnectorsIndexRoute,
-    consoleConnectorsPasswordlessRoute,
-    consoleConnectorsSocialRoute,
     consoleSignInExperienceIndexRoute,
     consoleSignInSignUpAndSignInRoute,
     consoleSignInExperienceDesktopCompatibilityRoute,
@@ -839,10 +824,7 @@ export async function loadConsoleAccess(location: { href: string; pathname: stri
 
   try {
     await queryClient.fetchQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-    const readiness = await loadAdminReadiness()
-    if (readiness.admin.setupRequired && location.pathname !== '/console/onboarding') {
-      throw redirect({ to: '/console/onboarding' })
-    }
+    await loadAdminReadiness()
   } catch (error) {
     if (isRedirect(error)) throw error
     if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
@@ -877,8 +859,8 @@ function consolePathForAdminPath(pathname: string) {
   if (pathname === '/admin') return '/console'
   if (pathname === '/admin/sign-in') return '/console/sign-in-experience/sign-up-and-sign-in'
   if (pathname === '/admin/branding') return '/console/sign-in-experience/branding'
-  if (pathname === '/admin/connectors') return '/console/connectors/passwordless'
-  if (pathname === '/admin/security') return '/console/security/password-policy'
+  if (pathname === '/admin/connectors') return '/console/connectors'
+  if (pathname === '/admin/security') return '/console/security/captcha'
   if (pathname === '/admin/deployment') return '/console/tenant-settings/oidc-configs'
   return `/console${pathname.slice('/admin'.length)}`
 }
@@ -887,6 +869,7 @@ export function AppRouter() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
     </QueryClientProvider>
   )
 }

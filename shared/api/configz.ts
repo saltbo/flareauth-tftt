@@ -13,7 +13,6 @@ export const configzMethodSchema = z.object({
   passwordEnabled: z.boolean(),
   signupEnabled: z.boolean(),
   socialLoginEnabled: z.boolean(),
-  magicLinkEnabled: z.boolean(),
   emailOtpEnabled: z.boolean(),
   usernameEnabled: z.boolean(),
   identifierFirst: z.boolean(),
@@ -53,6 +52,25 @@ export const configzConfigResponseSchema = z.object({
     href: z.string(),
   }),
   signIn: configzMethodSchema,
+  builtInProviders: z.object({
+    phone: z.object({
+      enabled: z.boolean(),
+    }),
+    web3Wallet: z.object({
+      enabled: z.boolean(),
+      chains: z.array(z.number().int().positive()),
+    }),
+    oneTap: z.object({
+      enabled: z.boolean(),
+      clientId: z.string(),
+      autoSelect: z.boolean(),
+      cancelOnTapOutside: z.boolean(),
+      uxMode: z.enum(['popup', 'redirect']),
+      context: z.enum(['signin', 'signup', 'use']),
+      promptBaseDelayMs: z.number().int().min(0).max(60000),
+      promptMaxAttempts: z.number().int().min(1).max(20),
+    }),
+  }),
   branding: configzBrandingSchema,
   identityProviders: z.array(configzIdentityProviderSchema),
   links: z.object({
@@ -65,10 +83,6 @@ export const configzConfigResponseSchema = z.object({
     headline: z.string(),
     description: z.string(),
   }),
-  defaults: z.object({
-    applicationId: z.string().nullable(),
-    redirectUri: z.string().nullable(),
-  }),
   auth: z.object({
     basePath: z.literal('/api/auth'),
     signInEmailPath: z.literal('/api/auth/sign-in/email'),
@@ -79,7 +93,6 @@ export const configzConfigResponseSchema = z.object({
     resetPasswordPath: z.literal('/api/auth/reset-password'),
     sendVerificationEmailPath: z.literal('/api/auth/send-verification-email'),
     verifyEmailPath: z.literal('/api/auth/verify-email'),
-    magicLinkPath: z.literal('/api/auth/sign-in/magic-link'),
     emailOtpPath: z.literal('/api/auth/email-otp/send-verification-otp'),
     emailOtpSignInPath: z.literal('/api/auth/sign-in/email-otp'),
     emailOtpVerificationPath: z.literal('/api/auth/email-otp/verify-email'),

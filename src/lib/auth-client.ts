@@ -1,16 +1,19 @@
 import { oauthProviderClient } from '@better-auth/oauth-provider/client'
-import { adminClient, emailOTPClient, magicLinkClient, usernameClient } from 'better-auth/client/plugins'
+import { passkeyClient } from '@better-auth/passkey/client'
+import { adminClient, emailOTPClient, usernameClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { ApiRequestError } from './api'
 
 export const authClient = createAuthClient({
-  plugins: [adminClient(), emailOTPClient(), magicLinkClient(), oauthProviderClient(), usernameClient()],
+  plugins: [adminClient(), emailOTPClient(), oauthProviderClient(), passkeyClient(), usernameClient()],
 })
 
 type NativeAuthResult = {
   url?: string
   redirectTo?: string
   callbackURL?: string
+  twoFactorRedirect?: boolean
+  twoFactorMethods?: string[]
 }
 
 export function signInWithPassword(input: {
@@ -67,17 +70,6 @@ export function verifyEmail(input: { token: string; callbackURL?: string }) {
   return nativeAuth(`/verify-email?${params.toString()}`, undefined, 'GET')
 }
 
-export function requestMagicLink(input: {
-  email: string
-  name?: string
-  callbackURL?: string
-  newUserCallbackURL?: string
-  errorCallbackURL?: string
-  captchaToken?: string
-}) {
-  return nativeAuth('/sign-in/magic-link', input)
-}
-
 export function requestEmailOtp(input: {
   email: string
   type: 'sign-in' | 'email-verification' | 'forget-password'
@@ -90,8 +82,46 @@ export function signInWithEmailOtp(input: { email: string; otp: string; name?: s
   return nativeAuth('/sign-in/email-otp', input)
 }
 
+export function requestPhoneOtp(input: { phoneNumber: string }) {
+  return nativeAuth('/phone-number/send-otp', input)
+}
+
+export function verifyPhoneNumber(input: { phoneNumber: string; code: string }) {
+  return nativeAuth('/phone-number/verify', input)
+}
+
 export function signInWithSocial(input: { provider: string; callbackURL?: string }) {
   return nativeAuth('/sign-in/social', input)
+}
+
+export async function signInWithPasskey() {
+  const response = await authClient.signIn.passkey()
+  if (response.error) {
+    throw new ApiRequestError(response.error.message ?? response.error.statusText, response.error.status)
+  }
+  return response.data ?? {}
+}
+
+export function requestWalletNonce(input: { walletAddress: string; chainId: number }) {
+  return nativeAuth('/siwe/nonce', input) as Promise<{ nonce: string }>
+}
+
+export function signInWithWallet(input: {
+  message: string
+  signature: string
+  walletAddress: string
+  chainId: number
+  email?: string
+}) {
+  return nativeAuth('/siwe/verify', input)
+}
+
+export function signInWithOneTap(input: { idToken: string }) {
+  return nativeAuth('/one-tap/callback', input)
+}
+
+export function verifySignInTotp(input: { code: string; trustDevice?: boolean }) {
+  return nativeAuth('/two-factor/verify-totp', input)
 }
 
 export function verifyEmailOtp(input: { email: string; otp: string }) {

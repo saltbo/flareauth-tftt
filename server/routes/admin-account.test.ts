@@ -246,6 +246,11 @@ describe('admin and account routes', () => {
       headers,
       body: JSON.stringify({ email: 'grace@example.com' }),
     })
+    await app.request('/api/account/email/confirm', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email: 'grace@example.com', otp: '123456' }),
+    })
     await app.request('/api/account/email/verification', { method: 'POST', headers })
     await app.request('/api/account/password/change', {
       method: 'POST',
@@ -282,10 +287,16 @@ describe('admin and account routes', () => {
       username: 'grace',
       avatarAssetId: 'asset-2',
     })
-    expect(auth.api.changeEmail).toHaveBeenCalledWith({
+    expect(auth.api.requestEmailChangeEmailOTP).toHaveBeenCalledWith({
       body: {
         newEmail: 'grace@example.com',
-        callbackURL: undefined,
+      },
+      headers: expect.any(Headers),
+    })
+    expect(auth.api.changeEmailEmailOTP).toHaveBeenCalledWith({
+      body: {
+        newEmail: 'grace@example.com',
+        otp: '123456',
       },
       headers: expect.any(Headers),
     })
@@ -568,7 +579,7 @@ describe('admin and account routes', () => {
 
   it('translates Better Auth API errors to the JSON error boundary', async () => {
     const auth = createAuthMock()
-    auth.api.changeEmail.mockRejectedValueOnce({
+    auth.api.requestEmailChangeEmailOTP.mockRejectedValueOnce({
       statusCode: 404,
       body: { message: 'User not found.' },
       message: 'User not found.',
@@ -623,7 +634,7 @@ describe('admin and account routes', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
       error: {
-        message: expect.stringContaining('clientSecretBinding is required.'),
+        message: expect.stringContaining('clientSecret is required.'),
       },
     })
   })
@@ -663,6 +674,8 @@ function createAuthMock() {
       requestPasswordReset: vi.fn().mockResolvedValue({ status: true }),
       sendVerificationEmail: vi.fn().mockResolvedValue({ status: true }),
       changeEmail: vi.fn().mockResolvedValue({ status: true }),
+      requestEmailChangeEmailOTP: vi.fn().mockResolvedValue({ success: true }),
+      changeEmailEmailOTP: vi.fn().mockResolvedValue({ success: true }),
       changePassword: vi.fn().mockResolvedValue({ status: true }),
       linkSocialAccount: vi.fn().mockResolvedValue({ url: 'https://accounts.example.com/oauth', redirect: true }),
       oAuth2LinkAccount: vi.fn().mockResolvedValue({ url: 'https://idp.example.com/oauth', redirect: true }),

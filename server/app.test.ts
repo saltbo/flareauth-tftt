@@ -105,6 +105,63 @@ describe('createApp', () => {
     expect(response.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
+  it('blocks password auth endpoints when hosted password auth is disabled', async () => {
+    const auth = createAuthMock()
+    const configzService = createConfigzServiceMock({
+      signIn: { passwordEnabled: false, signupEnabled: true, socialLoginEnabled: true, emailOtpEnabled: true },
+    })
+
+    const response = await createApp(auth, { configzServiceFactory: () => configzService }).request(
+      '/api/auth/sign-in/username',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'admin2026' }),
+      },
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'forbidden', message: 'Password authentication is disabled.' },
+    })
+    expect(auth.handler).not.toHaveBeenCalled()
+  })
+
+  it('blocks email OTP sign-in while allowing email verification when email code sign-in is disabled', async () => {
+    const auth = createAuthMock()
+    const configzService = createConfigzServiceMock({
+      signIn: { passwordEnabled: true, signupEnabled: true, socialLoginEnabled: true, emailOtpEnabled: false },
+    })
+    const app = createApp(auth, { configzServiceFactory: () => configzService })
+
+    const signInCode = await app.request('/api/auth/email-otp/send-verification-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', type: 'sign-in' }),
+    })
+    const missingTypeCode = await app.request('/api/auth/email-otp/send-verification-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com' }),
+    })
+    const verificationCode = await app.request('/api/auth/email-otp/send-verification-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', type: 'email-verification' }),
+    })
+    const verifyEmail = await app.request('/api/auth/email-otp/verify-email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', otp: '123456' }),
+    })
+
+    expect(signInCode.status).toBe(403)
+    expect(missingTypeCode.status).toBe(403)
+    expect(verificationCode.status).toBe(204)
+    expect(verifyEmail.status).toBe(204)
+    expect(auth.handler).toHaveBeenCalledTimes(2)
+  })
+
   it('mounts admin authorization routes behind the admin auth boundary', async () => {
     const app = createApp(createAuthMock())
 
@@ -175,13 +232,21 @@ function createAuthMock() {
         }
       }),
     },
-    handler: async () => new Response(null, { status: 204 }),
+    handler: vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
   }
 }
 
-function createConfigzServiceMock() {
+function createConfigzServiceMock(overrides: Record<string, unknown> = {}) {
   return {
     getConfig: vi.fn().mockResolvedValue({
+      signIn: {
+        passwordEnabled: true,
+        signupEnabled: true,
+        socialLoginEnabled: true,
+        emailOtpEnabled: true,
+        usernameEnabled: true,
+        identifierFirst: false,
+      },
       accountCenter: {
         profileEditingEnabled: true,
         displayNameEditable: true,
@@ -193,6 +258,7 @@ function createConfigzServiceMock() {
         sessionsViewEnabled: true,
         dangerZoneEnabled: false,
       },
+      ...overrides,
     }),
   }
 }

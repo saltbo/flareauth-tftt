@@ -139,6 +139,26 @@ export const passkey = sqliteTable(
   (table) => [index('passkey_userId_idx').on(table.userId), index('passkey_credentialID_idx').on(table.credentialID)],
 )
 
+export const walletAddress = sqliteTable(
+  'wallet_address',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    address: text('address').notNull(),
+    chainId: integer('chain_id').notNull(),
+    isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('walletAddress_userId_idx').on(table.userId),
+    uniqueIndex('walletAddress_address_chainId_unique').on(table.address, table.chainId),
+  ],
+)
+
 export const oauthClient = sqliteTable(
   'oauth_client',
   {
@@ -651,7 +671,7 @@ export const identityProviderConnector = sqliteTable(
     displayName: text('display_name').notNull(),
     enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
     clientId: text('client_id'),
-    clientSecretBinding: text('client_secret_binding'),
+    clientSecret: text('client_secret'),
     issuer: text('issuer'),
     authorizationEndpoint: text('authorization_endpoint'),
     tokenEndpoint: text('token_endpoint'),

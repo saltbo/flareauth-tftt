@@ -111,6 +111,9 @@ function parseSecurityPolicy(env: Env, baseURL: string, trustedOrigins: string[]
   return {
     mfa: {
       mode: parseMfaPolicy(env.MFA_POLICY),
+      authenticatorAppEnabled: true,
+      emailOtpEnabled: false,
+      backupCodesEnabled: true,
     },
     passkeys: {
       enabled: parseBoolean(env.PASSKEY_ENABLED, true, 'PASSKEY_ENABLED'),

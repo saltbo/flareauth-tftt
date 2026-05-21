@@ -45,7 +45,7 @@ export const connectorResponseSchema = z.object({
   displayName: z.string(),
   enabled: z.boolean(),
   clientId: z.string().nullable(),
-  clientSecretBinding: z.string().nullable(),
+  clientSecretConfigured: z.boolean(),
   issuer: z.string().nullable(),
   authorizationEndpoint: z.string().nullable(),
   tokenEndpoint: z.string().nullable(),
@@ -83,7 +83,7 @@ export const createConnectorRequestSchema = z
     displayName: nonEmptyString,
     enabled: z.boolean().optional(),
     clientId: nonEmptyString.optional(),
-    clientSecretBinding: nonEmptyString.optional(),
+    clientSecret: nonEmptyString.optional(),
     issuer: optionalUrl,
     authorizationEndpoint: optionalUrl,
     tokenEndpoint: optionalUrl,
@@ -106,7 +106,7 @@ export const updateConnectorRequestSchema = z.object({
   displayName: nonEmptyString.optional(),
   enabled: z.boolean().optional(),
   clientId: nonEmptyString.nullable().optional(),
-  clientSecretBinding: nonEmptyString.nullable().optional(),
+  clientSecret: nonEmptyString.nullable().optional(),
   issuer: nullableUrl.optional(),
   authorizationEndpoint: nullableUrl.optional(),
   tokenEndpoint: nullableUrl.optional(),
@@ -144,11 +144,11 @@ function validateConnectorFields(input: ConnectorBoundaryInput, ctx: z.Refinemen
   if (!input.clientId) {
     ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'clientId is required.' })
   }
-  if (!input.clientSecretBinding) {
+  if (!input.clientSecret) {
     ctx.addIssue({
       code: 'custom',
-      path: ['clientSecretBinding'],
-      message: 'clientSecretBinding is required.',
+      path: ['clientSecret'],
+      message: 'clientSecret is required.',
     })
   }
   if (input.providerType !== 'generic_oauth') return

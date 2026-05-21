@@ -46,8 +46,21 @@ describe('account API client', () => {
       ['totpVerification.post', { json: { code: '123456' } }],
       ['totp.delete', { json: { password: 'password' } }],
       ['passkeys.get'],
-      ['passkeyRegistrationOptions.post', { json: { name: 'Laptop' } }],
-      ['passkeyRegistrationVerification.post', { json: { id: 'credential-1' } }],
+      [
+        'fetch',
+        '/api/auth/passkey/generate-register-options?name=Laptop',
+        { method: 'GET', credentials: 'same-origin' },
+      ],
+      [
+        'fetch',
+        '/api/auth/passkey/verify-registration',
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: 'credential-1' }),
+        },
+      ],
       ['passkey.delete', { param: { id: 'passkey-1' } }],
       ['securitySessions.delete'],
       ['securitySession.delete', { param: { sessionId: 'session-1' } }],
@@ -91,8 +104,6 @@ async function loadAccountApi() {
             },
             passkeys: {
               $get: endpoint('passkeys.get'),
-              'registration-options': { $post: endpoint('passkeyRegistrationOptions.post') },
-              'registration-verification': { $post: endpoint('passkeyRegistrationVerification.post') },
               ':id': { $delete: endpoint('passkey.delete') },
             },
             sessions: {
@@ -104,11 +115,19 @@ async function loadAccountApi() {
       },
     },
     readRpcResponse: (response: unknown) => response,
+    readJsonResponse: (response: unknown) => response,
     uploadApiFile: (path: string, file: File) => {
       calls.push(['upload', path, file])
       return Promise.resolve({ asset: { id: 'asset-1' } })
     },
   }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((path: string, init?: RequestInit) => {
+      calls.push(['fetch', path, init])
+      return Promise.resolve({ path, init })
+    }),
+  )
 
   return {
     calls,

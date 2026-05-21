@@ -1,4 +1,5 @@
 import type {
+  AccountEmailChangeConfirmInput,
   AccountEmailChangeInput,
   AccountPasswordChangeInput,
   AccountProfileUpdateInput,
@@ -9,7 +10,8 @@ import type {
   SecurityTotpEnrollmentInput,
   SecurityTotpVerificationInput,
 } from '@shared/api/security'
-import { apiClient, readRpcResponse, uploadApiFile } from '@/lib/api'
+import { apiClient, readJsonResponse, readRpcResponse, uploadApiFile } from '@/lib/api'
+import { nativeAuth } from '@/lib/auth-client'
 
 export function getAccountProfile() {
   return readRpcResponse(apiClient.api.account.profile.$get())
@@ -27,12 +29,40 @@ export function requestAccountEmailChange(input: AccountEmailChangeInput) {
   return readRpcResponse(apiClient.api.account.email.change.$post({ json: input }))
 }
 
+export function confirmAccountEmailChange(input: AccountEmailChangeConfirmInput) {
+  return readRpcResponse(apiClient.api.account.email.confirm.$post({ json: input }))
+}
+
 export function changeAccountPassword(input: AccountPasswordChangeInput) {
   return readRpcResponse(apiClient.api.account.password.change.$post({ json: input }))
 }
 
 export function listLinkedAccounts() {
   return readRpcResponse(apiClient.api.account['linked-accounts'].$get())
+}
+
+export function linkAccount(input: {
+  providerType: 'social' | 'generic_oauth'
+  providerId: string
+  callbackURL: string
+  errorCallbackURL?: string
+  scopes?: string[]
+}) {
+  if (input.providerType === 'generic_oauth') {
+    return nativeAuth('/oauth2/link', {
+      providerId: input.providerId,
+      callbackURL: input.callbackURL,
+      errorCallbackURL: input.errorCallbackURL,
+      scopes: input.scopes,
+    })
+  }
+
+  return nativeAuth('/link-social', {
+    provider: input.providerId,
+    callbackURL: input.callbackURL,
+    errorCallbackURL: input.errorCallbackURL,
+    scopes: input.scopes,
+  })
 }
 
 export function unlinkAccount(providerId: string, accountId: string) {
@@ -76,12 +106,29 @@ export function listPasskeys() {
   return readRpcResponse(apiClient.api.account.security.passkeys.$get())
 }
 
-export function createPasskeyRegistrationOptions(input: SecurityPasskeyRegistrationOptionsInput) {
-  return readRpcResponse(apiClient.api.account.security.passkeys['registration-options'].$post({ json: input }))
+export async function createPasskeyRegistrationOptions(input: SecurityPasskeyRegistrationOptionsInput) {
+  const query = new URLSearchParams()
+  if (input.name) query.set('name', input.name)
+  if (input.authenticatorAttachment) query.set('authenticatorAttachment', input.authenticatorAttachment)
+  if (input.context) query.set('context', input.context)
+
+  return readJsonResponse<unknown>(
+    await fetch(`/api/auth/passkey/generate-register-options${query.size ? `?${query}` : ''}`, {
+      method: 'GET',
+      credentials: 'same-origin',
+    }),
+  )
 }
 
-export function verifyPasskeyRegistration(input: Record<string, unknown>) {
-  return readRpcResponse(apiClient.api.account.security.passkeys['registration-verification'].$post({ json: input }))
+export async function verifyPasskeyRegistration(input: Record<string, unknown>) {
+  return readJsonResponse<unknown>(
+    await fetch('/api/auth/passkey/verify-registration', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  )
 }
 
 export function deletePasskey(id: string) {

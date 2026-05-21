@@ -1,6 +1,8 @@
 import type { Context } from 'hono'
 import type { SecurityPolicy } from '../../../shared/api/security'
 import { createDb } from '../../db/client'
+import { createConnectorRepository } from '../connectors/repository'
+import { loadAuthConnectorConfig } from '../connectors/service'
 import type { OnboardingRepository } from '../onboarding/repository'
 import { createDrizzleConfigzRepository } from './drizzle-repository'
 import { ConfigzService } from './service'
@@ -19,10 +21,13 @@ export function createConfigzService(c: Context<{ Bindings: ConfigzBindings }>, 
   const issuer = `${url.protocol}//${url.host}`
   return new ConfigzService(createDrizzleConfigzRepository(createDb(c.env.DB)), {
     issuer,
-    magicLinkEnabled: true,
     emailOtpEnabled: true,
     usernameEnabled: true,
     onboardingRepository: options.onboardingRepository,
     securityPolicy: options.securityPolicy,
+    availableIdentityProviderIds: async () => {
+      const config = await loadAuthConnectorConfig(createConnectorRepository(createDb(c.env.DB)))
+      return new Set(config.trustedProviders)
+    },
   })
 }

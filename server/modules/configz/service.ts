@@ -11,12 +11,10 @@ import type { SecurityPolicy } from '../../../shared/api/security'
 import type { OnboardingRepository } from '../onboarding/repository'
 
 export interface ConfigzSettings {
-  defaultApplicationId: string | null
   passwordEnabled: boolean
   signupEnabled: boolean
   socialLoginEnabled: boolean
   identifierFirst: boolean
-  defaultRedirectUri: string | null
   termsUri: string | null
   privacyUri: string | null
   supportEmail: string | null
@@ -65,8 +63,8 @@ export type UpdateConfigzSettingsInput = {
   signupEnabled?: boolean
   socialLoginEnabled?: boolean
   identifierFirst?: boolean
-  defaultApplicationId?: string | null
-  defaultRedirectUri?: string | null
+  emailOtpEnabled?: boolean
+  builtInProviders?: UpdateManagementSignInSettingsRequest['builtInProviders']
   termsUri?: string | null
   privacyUri?: string | null
   supportEmail?: string | null
@@ -79,17 +77,55 @@ export type UpdateConfigzBrandingInput = Partial<ConfigzBranding> & {
 
 export interface ConfigzServiceOptions {
   issuer: string
-  magicLinkEnabled: boolean
   emailOtpEnabled: boolean
   usernameEnabled: boolean
   onboardingRepository?: OnboardingRepository
   securityPolicy?: SecurityPolicy
+  availableIdentityProviderIds?: () => Promise<ReadonlySet<string>>
 }
 
 const defaultCopy = {
   productName: 'FlareAuth',
   headline: 'Sign in to FlareAuth',
   description: 'Use your account to continue securely.',
+}
+
+export const defaultBuiltInProviders: ManagementSignInSettingsResponse['builtInProviders'] = {
+  phone: {
+    enabled: false,
+    smsProvider: 'twilio',
+    otpLength: 6,
+    expiresInSeconds: 300,
+    signUpOnVerification: false,
+    requireVerification: true,
+    twilioAccountSid: '',
+    twilioAuthToken: '',
+    twilioFromNumber: '',
+    vonageApiKey: '',
+    vonageApiSecret: '',
+    vonageFrom: '',
+    messageBirdAccessKey: '',
+    messageBirdOriginator: '',
+  },
+  web3Wallet: {
+    enabled: false,
+    chains: [1],
+    domain: '',
+    emailDomainName: '',
+    anonymous: true,
+    ensLookupEnabled: false,
+  },
+  oneTap: {
+    enabled: false,
+    clientId: '',
+    autoSelect: false,
+    cancelOnTapOutside: true,
+    uxMode: 'popup',
+    context: 'signin',
+    promptBaseDelayMs: 1000,
+    promptMaxAttempts: 5,
+    disableSignUp: false,
+  },
 }
 
 export const defaultAccountCenterSettings: ConfigzAccountCenter = {
@@ -112,10 +148,14 @@ export class ConfigzService {
 
   async getConfig(): Promise<ConfigzConfigResponse> {
     const settings = await this.repository.getSettings()
-    const branding = await this.repository.getBranding(settings?.defaultApplicationId ?? null)
+    const branding = await this.repository.getBranding(null)
     const accountCenter = await this.repository.getAccountCenterSettings()
     const identityProviders = await this.repository.listEnabledIdentityProviders()
+    const availableIdentityProviderIds = this.options.availableIdentityProviderIds
+      ? await this.options.availableIdentityProviderIds()
+      : null
     const copy = readCopy(settings?.metadata)
+    const builtInProviders = readBuiltInProviders(settings?.metadata)
     const passwordEnabled = settings?.passwordEnabled ?? true
     const signupEnabled = settings?.signupEnabled ?? true
     const issuer = this.options.issuer.replace(/\/$/, '')
@@ -129,10 +169,26 @@ export class ConfigzService {
         passwordEnabled,
         signupEnabled,
         socialLoginEnabled: settings?.socialLoginEnabled ?? true,
-        magicLinkEnabled: this.options.magicLinkEnabled && signupEnabled,
-        emailOtpEnabled: this.options.emailOtpEnabled && signupEnabled,
+        emailOtpEnabled: readBoolean(settings?.metadata, 'emailOtpEnabled') ?? this.options.emailOtpEnabled,
         usernameEnabled: this.options.usernameEnabled,
         identifierFirst: settings?.identifierFirst ?? false,
+      },
+      builtInProviders: {
+        phone: { enabled: builtInProviders.phone.enabled },
+        web3Wallet: {
+          enabled: builtInProviders.web3Wallet.enabled,
+          chains: builtInProviders.web3Wallet.chains,
+        },
+        oneTap: {
+          enabled: builtInProviders.oneTap.enabled,
+          clientId: builtInProviders.oneTap.clientId,
+          autoSelect: builtInProviders.oneTap.autoSelect,
+          cancelOnTapOutside: builtInProviders.oneTap.cancelOnTapOutside,
+          uxMode: builtInProviders.oneTap.uxMode,
+          context: builtInProviders.oneTap.context,
+          promptBaseDelayMs: builtInProviders.oneTap.promptBaseDelayMs,
+          promptMaxAttempts: builtInProviders.oneTap.promptMaxAttempts,
+        },
       },
       branding: branding
         ? toPublicBranding(branding)
@@ -145,13 +201,17 @@ export class ConfigzService {
           },
       identityProviders:
         (settings?.socialLoginEnabled ?? true)
-          ? identityProviders.map((provider) => ({
-              slug: provider.slug,
-              providerType: provider.providerType,
-              providerId: provider.providerId,
-              displayName: provider.displayName,
-              icon: provider.icon,
-            }))
+          ? identityProviders
+              .filter(
+                (provider) => !availableIdentityProviderIds || availableIdentityProviderIds.has(provider.providerId),
+              )
+              .map((provider) => ({
+                slug: provider.slug,
+                providerType: provider.providerType,
+                providerId: provider.providerId,
+                displayName: provider.displayName,
+                icon: provider.icon,
+              }))
           : [],
       links: {
         termsUri: settings?.termsUri ?? null,
@@ -159,10 +219,6 @@ export class ConfigzService {
         supportEmail: settings?.supportEmail ?? null,
       },
       copy,
-      defaults: {
-        applicationId: settings?.defaultApplicationId ?? null,
-        redirectUri: settings?.defaultRedirectUri ?? null,
-      },
       auth: {
         basePath: '/api/auth',
         signInEmailPath: '/api/auth/sign-in/email',
@@ -173,7 +229,6 @@ export class ConfigzService {
         resetPasswordPath: '/api/auth/reset-password',
         sendVerificationEmailPath: '/api/auth/send-verification-email',
         verifyEmailPath: '/api/auth/verify-email',
-        magicLinkPath: '/api/auth/sign-in/magic-link',
         emailOtpPath: '/api/auth/email-otp/send-verification-otp',
         emailOtpSignInPath: '/api/auth/sign-in/email-otp',
         emailOtpVerificationPath: '/api/auth/email-otp/verify-email',
@@ -205,9 +260,10 @@ export class ConfigzService {
 
   async getManagementSignInSettings(): Promise<ManagementSignInSettingsResponse> {
     const config = await this.getConfig()
+    const settings = await this.repository.getSettings()
     return {
       signIn: config.signIn,
-      defaults: config.defaults,
+      builtInProviders: readBuiltInProviders(settings?.metadata),
       links: config.links,
       copy: config.copy,
     }
@@ -218,8 +274,7 @@ export class ConfigzService {
   ): Promise<ManagementSignInSettingsResponse> {
     await this.repository.updateSettings({
       ...input.signIn,
-      defaultApplicationId: input.defaults?.applicationId,
-      defaultRedirectUri: input.defaults?.redirectUri,
+      builtInProviders: input.builtInProviders,
       termsUri: input.links?.termsUri,
       privacyUri: input.links?.privacyUri,
       supportEmail: input.links?.supportEmail,
@@ -294,6 +349,24 @@ function readCopy(metadata: Record<string, unknown> | null | undefined) {
     headline: readString(copy, 'headline') ?? defaultCopy.headline,
     description: readString(copy, 'description') ?? defaultCopy.description,
   }
+}
+
+function readBuiltInProviders(metadata: Record<string, unknown> | null | undefined) {
+  const value =
+    metadata && typeof metadata.builtInProviders === 'object' && metadata.builtInProviders !== null
+      ? (metadata.builtInProviders as Partial<ManagementSignInSettingsResponse['builtInProviders']>)
+      : {}
+
+  return {
+    phone: { ...defaultBuiltInProviders.phone, ...(value.phone ?? {}) },
+    web3Wallet: { ...defaultBuiltInProviders.web3Wallet, ...(value.web3Wallet ?? {}) },
+    oneTap: { ...defaultBuiltInProviders.oneTap, ...(value.oneTap ?? {}) },
+  }
+}
+
+function readBoolean(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key]
+  return typeof value === 'boolean' ? value : null
 }
 
 function readString(value: Record<string, unknown> | null, key: string) {

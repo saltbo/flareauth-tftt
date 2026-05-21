@@ -41,16 +41,9 @@ describe('renderEmailTemplate', () => {
     expect([
       renderEmailTemplate({ type: 'password-reset', url: 'https://auth.example.com/reset' }).subject,
       renderEmailTemplate({ type: 'invitation', inviterName: 'Admin', url: 'https://auth.example.com/invite' }).subject,
-      renderEmailTemplate({ type: 'magic-link', url: 'https://auth.example.com/magic', otp: '123456' }).text,
       renderEmailTemplate({ type: 'otp', otp: '654321' }).text,
       renderEmailTemplate({ type: 'security-notification', title: 'New login', body: 'A new login was detected.' })
         .subject,
-    ]).toEqual([
-      'Reset your password',
-      'You were invited to FlareAuth',
-      'Sign in to FlareAuth\n\nhttps://auth.example.com/magic\n\nYour one-time code is 123456.',
-      'Your one-time code is 654321.',
-      'New login',
-    ])
+    ]).toEqual(['Reset your password', 'You were invited to FlareAuth', 'Your one-time code is 654321.', 'New login'])
   })
 })

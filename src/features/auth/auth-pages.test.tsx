@@ -16,10 +16,23 @@ const configz = {
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: true,
-    magicLinkEnabled: true,
     emailOtpEnabled: true,
     usernameEnabled: true,
     identifierFirst: false,
+  },
+  builtInProviders: {
+    phone: { enabled: false },
+    web3Wallet: { enabled: false, chains: [1] },
+    oneTap: {
+      enabled: false,
+      clientId: '',
+      autoSelect: false,
+      cancelOnTapOutside: true,
+      uxMode: 'popup',
+      context: 'signin',
+      promptBaseDelayMs: 1000,
+      promptMaxAttempts: 5,
+    },
   },
   branding: {
     logoUrl: null,
@@ -53,10 +66,6 @@ const configz = {
     productName: 'Acme ID',
     headline: 'Sign in to Acme.',
     description: 'Hosted identity for Acme apps.',
-  },
-  defaults: {
-    applicationId: null,
-    redirectUri: null,
   },
   auth: authPaths(),
   oidc: oidcMetadata(),
@@ -129,7 +138,7 @@ afterEach(() => {
 })
 
 describe('hosted auth pages', () => {
-  it('renders enabled sign-in methods and social connectors from configz', async () => {
+  it('renders a product-focused sign-in form and social connectors from configz', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
     render(<SignInPage />)
@@ -139,13 +148,23 @@ describe('hosted auth pages', () => {
     expect(screen.getByRole('region', { name: 'Sign in to Acme.' })).toBeTruthy()
     expect(document.querySelector('.authPanel')).toBeTruthy()
     expect(document.querySelector('.authBrandPanel .brandMark')?.textContent).toBe('A')
-    expect(document.querySelector('.segmented')?.children).toHaveLength(3)
-    expect(screen.getByRole('button', { name: 'Password' }).className).toBe('active')
-    expect(screen.getByRole('button', { name: 'Magic link' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'OTP' })).toBeTruthy()
+    expect(document.querySelector('.segmented')).toBeNull()
+    expect(screen.queryByText('Choose how to continue')).toBeNull()
+    expect(screen.queryByText('Choose an enabled method to access this application.')).toBeNull()
     expect(screen.getByRole('button', { name: 'Sign in' }).className).toContain('uiButton-primary')
+    expect(screen.getByRole('link', { name: 'Forgot password?' }).closest('form')).toBe(
+      screen.getByRole('button', { name: 'Sign in' }).closest('form'),
+    )
+    expect(document.querySelector('.authSignupPrompt')?.textContent).toBe('No account yet? Create account')
+    expect(screen.getByRole('button', { name: 'Continue with Email' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Continue with Phone' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Continue with Example SSO' })).toBeTruthy()
+    expect(document.querySelector('.authMethodDivider')?.textContent).toBe('or')
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Email' }))
+    expect(await screen.findByRole('button', { name: 'Send code' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
     expect(screen.getByText('Powered by Acme ID')).toBeTruthy()
     expect(screen.queryByText('Authenticator verification')).toBeNull()
   })
@@ -288,33 +307,13 @@ describe('hosted auth pages', () => {
     }
   })
 
-  it('uses magic link when password auth is disabled', async () => {
+  it('uses OTP when password auth is disabled', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse({
         ...configz,
         signIn: {
           ...configz.signIn,
           passwordEnabled: false,
-          magicLinkEnabled: true,
-          emailOtpEnabled: false,
-        },
-      }),
-    )
-
-    render(<SignInPage />)
-
-    expect(await screen.findByRole('button', { name: 'Send magic link' })).toBeTruthy()
-    expect(screen.queryByLabelText('Password')).toBeNull()
-  })
-
-  it('falls back to OTP when password and magic link auth are disabled', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      jsonResponse({
-        ...configz,
-        signIn: {
-          ...configz.signIn,
-          passwordEnabled: false,
-          magicLinkEnabled: false,
           emailOtpEnabled: true,
         },
       }),
@@ -324,7 +323,6 @@ describe('hosted auth pages', () => {
 
     expect(await screen.findByRole('button', { name: 'Send code' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Magic link' })).toBeNull()
   })
 
   it('starts with an identifier step when identifier-first sign-in is enabled', async () => {
@@ -350,7 +348,7 @@ describe('hosted auth pages', () => {
     expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
   })
 
-  it('keeps identifier-first identity across magic link and OTP methods', async () => {
+  it('keeps identifier-first identity when using an email code', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
@@ -373,9 +371,7 @@ describe('hosted auth pages', () => {
 
     fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Magic link' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Send magic link' }))
-    fireEvent.click(screen.getByRole('button', { name: 'OTP' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Email' }))
     await waitFor(() =>
       expect((screen.getByRole('button', { name: 'Send code' }) as HTMLButtonElement).disabled).toBe(false),
     )
@@ -384,45 +380,9 @@ describe('hosted auth pages', () => {
     await waitFor(() => {
       expect(requests).toEqual(
         expect.arrayContaining([
-          { url: '/api/auth/sign-in/magic-link', body: { email: 'jane@example.com', errorCallbackURL: '/sign-in' } },
           { url: '/api/auth/email-otp/send-verification-otp', body: { email: 'jane@example.com', type: 'sign-in' } },
         ]),
       )
-    })
-  })
-
-  it('requires an email when identifier-first username switches to email-only methods', async () => {
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/configz') {
-        return Promise.resolve(
-          jsonResponse({
-            ...configz,
-            signIn: {
-              ...configz.signIn,
-              identifierFirst: true,
-            },
-          }),
-        )
-      }
-      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-      return Promise.resolve(jsonResponse({ ok: true }))
-    })
-
-    render(<SignInPage />)
-
-    fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Magic link' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send magic link' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/auth/sign-in/magic-link',
-        body: { email: 'jane@example.com', errorCallbackURL: '/sign-in' },
-      })
     })
   })
 
@@ -449,8 +409,8 @@ describe('hosted auth pages', () => {
 
     fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane' } })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.click(screen.getByRole('button', { name: 'OTP' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Email' }))
+    fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'jane@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
 
     await waitFor(() => {
@@ -511,6 +471,28 @@ describe('hosted auth pages', () => {
         },
       })
     })
+  })
+
+  it('does not render self-service registration when sign-up is disabled', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') {
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            signIn: { ...configz.signIn, signupEnabled: false },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<SignUpPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Sign up is not available' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeTruthy()
   })
 
   it('renders app-specific recovery context and preserves the hosted sign-in return path', async () => {
@@ -622,13 +604,13 @@ describe('hosted auth pages', () => {
     expect(password.getAttribute('autocomplete')).toBe('current-password')
     fireEvent.change(password, { target: { value: 'password-1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
-    fireEvent.click(screen.getByRole('button', { name: 'OTP' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Email' }))
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
     await waitFor(() =>
       expect((screen.getByRole('button', { name: 'Send code' }) as HTMLButtonElement).disabled).toBe(false),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
-    fireEvent.change(await screen.findByLabelText('One-time code'), { target: { value: '123456' } })
+    fireEvent.change(await screen.findByLabelText('Verification code'), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
 
     await waitFor(() => {
@@ -640,6 +622,39 @@ describe('hosted auth pages', () => {
           },
           { url: '/api/auth/email-otp/send-verification-otp', body: { email: 'jane@example.com', type: 'sign-in' } },
           { url: '/api/auth/sign-in/email-otp', body: { email: 'jane@example.com', otp: '123456' } },
+        ]),
+      )
+    })
+  })
+
+  it('submits phone sign-in through native auth endpoints when Phone is enabled', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz')
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            builtInProviders: { ...configz.builtInProviders, phone: { enabled: true } },
+          }),
+        )
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({ url: '/profile' }))
+    })
+
+    render(<SignInPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue with Phone' }))
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '+15555550123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+    fireEvent.change(await screen.findByLabelText('Verification code'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual(
+        expect.arrayContaining([
+          { url: '/api/auth/phone-number/send-otp', body: { phoneNumber: '+15555550123' } },
+          { url: '/api/auth/phone-number/verify', body: { phoneNumber: '+15555550123', code: '123456' } },
         ]),
       )
     })
@@ -723,6 +738,36 @@ describe('hosted auth pages', () => {
     })
   })
 
+  it('requires TOTP verification before navigating after a two-factor password sign-in', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      if (url === '/api/auth/sign-in/username') {
+        return Promise.resolve(jsonResponse({ twoFactorRedirect: true, twoFactorMethods: ['totp'] }))
+      }
+      return Promise.resolve(jsonResponse({ token: 'session-token' }))
+    })
+
+    render(<SignInPage />)
+
+    fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'jane' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('Enter the current code from your authenticator app.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Authenticator code'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/auth/two-factor/verify-totp',
+        body: { code: '123456', trustDevice: true },
+      })
+    })
+  })
+
   it('renders no method tabs or social buttons when all sign-in methods are disabled', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse({
@@ -730,7 +775,6 @@ describe('hosted auth pages', () => {
         signIn: {
           ...configz.signIn,
           passwordEnabled: false,
-          magicLinkEnabled: false,
           emailOtpEnabled: false,
         },
         identityProviders: [],
@@ -744,67 +788,28 @@ describe('hosted auth pages', () => {
     expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
   })
 
-  it('submits magic link sign-in through the native auth endpoint', async () => {
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
-      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-      return Promise.resolve(jsonResponse({ ok: true }))
-    })
-
-    render(<SignInPage />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Magic link' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send magic link' }))
-
-    await waitFor(() => {
-      expect(requests).toEqual([
-        { url: '/api/auth/sign-in/magic-link', body: { email: 'jane@example.com', errorCallbackURL: '/sign-in' } },
-      ])
-    })
-    expect(screen.getByText('Magic link sent. Check your email to continue.')).toBeTruthy()
-  })
-
-  it('preserves app-specific context in hosted auth page links and magic-link errors', async () => {
-    window.history.pushState(
-      null,
-      '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
-    )
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
-      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-      return Promise.resolve(jsonResponse({ ok: true }))
-    })
-
-    render(<SignInPage />)
-
-    expect((await screen.findByRole('link', { name: 'Create account' })).getAttribute('href')).toBe(
-      '/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
-    )
-    expect(screen.getByRole('link', { name: 'Forgot password?' }).getAttribute('href')).toBe(
-      '/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Magic link' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send magic link' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/auth/sign-in/magic-link',
-        body: {
-          email: 'jane@example.com',
-          callbackURL:
-            '/api/auth/oauth2/authorize?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
-          errorCallbackURL:
-            '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+  it('does not show an empty-method warning when only Phone sign-in is enabled', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse({
+        ...configz,
+        signIn: {
+          ...configz.signIn,
+          passwordEnabled: false,
+          emailOtpEnabled: false,
+          socialLoginEnabled: false,
         },
-      })
-    })
+        builtInProviders: {
+          ...configz.builtInProviders,
+          phone: { enabled: true },
+        },
+        identityProviders: [],
+      }),
+    )
+
+    render(<SignInPage />)
+
+    expect(await screen.findByRole('button', { name: 'Continue with Phone' })).toBeTruthy()
+    expect(screen.queryByText('No sign-in methods are enabled. Contact the workspace administrator.')).toBeNull()
   })
 
   it('surfaces native auth submission failures', async () => {
@@ -1194,8 +1199,8 @@ describe('hosted auth pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send verification' }))
     await waitFor(() => {
       expect(requests).toContainEqual({
-        url: '/api/auth/send-verification-email',
-        body: { email: 'jane@example.com' },
+        url: '/api/auth/email-otp/send-verification-otp',
+        body: { email: 'jane@example.com', type: 'email-verification' },
       })
     })
 
@@ -1296,7 +1301,6 @@ function authPaths() {
     resetPasswordPath: '/api/auth/reset-password',
     sendVerificationEmailPath: '/api/auth/send-verification-email',
     verifyEmailPath: '/api/auth/verify-email',
-    magicLinkPath: '/api/auth/sign-in/magic-link',
     emailOtpPath: '/api/auth/email-otp/send-verification-otp',
     emailOtpSignInPath: '/api/auth/sign-in/email-otp',
     emailOtpVerificationPath: '/api/auth/email-otp/verify-email',

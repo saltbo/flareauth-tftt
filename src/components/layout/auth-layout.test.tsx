@@ -9,10 +9,23 @@ const config: ConfigzConfigResponse = {
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: true,
-    magicLinkEnabled: true,
     emailOtpEnabled: true,
     usernameEnabled: true,
     identifierFirst: false,
+  },
+  builtInProviders: {
+    phone: { enabled: false },
+    web3Wallet: { enabled: false, chains: [1] },
+    oneTap: {
+      enabled: false,
+      clientId: '',
+      autoSelect: false,
+      cancelOnTapOutside: true,
+      uxMode: 'popup',
+      context: 'signin',
+      promptBaseDelayMs: 1000,
+      promptMaxAttempts: 5,
+    },
   },
   branding: {
     logoUrl: 'https://cdn.example.com/logo.svg',
@@ -32,10 +45,6 @@ const config: ConfigzConfigResponse = {
     headline: 'Sign in to Acme',
     description: 'Continue securely.',
   },
-  defaults: {
-    applicationId: null,
-    redirectUri: null,
-  },
   auth: {
     basePath: '/api/auth',
     signInEmailPath: '/api/auth/sign-in/email',
@@ -46,7 +55,6 @@ const config: ConfigzConfigResponse = {
     resetPasswordPath: '/api/auth/reset-password',
     sendVerificationEmailPath: '/api/auth/send-verification-email',
     verifyEmailPath: '/api/auth/verify-email',
-    magicLinkPath: '/api/auth/sign-in/magic-link',
     emailOtpPath: '/api/auth/email-otp/send-verification-otp',
     emailOtpSignInPath: '/api/auth/sign-in/email-otp',
     emailOtpVerificationPath: '/api/auth/email-otp/verify-email',

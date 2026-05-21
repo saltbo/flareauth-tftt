@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { z } from 'zod'
 import {
+  accountEmailChangeConfirmSchema,
   accountEmailChangeSchema,
   accountPasswordChangeSchema,
   accountProfileUpdateSchema,
@@ -58,10 +59,34 @@ export function accountRoutes(
 
     try {
       return c.json(
-        await authApi.changeEmail({
+        await authApi.requestEmailChangeEmailOTP({
           body: {
             newEmail: body.email,
-            callbackURL: body.callbackURL,
+          },
+          headers: c.req.raw.headers,
+        }),
+      )
+    } catch (error) {
+      throw toBoundaryError(error)
+    }
+  })
+
+  app.post('/email/confirm', async (c) => {
+    await assertAccountCenterSettingsAllowed(
+      c,
+      ['profileEditingEnabled', 'emailChangeEnabled'],
+      'Email changes are disabled for this account center.',
+      configzServiceFactory,
+    )
+    const body = await readJson(c, accountEmailChangeConfirmSchema)
+    if (security) validateEmailPolicy(body.email, (await security.getPolicy()).blocklist)
+
+    try {
+      return c.json(
+        await authApi.changeEmailEmailOTP({
+          body: {
+            newEmail: body.email,
+            otp: body.otp,
           },
           headers: c.req.raw.headers,
         }),
@@ -228,8 +253,13 @@ export function accountRoutes(
       'Session management is disabled for this account center.',
       configzServiceFactory,
     )
-    const page = await users.listSessions(getAuthContext(c).user!.id, readQuery(c, paginationQuerySchema))
-    return c.json({ sessions: page.items, pagination: paginationMetadata(page) })
+    const authContext = getAuthContext(c)
+    const page = await users.listSessions(authContext.user!.id, readQuery(c, paginationQuerySchema))
+    const currentSessionId = authContext.session?.session.id
+    return c.json({
+      sessions: page.items.map((session) => ({ ...session, current: session.id === currentSessionId })),
+      pagination: paginationMetadata(page),
+    })
   })
 
   if (security) {

@@ -51,6 +51,13 @@ async function responseMessage(response: Pick<Response, 'status' | 'text'>): Pro
   }
 }
 
+export async function readJsonResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new ApiRequestError(await responseMessage(response), response.status)
+  }
+  return response.json() as Promise<T>
+}
+
 export function getPlatformStatus() {
   return readRpcResponse(apiClient.api.health.$get())
 }

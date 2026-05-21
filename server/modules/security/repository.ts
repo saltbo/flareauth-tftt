@@ -55,7 +55,8 @@ export function createSecurityRepository(db: Database, policy: SecurityPolicy): 
       const next = securityPolicySchema.parse({
         ...current,
         ...input.policy,
-        passkeys: current.passkeys,
+        mfa: { ...current.mfa, ...input.policy.mfa },
+        passkeys: { ...current.passkeys, ...input.policy.passkeys },
         sessions: current.sessions,
       })
       const row = await readSettingsRow(db)
@@ -63,6 +64,7 @@ export function createSecurityRepository(db: Database, policy: SecurityPolicy): 
         ...(row?.metadata ?? {}),
         securityPolicy: {
           mfa: next.mfa,
+          passkeys: { enabled: next.passkeys.enabled },
           password: next.password,
           captcha: next.captcha,
           blocklist: next.blocklist,
@@ -178,7 +180,8 @@ async function readManagedPolicy(db: Database, defaults: SecurityPolicy): Promis
   const managed = readObject(row?.metadata, 'securityPolicy')
   return securityPolicySchema.parse({
     ...defaults,
-    mfa: readObject(managed, 'mfa') ?? defaults.mfa,
+    mfa: { ...defaults.mfa, ...(readObject(managed, 'mfa') ?? {}) },
+    passkeys: { ...defaults.passkeys, ...(readObject(managed, 'passkeys') ?? {}) },
     password: readObject(managed, 'password') ?? defaults.password,
     captcha: readObject(managed, 'captcha') ?? defaults.captcha,
     blocklist: readObject(managed, 'blocklist') ?? defaults.blocklist,
@@ -195,12 +198,10 @@ async function readSettingsRow(db: Database): Promise<typeof signInExperience.$i
 
 function settingsInsertDefaults(settings: typeof signInExperience.$inferSelect | null) {
   return {
-    defaultApplicationId: settings?.defaultApplicationId ?? null,
     passwordEnabled: settings?.passwordEnabled ?? true,
     signupEnabled: settings?.signupEnabled ?? true,
     socialLoginEnabled: settings?.socialLoginEnabled ?? true,
     identifierFirst: settings?.identifierFirst ?? false,
-    defaultRedirectUri: settings?.defaultRedirectUri ?? null,
     termsUri: settings?.termsUri ?? null,
     privacyUri: settings?.privacyUri ?? null,
     supportEmail: settings?.supportEmail ?? null,

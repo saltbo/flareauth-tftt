@@ -21,7 +21,6 @@ import {
   OrganizationDetailPage,
   OrganizationsPage,
   OrganizationTemplatePage,
-  PasswordlessConnectorsPage,
   RoleDetailPage,
   RolesPage,
   SecurityBlocklistPage,
@@ -33,6 +32,12 @@ import {
   UsersPage,
   WebhooksPage,
 } from './admin-console'
+
+globalThis.ResizeObserver ??= class ResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
 
 afterEach(() => {
   cleanup()
@@ -374,9 +379,9 @@ describe('admin console', () => {
       expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
       await waitFor(() => expect(window.location.pathname).toBe('/profile'))
       expect(screen.queryByRole('navigation', { name: 'Account center' })).toBeNull()
-      expect(screen.getByRole('heading', { name: 'MFA' })).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Linked social accounts' })).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Sessions and devices' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Multi-factor authentication' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Linked accounts' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Active sessions' })).toBeTruthy()
       expect(screen.getByRole('heading', { name: 'Authorized apps' })).toBeTruthy()
 
       cleanup()
@@ -384,7 +389,7 @@ describe('admin console', () => {
     }
   })
 
-  it('redirects protected Console routes to Console setup while setup is incomplete', async () => {
+  it('allows protected Console routes while setup checklist is incomplete', async () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
@@ -398,15 +403,15 @@ describe('admin console', () => {
           }),
         )
       }
+      if (url === '/api/management/applications') return Promise.resolve(jsonResponse({ applications: [], pagination }))
       return Promise.resolve(jsonResponse({}))
     })
     window.history.pushState(null, '', '/console/applications')
 
     render(<AppRouter />)
 
-    expect(await screen.findByRole('heading', { name: 'Console setup' })).toBeTruthy()
-    await waitFor(() => expect(window.location.pathname).toBe('/console/onboarding'))
-    expect(screen.queryByRole('link', { name: /Onboarding/ })).toBeNull()
+    expect(await screen.findByRole('heading', { name: 'Applications' })).toBeTruthy()
+    await waitFor(() => expect(window.location.pathname).toBe('/console/applications'))
   })
 
   it('redirects stale Console setup visits to the Console after setup is complete', async () => {
@@ -466,15 +471,13 @@ describe('admin console', () => {
       ],
       ['/console/sign-in-experience/account-center', '/console/sign-in-experience/account-center', 'Account Center'],
       ['/console/sign-in-experience/content', '/console/sign-in-experience/content', 'Content'],
-      ['/console/security', '/console/security/password-policy', 'Security'],
-      ['/console/security/password-policy', '/console/security/password-policy', 'Security'],
+      ['/console/security', '/console/security/captcha', 'CAPTCHA'],
+      ['/console/security/password-policy', '/console/sign-in-experience/sign-up-and-sign-in', 'Sign-up and sign-in'],
       ['/console/security/captcha', '/console/security/captcha', 'CAPTCHA'],
       ['/console/security/blocklist', '/console/security/blocklist', 'Blocklist'],
       ['/console/security/general', '/console/security/general', 'General security'],
       ['/console/mfa', '/console/mfa', 'Multi-factor authentication'],
-      ['/console/connectors', '/console/connectors/passwordless', 'Connectors'],
-      ['/console/connectors/passwordless', '/console/connectors/passwordless', 'Connectors'],
-      ['/console/connectors/social', '/console/connectors/social', 'Connectors'],
+      ['/console/connectors', '/console/connectors', 'Connectors'],
       ['/console/organization-template', '/console/organization-template/organization-roles', 'Organization roles'],
       [
         '/console/organization-template/organization-roles',
@@ -530,8 +533,8 @@ describe('admin console', () => {
     for (const [path, finalPath, heading] of [
       ['/admin/sign-in', '/console/sign-in-experience/sign-up-and-sign-in', 'Sign-up and sign-in'],
       ['/admin/branding', '/console/sign-in-experience/branding', 'Branding'],
-      ['/admin/connectors', '/console/connectors/passwordless', 'Connectors'],
-      ['/admin/security', '/console/security/password-policy', 'Security'],
+      ['/admin/connectors', '/console/connectors', 'Connectors'],
+      ['/admin/security', '/console/security/captcha', 'CAPTCHA'],
       ['/admin/deployment', '/console/tenant-settings/oidc-configs', 'Settings'],
       ['/admin/applications/app-1', '/console/applications/app-1/settings', 'Customer portal'],
     ] as const) {
@@ -960,7 +963,7 @@ describe('admin console', () => {
         },
       },
     ])
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0])
     await waitFor(() => expect(screen.queryByText('fas_created_secret')).toBeNull())
   })
 
@@ -1337,7 +1340,7 @@ describe('admin console', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rotate client secret' }))
 
     expect(await screen.findByText('fas_rotated_secret')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0])
     await waitFor(() => expect(screen.queryByText('fas_rotated_secret')).toBeNull())
   })
 
@@ -2116,54 +2119,77 @@ describe('admin console', () => {
     })
   })
 
-  it('renders connectors, creates a connector, and toggles provider availability', async () => {
+  it('renders the provider catalog and configures social providers from the drawer', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
+    const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) }
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
       if (url === '/api/management/connectors' && init?.method === 'POST') {
         requests.push({ url, body: JSON.parse(String(init.body)) })
         return Promise.resolve(jsonResponse(connector, 201))
       }
-      if (url === '/api/management/connectors/templates') {
-        return Promise.resolve(jsonResponse(connectorTemplates))
-      }
-      if (url === '/api/management/connectors/connector-1') {
-        requests.push({ url, body: JSON.parse(String(init?.body)) })
-        return Promise.resolve(jsonResponse({ ...connector, enabled: false }))
-      }
+      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
+        return Promise.resolve(jsonResponse({ connectors: [], pagination }))
       }
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<ConnectorsPage />)
 
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Toggle Google'))
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Google/ }).at(-1)!)
-    expect(screen.getByText(/defaults are applied from the provider template/i)).toBeTruthy()
-    expect(screen.queryByLabelText('Provider ID')).toBeNull()
-    expect(screen.queryByLabelText('Provider type')).toBeNull()
-    expect(screen.queryByLabelText('Issuer')).toBeNull()
-    expect(screen.queryByLabelText('Display name')).toBeNull()
+    expect(await screen.findByText('Email')).toBeTruthy()
+    expect(screen.getByText('Phone (SMS)')).toBeTruthy()
+    expect(screen.getByText('Web3 wallet')).toBeTruthy()
+    expect(screen.getByText('Passkey')).toBeTruthy()
+    expect(screen.getByText('OneTap')).toBeTruthy()
+    expect(screen.getByText('Google')).toBeTruthy()
+    expect(
+      Array.from(screen.getByRole('table').querySelectorAll('tbody tr'))
+        .map((row) => row.querySelector('.font-medium')?.textContent)
+        .slice(0, 5),
+    ).toEqual(['Email', 'Phone (SMS)', 'Web3 wallet', 'Passkey', 'OneTap'])
+    expect(screen.queryByRole('link', { name: 'Passwordless' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Social' })).toBeNull()
+    expect(screen.queryByLabelText('Search social connectors')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add social connector' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Google.*Credentials required.*Not enabled/ }))
+    expect(await screen.findByRole('heading', { name: 'Google' })).toBeTruthy()
+    expect(screen.getByLabelText('Callback URL')).toHaveProperty(
+      'value',
+      'http://localhost:3000/api/auth/callback/google',
+    )
+    const fieldLabels = Array.from(screen.getByRole('dialog').querySelectorAll('.field label')).map(
+      (label) => label.textContent,
+    )
+    expect(fieldLabels.at(-1)).toBe('Callback URL')
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    expect(clipboard.writeText).toHaveBeenCalledWith('http://localhost:3000/api/auth/callback/google')
+    expect(screen.getAllByText('Required by this Better Auth provider.')).toHaveLength(2)
     expect(screen.queryByLabelText('Scopes')).toBeNull()
-    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'client-id' } })
-    fireEvent.change(screen.getByLabelText('Client secret binding'), { target: { value: 'GITHUB_SECRET' } })
+    expect(screen.queryByLabelText('Redirect URI')).toBeNull()
+    expect(screen.queryByLabelText('Disable Sign Up')).toBeNull()
+    expect(screen.queryByLabelText('Override User Info')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }))
+    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'google-client' } })
+    fireEvent.change(screen.getByLabelText('Client Secret'), { target: { value: 'GOOGLE_SECRET' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(requests).toEqual([
-        { url: '/api/management/connectors/connector-1', body: { enabled: false } },
         {
           url: '/api/management/connectors',
           body: {
+            slug: 'google',
             displayName: 'Google',
+            enabled: true,
             providerId: 'google',
             providerType: 'social',
-            clientId: 'client-id',
-            clientSecretBinding: 'GITHUB_SECRET',
+            clientId: 'google-client',
+            clientSecret: 'GOOGLE_SECRET',
             scopes: ['openid', 'email', 'profile'],
           },
         },
@@ -2171,88 +2197,152 @@ describe('admin console', () => {
     })
   })
 
-  it('creates a social connector with required provider metadata from a template', async () => {
+  it('configures built-in email and passkey providers from the drawer', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/management/connectors' && init?.method === 'POST') {
-        requests.push({ url, body: JSON.parse(String(init.body)) })
-        return Promise.resolve(jsonResponse(connector, 201))
-      }
-      if (url === '/api/management/connectors/templates') {
-        return Promise.resolve(jsonResponse(connectorTemplates))
-      }
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Amazon Cognito/ }).at(-1)!)
-    expect(screen.getByLabelText('User Pool ID')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'cognito-client' } })
-    fireEvent.change(screen.getByLabelText('Client secret binding'), { target: { value: 'COGNITO_SECRET' } })
-    fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'auth.example.com' } })
-    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'us-east-1' } })
-    fireEvent.change(screen.getByLabelText('User Pool ID'), { target: { value: 'pool-1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      expect(requests).toEqual([
-        {
-          url: '/api/management/connectors',
-          body: {
-            displayName: 'Amazon Cognito',
-            providerId: 'cognito',
-            providerType: 'social',
-            clientId: 'cognito-client',
-            clientSecretBinding: 'COGNITO_SECRET',
-            scopes: ['openid', 'email', 'profile'],
-            providerMetadata: {
-              domain: 'auth.example.com',
-              region: 'us-east-1',
-              userPoolId: 'pool-1',
-            },
-          },
-        },
-      ])
-    })
-  })
-
-  it('shows connector details, saves edits, displays readiness, and deletes connectors', async () => {
-    const requests: Array<{ url: string; method: string; body: unknown }> = []
-    let readinessRequests = 0
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
       const method = init?.method ?? 'GET'
       if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-1/readiness') {
-        readinessRequests += 1
+      if (url === '/api/management/connectors') return Promise.resolve(jsonResponse({ connectors: [], pagination }))
+      if (url === '/api/management/sign-in-settings' && method === 'GET') {
+        return Promise.resolve(
+          jsonResponse({ ...signInSettings, signIn: { ...signInSettings.signIn, emailOtpEnabled: false } }),
+        )
+      }
+      if (url === '/api/management/sign-in-settings' && method === 'PATCH') {
+        requests.push({ url, body: JSON.parse(String(init?.body)) })
+        return Promise.resolve(
+          jsonResponse({ ...signInSettings, signIn: { ...signInSettings.signIn, emailOtpEnabled: true } }),
+        )
+      }
+      if (url === '/api/management/security/policy' && method === 'GET') {
         return Promise.resolve(
           jsonResponse({
-            connectorId: 'connector-1',
-            ready: false,
-            checks: [
-              {
-                key: 'clientSecretAvailable',
-                label: 'Secret binding available',
-                ok: false,
-                message: 'Secret binding is not available in the runtime.',
-              },
-            ],
+            policy: { ...securityPolicy.policy, passkeys: { ...securityPolicy.policy.passkeys, enabled: false } },
           }),
         )
       }
+      if (url === '/api/management/security/policy' && method === 'PATCH') {
+        requests.push({ url, body: JSON.parse(String(init?.body)) })
+        return Promise.resolve(jsonResponse(securityPolicy))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderWithQuery(<ConnectorsPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Email.*Runtime disabled.*Not enabled/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Email code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/management/sign-in-settings',
+        body: { signIn: { emailOtpEnabled: true } },
+      })
+    })
+
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Email' })).getAllByRole('button', { name: 'Close' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: /Passkey.*Runtime disabled.*Not enabled/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Passkey sign-in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/management/security/policy',
+        body: { policy: { passkeys: { enabled: true } } },
+      })
+    })
+
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Passkey' })).getAllByRole('button', { name: 'Close' })[0],
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /Phone \(SMS\).*Runtime disabled.*Not enabled/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Phone sign-in' }))
+    expect(
+      Array.from(screen.getByLabelText('SMS provider').querySelectorAll('option')).map((option) => option.value),
+    ).toEqual(['twilio', 'vonage', 'messagebird'])
+    fireEvent.change(screen.getByLabelText('SMS provider'), { target: { value: 'vonage' } })
+    expect(screen.getByLabelText('Vonage API key')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('SMS provider'), { target: { value: 'twilio' } })
+    fireEvent.change(screen.getByLabelText('Twilio Account SID'), { target: { value: 'AC123' } })
+    fireEvent.change(screen.getByLabelText('Twilio Auth Token'), { target: { value: 'secret' } })
+    fireEvent.change(screen.getByLabelText('From number'), { target: { value: '+15551234567' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/management/sign-in-settings',
+        body: {
+          builtInProviders: {
+            phone: expect.objectContaining({
+              enabled: true,
+              smsProvider: 'twilio',
+              twilioAccountSid: 'AC123',
+              twilioAuthToken: 'secret',
+              twilioFromNumber: '+15551234567',
+            }),
+          },
+        },
+      })
+    })
+
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Phone (SMS)' })).getAllByRole('button', { name: 'Close' })[0],
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /Web3 wallet.*Runtime disabled.*Not enabled/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Wallet sign-in' }))
+    expect(screen.queryByLabelText('SIWE domain')).toBeNull()
+    expect(screen.queryByLabelText('Email domain')).toBeNull()
+    fireEvent.click(screen.getByLabelText('Base'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/management/sign-in-settings',
+        body: {
+          builtInProviders: {
+            web3Wallet: expect.objectContaining({
+              enabled: true,
+              chains: [1, 8453],
+            }),
+          },
+        },
+      })
+    })
+
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Web3 wallet' })).getAllByRole('button', { name: 'Close' })[0],
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /OneTap.*Runtime disabled.*Not enabled/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'One Tap' }))
+    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'google-client-id' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        url: '/api/management/sign-in-settings',
+        body: {
+          builtInProviders: {
+            oneTap: expect.objectContaining({
+              enabled: true,
+              clientId: 'google-client-id',
+            }),
+          },
+        },
+      })
+    })
+  })
+
+  it('edits and deletes configured social providers from the drawer', async () => {
+    const requests: Array<{ url: string; method: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/connectors/connector-1' && method === 'GET') {
         return Promise.resolve(jsonResponse(connector))
       }
       if (url === '/api/management/connectors/connector-1' && method === 'PATCH') {
         requests.push({ url, method, body: JSON.parse(String(init?.body)) })
-        return Promise.resolve(jsonResponse({ ...connector, displayName: 'Google Workspace' }))
+        return Promise.resolve(jsonResponse({ ...connector, enabled: false }))
       }
       if (url === '/api/management/connectors/connector-1' && method === 'DELETE') {
         requests.push({ url, method, body: null })
@@ -2266,442 +2356,114 @@ describe('admin console', () => {
 
     renderWithQuery(<ConnectorsPage />)
 
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Test setup/ }))
-    expect(await screen.findByText('Secret binding available')).toBeTruthy()
-    const readinessRequestsBeforeRun = readinessRequests
-    fireEvent.click(screen.getByRole('button', { name: 'Run test' }))
-    await waitFor(() => {
-      expect(readinessRequests).toBeGreaterThan(readinessRequestsBeforeRun)
-    })
-    expect(screen.queryByLabelText('Display name')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    cleanup()
-    renderWithQuery(<ConnectorsPage />)
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-    expect(await screen.findByText('Secret binding available')).toBeTruthy()
-    expect(screen.getByText('Connector identity')).toBeTruthy()
-    expect(screen.getByText('Deployment credentials')).toBeTruthy()
-    expect(screen.queryByText('OAuth endpoints')).toBeNull()
-    expect(screen.queryByLabelText('Slug')).toBeNull()
-    expect(screen.queryByLabelText('Scopes')).toBeNull()
-    expect(screen.queryByLabelText('Provider metadata JSON')).toBeNull()
-    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Google Workspace' } })
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'false' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Google.*Credentials configured.*Enabled/ }))
+    expect(await screen.findByRole('heading', { name: 'Google' })).toBeTruthy()
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Save' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }))
     fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'workspace-client' } })
-    fireEvent.change(screen.getByLabelText('Client secret binding'), { target: { value: 'GOOGLE_WORKSPACE_SECRET' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(requests).toContainEqual({
         url: '/api/management/connectors/connector-1',
         method: 'PATCH',
-        body: expect.objectContaining({
-          clientId: 'workspace-client',
-          clientSecretBinding: 'GOOGLE_WORKSPACE_SECRET',
-          displayName: 'Google Workspace',
-          enabled: false,
-          issuer: 'https://accounts.google.com',
-          providerMetadata: { prompt: 'select_account' },
-          scopes: ['openid', 'email'],
-        }),
+        body: expect.objectContaining({ clientId: 'workspace-client', enabled: false }),
       })
     })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Google' })).toBeNull())
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: /Google.*Credentials configured.*Enabled/ }))
+    expect(await screen.findByRole('heading', { name: 'Google' })).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Google' })).getByRole('button', { name: 'Delete' }))
+    expect(await screen.findByRole('heading', { name: 'Delete connector' })).toBeTruthy()
+    fireEvent.click(within(screen.getAllByRole('dialog').at(-1)!).getByRole('button', { name: 'Delete' }))
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Google' })).toBeNull()
-    })
-
-    cleanup()
-    renderWithQuery(<ConnectorsPage />)
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Delete'))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/management/connectors/connector-1',
-        method: 'DELETE',
-        body: null,
-      })
+      expect(requests).toContainEqual({ url: '/api/management/connectors/connector-1', method: 'DELETE', body: null })
     })
   })
 
-  it('closes connector delete confirmation without deleting', async () => {
-    const requests: Array<{ url: string; method: string }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      const method = init?.method ?? 'GET'
-      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-1' && method === 'DELETE') {
-        requests.push({ url, method })
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Delete'))
-    expect(screen.getByRole('heading', { name: 'Delete connector' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Delete connector' })).toBeNull()
-    })
-    expect(requests).toEqual([])
-  })
-
-  it('shows connector delete pending and error states', async () => {
-    let resolveDelete: (response: Response) => void = () => {}
-    const deleteResponse = new Promise<Response>((resolve) => {
-      resolveDelete = resolve
-    })
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      const method = init?.method ?? 'GET'
-      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-1' && method === 'DELETE') return deleteResponse
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Delete'))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(await screen.findByRole('button', { name: 'Deleting...' })).toHaveProperty('disabled', true)
-    resolveDelete(jsonResponse({ error: { message: 'Delete failed.' } }, 503))
-
-    expect(await screen.findByText('Delete failed.')).toBeTruthy()
-  })
-
-  it('covers connector draft creation, metadata validation, and generic OAuth ready details', async () => {
-    const genericConnector = {
-      ...connector,
-      id: 'connector-generic',
-      slug: 'generic-oauth',
-      providerId: 'generic-oauth',
-      providerType: 'generic_oauth',
-      displayName: 'Generic OAuth',
-      enabled: false,
-      clientId: null,
-      clientSecretBinding: null,
-      issuer: null,
-      authorizationEndpoint: 'https://idp.example.com/authorize',
-      tokenEndpoint: 'https://idp.example.com/token',
-      scopes: [],
-      providerMetadata: { pkce: true },
-    }
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      const method = init?.method ?? 'GET'
-      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors' && method === 'POST') {
-        requests.push({ url, body: JSON.parse(String(init?.body)) })
-        return Promise.resolve(jsonResponse(genericConnector, 201))
-      }
-      if (url === '/api/management/connectors/connector-generic/readiness') {
-        return Promise.resolve(
-          jsonResponse({
-            connectorId: 'connector-generic',
-            ready: true,
-            checks: [{ key: 'clientId', label: 'Client ID configured', ok: true, message: 'Client ID is configured.' }],
-          }),
-        )
-      }
-      if (url === '/api/management/connectors/connector-generic') return Promise.resolve(jsonResponse(genericConnector))
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [genericConnector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Generic OAuth')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Generic OAuth/ }).at(-1)!)
-    fireEvent.change(screen.getByLabelText('Provider ID'), { target: { value: 'okta-main' } })
-    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Okta Main' } })
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'false' } })
-    fireEvent.change(screen.getByLabelText('Scopes'), { target: { value: 'openid email' } })
-    fireEvent.change(screen.getByLabelText('Provider metadata JSON'), { target: { value: '[]' } })
-    fireEvent.change(screen.getByLabelText('Issuer'), { target: { value: 'https://idp.example.com' } })
-    fireEvent.change(screen.getByLabelText('Authorization endpoint'), {
-      target: { value: 'https://idp.example.com/authorize' },
-    })
-    fireEvent.change(screen.getByLabelText('Token endpoint'), { target: { value: 'https://idp.example.com/token' } })
-    fireEvent.change(screen.getByLabelText('User info endpoint'), {
-      target: { value: 'https://idp.example.com/userinfo' },
-    })
-    fireEvent.change(screen.getByLabelText('JWKS endpoint'), { target: { value: 'https://idp.example.com/jwks' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Provider metadata must be a JSON object.')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Provider metadata JSON'), { target: { value: '{"pkce":true}' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/management/connectors',
-        body: expect.objectContaining({
-          enabled: false,
-          authorizationEndpoint: 'https://idp.example.com/authorize',
-          displayName: 'Okta Main',
-          jwksEndpoint: 'https://idp.example.com/jwks',
-          providerId: 'okta-main',
-          providerMetadata: { pkce: true },
-          scopes: ['openid', 'email'],
-          tokenEndpoint: 'https://idp.example.com/token',
-          userInfoEndpoint: 'https://idp.example.com/userinfo',
-        }),
-      })
-    })
-
-    fireEvent.click(screen.getByLabelText('Actions for Generic OAuth'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-    expect(await screen.findByText('Ready')).toBeTruthy()
-    expect(screen.getByText(/generic OAuth connector configuration/)).toBeTruthy()
-    expect(screen.getByText('Client ID configured')).toBeTruthy()
-    expect(screen.getByText('OAuth endpoints')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Issuer'), { target: { value: 'https://tenant.example.com' } })
-    fireEvent.change(screen.getByLabelText('Authorization endpoint'), {
-      target: { value: 'https://tenant.example.com/authorize' },
-    })
-    fireEvent.change(screen.getByLabelText('Token endpoint'), {
-      target: { value: 'https://tenant.example.com/token' },
-    })
-    fireEvent.change(screen.getByLabelText('User info endpoint'), {
-      target: { value: 'https://tenant.example.com/userinfo' },
-    })
-    fireEvent.change(screen.getByLabelText('JWKS endpoint'), { target: { value: 'https://tenant.example.com/jwks' } })
-    fireEvent.change(screen.getByLabelText('Scopes'), { target: { value: 'openid email profile' } })
-    fireEvent.change(screen.getByLabelText('Provider metadata JSON'), { target: { value: '[]' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(await screen.findByText('Provider metadata must be a JSON object.')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Provider metadata JSON'), { target: { value: '{"pkce":true}' } })
-  })
-
-  it('renders social connector edit provider requirements from templates', async () => {
-    const cognitoConnector = {
-      ...connector,
-      id: 'connector-cognito',
-      slug: 'cognito',
-      providerId: 'cognito',
-      displayName: 'Amazon Cognito',
-      providerMetadata: {
-        domain: 'auth.example.com',
-        region: 'us-east-1',
-        userPoolId: 'pool-1',
-      },
-    }
+  it('closes the connector drawer from the overlay', async () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-cognito/readiness') {
-        return Promise.resolve(jsonResponse({ connectorId: 'connector-cognito', ready: true, checks: [] }))
-      }
-      if (url === '/api/management/connectors/connector-cognito') return Promise.resolve(jsonResponse(cognitoConnector))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [cognitoConnector], pagination }))
+        return Promise.resolve(jsonResponse({ connectors: [], pagination }))
       }
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<ConnectorsPage />)
 
-    expect(await screen.findByText('Amazon Cognito')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Amazon Cognito'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-    expect(await screen.findByText('Provider requirements')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'login.example.com' } })
-    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'us-west-2' } })
-    fireEvent.change(screen.getByLabelText('User Pool ID'), { target: { value: 'pool-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Google.*Credentials required.*Not enabled/ }))
+    expect(await screen.findByRole('heading', { name: 'Google' })).toBeTruthy()
+    const overlay = document.querySelector('[data-slot="sheet-overlay"]')!
+    fireEvent.pointerDown(overlay)
+    fireEvent.pointerUp(overlay)
+    fireEvent.click(overlay)
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Google' })).toBeNull())
   })
 
-  it('shows loading state while social connector provider requirements load', async () => {
-    vi.spyOn(window, 'fetch').mockImplementation((input) => {
-      const url = String(input)
-      if (url === '/api/management/connectors/templates') return new Promise(() => {})
-      if (url === '/api/management/connectors/connector-1/readiness') {
-        return Promise.resolve(jsonResponse({ connectorId: 'connector-1', ready: true, checks: [] }))
-      }
-      if (url === '/api/management/connectors/connector-1') return Promise.resolve(jsonResponse(connector))
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-    expect(await screen.findByText('Loading provider requirements.')).toBeTruthy()
-  })
-
-  it('saves connector detail edits with blank optional fields', async () => {
-    const incompleteConnector = {
-      ...connector,
-      clientId: null,
-      clientSecretBinding: null,
-      issuer: null,
-      scopes: [],
-      providerMetadata: {},
-    }
-    let resolvePatch: (response: Response) => void = () => {}
-    const patchResponse = new Promise<Response>((resolve) => {
-      resolvePatch = resolve
-    })
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      const method = init?.method ?? 'GET'
-      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-1/readiness') {
-        return Promise.resolve(jsonResponse({ connectorId: 'connector-1', ready: false, checks: [] }))
-      }
-      if (url === '/api/management/connectors/connector-1' && method === 'GET') {
-        return Promise.resolve(jsonResponse(incompleteConnector))
-      }
-      if (url === '/api/management/connectors/connector-1' && method === 'PATCH') {
-        requests.push({ url, body: JSON.parse(String(init?.body)) })
-        return patchResponse
-      }
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [incompleteConnector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-    expect(await screen.findByText('Needs attention')).toBeTruthy()
-    expect(screen.getByText('Readiness checks have not reported for this connector.')).toBeTruthy()
-    expect(screen.getByLabelText('Client ID')).toHaveProperty('value', '')
-    expect(screen.getByLabelText('Client secret binding')).toHaveProperty('value', '')
-    expect(screen.queryByLabelText('Scopes')).toBeNull()
-    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Google Draft' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
-    expect(await screen.findByRole('button', { name: 'Saving...' })).toHaveProperty('disabled', true)
-    resolvePatch(jsonResponse({ ...incompleteConnector, displayName: 'Google Draft' }))
-
-    await waitFor(() => {
-      expect(requests).toEqual([
-        {
-          url: '/api/management/connectors/connector-1',
-          body: expect.objectContaining({
-            authorizationEndpoint: null,
-            clientId: null,
-            clientSecretBinding: null,
-            displayName: 'Google Draft',
-            issuer: null,
-            jwksEndpoint: null,
-            scopes: [],
-            tokenEndpoint: null,
-            userInfoEndpoint: null,
-          }),
-        },
-      ])
-    })
-  })
-
-  it('shows connector detail load errors while configuration is unavailable', async () => {
-    vi.spyOn(window, 'fetch').mockImplementation((input) => {
-      const url = String(input)
-      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
-      if (url === '/api/management/connectors/connector-1/readiness') {
-        return Promise.resolve(jsonResponse({ connectorId: 'connector-1', ready: false, checks: [] }))
-      }
-      if (url === '/api/management/connectors/connector-1') {
-        return Promise.resolve(jsonResponse({ error: { message: 'Connector detail unavailable.' } }, 503))
-      }
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Actions for Google'))
-    fireEvent.click(await screen.findByText('Edit connector'))
-
-    expect(await screen.findByRole('heading', { name: 'Connector details' })).toBeTruthy()
-    expect(await screen.findByText('Connector detail unavailable.')).toBeTruthy()
-  })
-
-  it('shows client-side validation errors for connector creation', async () => {
+  it('renders Better Auth provider-specific connector fields', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       const url = String(input)
       if (url === '/api/management/connectors' && init?.method === 'POST') {
         requests.push({ url, body: JSON.parse(String(init.body)) })
-        return Promise.resolve(jsonResponse(connector, 201))
+        return Promise.resolve(
+          jsonResponse({ ...connector, providerId: 'cognito', displayName: 'Amazon Cognito' }, 201),
+        )
       }
-      if (url === '/api/management/connectors/templates') {
-        return Promise.resolve(jsonResponse(connectorTemplates))
-      }
-      if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<ConnectorsPage />)
-
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Google/ }).at(-1)!)
-    fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!)
-
-    expect(await screen.findByText('clientId is required.')).toBeTruthy()
-    expect(requests).toEqual([])
-  })
-
-  it('applies provider template defaults without exposing social provider internals', async () => {
-    vi.spyOn(window, 'fetch').mockImplementation((input) => {
-      const url = String(input)
       if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/connectors') {
-        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
+        return Promise.resolve(jsonResponse({ connectors: [], pagination }))
       }
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<ConnectorsPage />)
 
-    expect(await screen.findByText('Google')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Google/ }).at(-1)!)
+    fireEvent.click(await screen.findByRole('button', { name: /Amazon Cognito.*Credentials required.*Not enabled/ }))
+    expect(await screen.findByRole('heading', { name: 'Amazon Cognito' })).toBeTruthy()
+    expect(screen.getByLabelText('Callback URL')).toHaveProperty(
+      'value',
+      'http://localhost:3000/api/auth/callback/cognito',
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }))
+    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'cognito-client' } })
+    fireEvent.change(screen.getByLabelText('Client Secret'), { target: { value: 'COGNITO_SECRET' } })
+    fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'auth.example.com' } })
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'us-east-1' } })
+    fireEvent.change(screen.getByLabelText('User Pool ID'), { target: { value: 'pool-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(screen.queryByLabelText('Provider ID')).toBeNull()
-    expect(screen.queryByLabelText('Provider type')).toBeNull()
-    expect(screen.queryByLabelText('Scopes')).toBeNull()
-    expect(screen.queryByLabelText('Display name')).toBeNull()
-    expect(screen.getByLabelText('Client ID')).toBeTruthy()
-    expect(screen.getByLabelText('Client secret binding')).toBeTruthy()
+    await waitFor(() => {
+      expect(requests).toEqual([
+        {
+          url: '/api/management/connectors',
+          body: {
+            slug: 'cognito',
+            displayName: 'Amazon Cognito',
+            enabled: true,
+            providerId: 'cognito',
+            providerType: 'social',
+            clientId: 'cognito-client',
+            clientSecret: 'COGNITO_SECRET',
+            scopes: ['openid', 'email', 'profile'],
+            providerMetadata: {
+              domain: 'auth.example.com',
+              region: 'us-east-1',
+              userPoolId: 'pool-1',
+            },
+          },
+        },
+      ])
+    })
   })
 
   it('renders sign-in settings and security policy surfaces', async () => {
@@ -2715,9 +2477,10 @@ describe('admin console', () => {
 
     const { unmount } = renderWithQuery(<SignInSettingsPage />)
 
-    expect(await screen.findByText('Sign-in methods')).toBeTruthy()
-    expect(screen.getByLabelText('Default redirect URI')).toHaveProperty('value', 'https://app.example.com/callback')
-    expect(screen.getByLabelText('Support email')).toHaveProperty('value', 'support@example.com')
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Identifier-first flow' })).toBeNull()
+    expect(screen.queryByText('Recovery and redirects')).toBeNull()
+    expect(screen.queryByText('Hosted copy source')).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Passkey sign-in' })).toBeNull()
 
     unmount()
@@ -2735,17 +2498,23 @@ describe('admin console', () => {
     expect(await screen.findByText('3600s')).toBeTruthy()
   })
 
-  it('renders independent MFA, security, passwordless connector, and OIDC settings surfaces', async () => {
+  it('renders independent MFA, security, connector, and OIDC settings surfaces', async () => {
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/readiness') return Promise.resolve(jsonResponse(readinessIncomplete))
+      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+      if (url === '/api/management/connectors') {
+        return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
+      }
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<MfaPage />)
     expect(await screen.findByText('Backup codes')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Prompt policy'), { target: { value: 'optional' } })
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', false)
 
     cleanup()
@@ -2765,79 +2534,16 @@ describe('admin console', () => {
     expect(screen.getByLabelText('Custom email and domain blocklist')).toHaveProperty('disabled', false)
 
     cleanup()
-    renderWithQuery(<PasswordlessConnectorsPage />)
-    expect(await screen.findByText('Email connector')).toBeTruthy()
-    expect(screen.getByText('Cloudflare Email')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Inspect' })).toHaveProperty('disabled', false)
-    expect(screen.queryByText('SMS connector')).toBeNull()
+    renderWithQuery(<ConnectorsPage />)
+    expect((await screen.findAllByText('Provider')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /Email.*Runtime disabled.*Not enabled/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Phone \(SMS\).*Runtime disabled.*Not enabled/ })).toBeTruthy()
+    expect(screen.queryByLabelText('Search social connectors')).toBeNull()
 
     cleanup()
     renderWithQuery(<DeploymentSettingsPage />)
     expect(await screen.findByText('Signing keys')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Rotate key' })).toBeNull()
-  })
-
-  it('derives built-in Cloudflare Email readiness and exposes inspectable passwordless email details', async () => {
-    vi.spyOn(window, 'fetch').mockImplementation((input) => {
-      const url = String(input)
-      if (url === '/api/management/sign-in-settings') {
-        return Promise.resolve(
-          jsonResponse({
-            ...signInSettings,
-            signIn: {
-              ...signInSettings.signIn,
-              magicLinkEnabled: false,
-              emailOtpEnabled: true,
-            },
-          }),
-        )
-      }
-      if (url === '/api/management/readiness') {
-        return Promise.resolve(
-          jsonResponse({
-            ...readinessIncomplete,
-            recommended: [
-              {
-                id: 'email_delivery',
-                label: 'Confirm email delivery',
-                description:
-                  'Email binding and sender settings are needed for verification, OTP, magic link, and reset flows.',
-                status: 'complete',
-                href: '/console/tenant-settings/oidc-configs',
-                action: 'Review deployment',
-              },
-            ],
-          }),
-        )
-      }
-      return Promise.resolve(jsonResponse({}))
-    })
-
-    renderWithQuery(<PasswordlessConnectorsPage />)
-
-    expect(await screen.findByText('Email connector')).toBeTruthy()
-    expect(screen.getByText('Cloudflare Email')).toBeTruthy()
-    expect(
-      screen.getByText(
-        'Cloudflare Email is built into this deployment. Magic links and email codes use the runtime EMAIL binding and EMAIL_FROM sender.',
-      ),
-    ).toBeTruthy()
-    expect(screen.getByText('Built-in')).toBeTruthy()
-    expect(screen.getByText('Configured')).toBeTruthy()
-    expect(screen.queryByText('SMS connector')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect' }))
-    expect(screen.getByRole('heading', { name: 'Cloudflare Email connector' })).toBeTruthy()
-    expect(screen.getByText('EMAIL')).toBeTruthy()
-    expect(screen.getByText('EMAIL_FROM')).toBeTruthy()
-    expect(screen.getAllByText('Magic link').at(-1)?.closest('div')?.textContent).toContain('Disabled')
-    expect(screen.getAllByText('Email code').at(-1)?.closest('div')?.textContent).toContain('Enabled')
-    expect(
-      screen.getByText(
-        'Email binding and sender settings are needed for verification, OTP, magic link, and reset flows.',
-      ),
-    ).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Cloudflare Email connector' })).toBeNull())
   })
 
   it('renders editable MFA and password policy compact controls', async () => {
@@ -2857,6 +2563,8 @@ describe('admin console', () => {
 
     expect(await screen.findByText('Authenticator app')).toBeTruthy()
     expect(screen.queryByText('SMS verification code')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Email verification code' }))
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', false)
     expect(screen.getByRole('button', { name: 'Discard' })).toHaveProperty('disabled', false)
 
@@ -2864,8 +2572,13 @@ describe('admin console', () => {
     renderWithQuery(<SecurityPasswordPolicyPage />)
 
     expect(await screen.findByLabelText('Minimum length')).toHaveProperty('value', '12')
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
-    for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toHaveProperty('disabled', false)
+    for (const name of [
+      'Reject repetitive or sequential characters',
+      'Reject user information',
+      'Reject custom words',
+    ]) {
+      expect(screen.getByRole('switch', { name })).toHaveProperty('disabled', false)
+    }
   })
 
   it('saves security policy changes through the management boundary', async () => {
@@ -2899,7 +2612,17 @@ describe('admin console', () => {
         {
           url: '/api/management/security/policy',
           method: 'PATCH',
-          body: { policy: { mfa: { mode: 'optional' } } },
+          body: {
+            policy: {
+              mfa: {
+                mode: 'optional',
+                authenticatorAppEnabled: true,
+                emailOtpEnabled: false,
+                backupCodesEnabled: true,
+              },
+              passkeys: { enabled: true },
+            },
+          },
         },
       ]),
     )
@@ -2909,9 +2632,9 @@ describe('admin console', () => {
 
     fireEvent.change(await screen.findByLabelText('Minimum length'), { target: { value: '14' } })
     fireEvent.change(screen.getByLabelText('Required character types'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('switch', { name: 'Reject custom words' }))
     fireEvent.change(screen.getByLabelText('Custom words'), { target: { value: 'tenant\ninternal' } })
-    fireEvent.click(screen.getByLabelText('Reject custom words'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save sign-in settings' }))
 
     await waitFor(() =>
       expect(requests).toContainEqual({
@@ -2919,6 +2642,7 @@ describe('admin console', () => {
         method: 'PATCH',
         body: {
           policy: {
+            passkeys: { enabled: false },
             password: {
               minLength: 14,
               requiredCharacterTypes: 3,
@@ -2937,7 +2661,7 @@ describe('admin console', () => {
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Enable CAPTCHA' }))
     fireEvent.change(screen.getByLabelText('Site key'), { target: { value: 'site-key-1' } })
-    fireEvent.change(screen.getByLabelText('Secret binding'), { target: { value: 'TURNSTILE_SECRET' } })
+    fireEvent.change(screen.getByLabelText('Client secret'), { target: { value: 'TURNSTILE_SECRET' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() =>
@@ -3016,7 +2740,7 @@ describe('admin console', () => {
 
     const { unmount } = renderWithQuery(<MfaPage />)
     expect(await screen.findByLabelText('Prompt policy')).toHaveProperty('value', 'optional')
-    expect(screen.queryByText('Passkeys')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Passkeys' }).getAttribute('aria-checked')).toBe('false')
     fireEvent.change(screen.getByLabelText('Prompt policy'), { target: { value: 'required' } })
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     expect(screen.getByLabelText('Prompt policy')).toHaveProperty('value', 'optional')
@@ -3026,16 +2750,18 @@ describe('admin console', () => {
     fireEvent.change(await screen.findByLabelText('Minimum length'), { target: { value: '18' } })
     fireEvent.change(screen.getByLabelText('Required character types'), { target: { value: '4' } })
     fireEvent.change(screen.getByLabelText('Custom words'), { target: { value: 'changed' } })
-    fireEvent.click(screen.getByLabelText('Reject repetitive or sequential characters'))
-    fireEvent.click(screen.getByLabelText('Reject user information'))
-    fireEvent.click(screen.getByLabelText('Reject custom words'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Reject repetitive or sequential characters' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Reject user information' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Reject custom words' }))
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     expect(screen.getByLabelText('Minimum length')).toHaveProperty('value', '10')
     expect(screen.getByLabelText('Required character types')).toHaveProperty('value', '1')
     expect(screen.getByLabelText('Custom words')).toHaveProperty('value', 'legacy')
-    expect(screen.getByLabelText('Reject repetitive or sequential characters')).toHaveProperty('checked', false)
-    expect(screen.getByLabelText('Reject user information')).toHaveProperty('checked', false)
-    expect(screen.getByLabelText('Reject custom words')).toHaveProperty('checked', true)
+    expect(
+      screen.getByRole('switch', { name: 'Reject repetitive or sequential characters' }).getAttribute('aria-checked'),
+    ).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Reject user information' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Reject custom words' }).getAttribute('aria-checked')).toBe('true')
 
     cleanup()
     renderWithQuery(<SecurityCaptchaPage />)
@@ -3043,11 +2769,11 @@ describe('admin console', () => {
     fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'turnstile' } })
     fireEvent.click(screen.getByRole('switch', { name: 'Enable CAPTCHA' }))
     fireEvent.change(screen.getByLabelText('Site key'), { target: { value: 'changed-site' } })
-    fireEvent.change(screen.getByLabelText('Secret binding'), { target: { value: 'CHANGED_SECRET' } })
+    fireEvent.change(screen.getByLabelText('Client secret'), { target: { value: 'CHANGED_SECRET' } })
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     expect(screen.getByRole('switch', { name: 'Enable CAPTCHA' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByLabelText('Site key')).toHaveProperty('value', 'persisted-site')
-    expect(screen.getByLabelText('Secret binding')).toHaveProperty('value', 'PERSISTED_SECRET')
+    expect(screen.getByLabelText('Client secret')).toHaveProperty('value', 'PERSISTED_SECRET')
 
     cleanup()
     renderWithQuery(<SecurityBlocklistPage />)
@@ -3081,47 +2807,71 @@ describe('admin console', () => {
       return Promise.resolve(jsonResponse({}))
     })
 
-    const { unmount } = renderWithQuery(<PasswordlessConnectorsPage />)
+    const { unmount } = renderWithQuery(<ConnectorsPage />)
 
     expect(await screen.findByText('Sign-in settings unavailable.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(requests.filter((url) => url === '/api/management/sign-in-settings').length).toBe(2))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/readiness').length).toBe(2))
 
     unmount()
     renderWithQuery(<SecurityGeneralPage />)
 
     expect(await screen.findByText('Security policy unavailable.')).toBeTruthy()
+    const generalPolicyRequests = requests.filter((url) => url === '/api/management/security/policy').length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/security/policy').length).toBe(2))
+    await waitFor(() =>
+      expect(requests.filter((url) => url === '/api/management/security/policy').length).toBeGreaterThan(
+        generalPolicyRequests,
+      ),
+    )
 
     cleanup()
     renderWithQuery(<SecurityPasswordPolicyPage />)
 
-    expect(await screen.findByText('Security policy unavailable.')).toBeTruthy()
+    expect(await screen.findByText('Sign-in settings unavailable.')).toBeTruthy()
+    const passwordPolicyRequests = requests.filter((url) => url === '/api/management/sign-in-settings').length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/security/policy').length).toBe(4))
+    await waitFor(() =>
+      expect(requests.filter((url) => url === '/api/management/sign-in-settings').length).toBeGreaterThan(
+        passwordPolicyRequests,
+      ),
+    )
 
     cleanup()
     renderWithQuery(<SecurityCaptchaPage />)
 
     expect(await screen.findByText('Security policy unavailable.')).toBeTruthy()
+    const captchaPolicyRequests = requests.filter((url) => url === '/api/management/security/policy').length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/security/policy').length).toBe(6))
+    await waitFor(() =>
+      expect(requests.filter((url) => url === '/api/management/security/policy').length).toBeGreaterThan(
+        captchaPolicyRequests,
+      ),
+    )
 
     cleanup()
     renderWithQuery(<SecurityBlocklistPage />)
 
     expect(await screen.findByText('Security policy unavailable.')).toBeTruthy()
+    const blocklistPolicyRequests = requests.filter((url) => url === '/api/management/security/policy').length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/security/policy').length).toBe(8))
+    await waitFor(() =>
+      expect(requests.filter((url) => url === '/api/management/security/policy').length).toBeGreaterThan(
+        blocklistPolicyRequests,
+      ),
+    )
 
     cleanup()
     renderWithQuery(<DeploymentSettingsPage />)
 
     expect(await screen.findByText('Security policy unavailable.')).toBeTruthy()
+    const deploymentPolicyRequests = requests.filter((url) => url === '/api/management/security/policy').length
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(requests.filter((url) => url === '/api/management/security/policy').length).toBe(10))
+    await waitFor(() =>
+      expect(requests.filter((url) => url === '/api/management/security/policy').length).toBeGreaterThan(
+        deploymentPolicyRequests,
+      ),
+    )
   })
 
   it('saves sign-in settings through the management boundary', async () => {
@@ -3133,57 +2883,32 @@ describe('admin console', () => {
         return Promise.resolve(jsonResponse(signInSettings))
       }
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
-    fireEvent.click(await screen.findByRole('switch', { name: 'Password sign-in' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Registration' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Social sign-in' }))
-    fireEvent.click(await screen.findByRole('switch', { name: 'Identifier-first flow' }))
-    fireEvent.change(screen.getByLabelText('Product name'), { target: { value: 'Northstar ID' } })
-    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: 'Sign in to Northstar' } })
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Continue to Northstar.' } })
-    fireEvent.change(screen.getByLabelText('Default application ID'), { target: { value: 'app-northstar' } })
-    fireEvent.change(screen.getByLabelText('Default redirect URI'), {
-      target: { value: 'https://northstar.example.com/callback' },
-    })
-    fireEvent.change(screen.getByLabelText('Privacy URL'), {
-      target: { value: 'https://northstar.example.com/privacy' },
-    })
-    fireEvent.change(screen.getByLabelText('Support email'), { target: { value: 'support@northstar.example' } })
+    fireEvent.click(await screen.findByRole('switch', { name: 'Passwordless' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow sign up' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Social login' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save sign-in settings' }))
 
-    await waitFor(() =>
-      expect(requests).toEqual([
-        {
-          url: '/api/management/sign-in-settings',
-          body: {
-            signIn: {
-              passwordEnabled: false,
-              signupEnabled: false,
-              socialLoginEnabled: false,
-              identifierFirst: true,
-            },
-            defaults: {
-              applicationId: 'app-northstar',
-              redirectUri: 'https://northstar.example.com/callback',
-            },
-            links: {
-              termsUri: 'https://example.com/terms',
-              privacyUri: 'https://northstar.example.com/privacy',
-              supportEmail: 'support@northstar.example',
-            },
-            copy: {
-              productName: 'Northstar ID',
-              headline: 'Sign in to Northstar',
-              description: 'Continue to Northstar.',
-            },
-          },
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).toMatchObject({
+      url: '/api/management/sign-in-settings',
+      body: {
+        signIn: {
+          passwordEnabled: false,
+          signupEnabled: false,
+          socialLoginEnabled: false,
         },
-      ]),
-    )
+        builtInProviders: {
+          phone: signInSettings.builtInProviders.phone,
+          web3Wallet: signInSettings.builtInProviders.web3Wallet,
+        },
+      },
+    })
   })
 
   it('discards sign-in settings edits back to loaded management values', async () => {
@@ -3195,49 +2920,40 @@ describe('admin console', () => {
         return Promise.resolve(jsonResponse(signInSettings))
       }
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
-    const productName = (await screen.findByLabelText('Product name')) as HTMLInputElement
-    fireEvent.change(productName, { target: { value: 'Changed product' } })
-    fireEvent.change(screen.getByLabelText('Privacy URL'), { target: { value: 'http://example.com/privacy' } })
+    const passwordSignIn = await screen.findByRole('switch', { name: 'Passwordless' })
+    fireEvent.click(passwordSignIn)
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
-    expect(productName.value).toBe('Acme Auth')
-    expect(screen.getByLabelText('Privacy URL')).toHaveProperty('value', 'https://example.com/privacy')
+    expect(passwordSignIn.getAttribute('aria-checked')).toBe('false')
     expect(requests).toEqual([])
   })
 
   it('discards sign-in settings optional fields back to empty defaults', async () => {
     const settings = {
       ...signInSettings,
-      defaults: { applicationId: null, redirectUri: null },
       links: { termsUri: null, privacyUri: null, supportEmail: null },
     }
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(settings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
-    const redirectUri = (await screen.findByLabelText('Default redirect URI')) as HTMLInputElement
-    fireEvent.change(redirectUri, { target: { value: 'https://changed.example.com/callback' } })
-    fireEvent.change(screen.getByLabelText('Terms URL'), { target: { value: 'https://changed.example.com/terms' } })
-    fireEvent.change(screen.getByLabelText('Privacy URL'), {
-      target: { value: 'https://changed.example.com/privacy' },
-    })
-    fireEvent.change(screen.getByLabelText('Support email'), { target: { value: 'changed@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-
-    expect(redirectUri.value).toBe('')
-    expect(screen.getByLabelText('Default application ID')).toHaveProperty('value', '')
-    expect(screen.getByLabelText('Terms URL')).toHaveProperty('value', '')
-    expect(screen.getByLabelText('Privacy URL')).toHaveProperty('value', '')
-    expect(screen.getByLabelText('Support email')).toHaveProperty('value', '')
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
+    expect(screen.queryByLabelText('Default redirect URI')).toBeNull()
+    expect(screen.queryByLabelText('Default application ID')).toBeNull()
+    expect(screen.queryByLabelText('Terms URL')).toBeNull()
+    expect(screen.queryByLabelText('Privacy URL')).toBeNull()
+    expect(screen.queryByLabelText('Support email')).toBeNull()
   })
 
   it('renders sign-in validation errors without sending invalid public URLs', async () => {
@@ -3249,15 +2965,15 @@ describe('admin console', () => {
         return Promise.resolve(jsonResponse(signInSettings))
       }
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
-    fireEvent.change(await screen.findByLabelText('Terms URL'), { target: { value: 'http://example.com/terms' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save sign-in settings' }))
-
-    expect(await screen.findByText('URL must use https.')).toBeTruthy()
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
+    expect(screen.queryByLabelText('Terms URL')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save sign-in settings' })).toBeNull()
     expect(requests).toEqual([])
   })
 
@@ -3268,11 +2984,13 @@ describe('admin console', () => {
         return Promise.resolve(jsonResponse({ error: { message: 'Sign-in save failed.' } }, 500))
       }
       if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
+    fireEvent.click(await screen.findByRole('switch', { name: 'Passwordless' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Save sign-in settings' }))
 
     expect(await screen.findByText('Sign-in save failed.')).toBeTruthy()
@@ -3288,24 +3006,22 @@ describe('admin console', () => {
             signIn: {
               ...signInSettings.signIn,
               passwordEnabled: false,
-              magicLinkEnabled: false,
               emailOtpEnabled: true,
               usernameEnabled: false,
             },
           }),
         )
       }
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       return Promise.resolve(jsonResponse({}))
     })
 
     renderWithQuery(<SignInSettingsPage />)
 
-    expect(await screen.findByText('Sign-in methods')).toBeTruthy()
-    expect(screen.getByText('Sign-up password requirement').nextSibling?.textContent).toBe('Password sign-in disabled')
-    expect(screen.getAllByText('Email').length).toBeGreaterThanOrEqual(2)
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
     expect(screen.queryByText('Magic link')).toBeNull()
-    expect(screen.getByText('Email OTP').nextSibling?.textContent).toBe('Enabled')
-    expect(screen.getByText('Forgot-password verification').nextSibling?.textContent).toBe('Email OTP available')
+    expect(screen.queryByText('Email OTP')).toBeNull()
+    expect(screen.queryByText('Forgot-password verification')).toBeNull()
   })
 
   it('saves branding settings and applies custom CSS to the preview', async () => {
@@ -3480,7 +3196,6 @@ describe('admin console', () => {
       signIn: {
         ...signInSettings.signIn,
         passwordEnabled: false,
-        magicLinkEnabled: false,
         emailOtpEnabled: true,
         socialLoginEnabled: false,
         signupEnabled: false,
@@ -3496,27 +3211,32 @@ describe('admin console', () => {
     const { unmount } = renderWithQuery(<BrandingPage />)
 
     expect(await screen.findByLabelText('Acme Auth hosted sign-in preview')).toBeTruthy()
-    expect(screen.getByText('Email OTP sign-in is available for hosted auth.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Continue with identity provider' })).toBeNull()
-    expect(screen.queryByText('No account yet? Sign up')).toBeNull()
+    expect(screen.queryByText('No account yet? Create account')).toBeNull()
 
     unmount()
     renderWithQuery(<ContentSettingsPage />)
 
     expect(await screen.findByLabelText('Acme Auth hosted sign-in preview')).toBeTruthy()
-    expect(screen.getByText('Email OTP sign-in is available for hosted auth.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Continue with identity provider' })).toBeNull()
-    expect(screen.queryByText('No account yet? Sign up')).toBeNull()
+    expect(screen.queryByText('No account yet? Create account')).toBeNull()
   })
 
   it('renders hosted sign-in previews inside editable sign-in experience pages', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const previewSignInSettings = {
+      ...signInSettings,
+      signIn: { ...signInSettings.signIn, emailOtpEnabled: true },
+    }
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
-      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(previewSignInSettings))
       if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
       if (url === '/api/management/connectors')
         return Promise.resolve(jsonResponse({ connectors: [connector], pagination }))
       return Promise.resolve(jsonResponse({}))
@@ -3531,22 +3251,34 @@ describe('admin console', () => {
     expect(signInPreview.querySelector('img.brandLogo')?.getAttribute('src')).toBe('https://cdn.example.com/logo.svg')
     expect(screen.queryByRole('link', { name: 'Desktop' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Mobile' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Password' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Magic link' })).toBeTruthy()
-    expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeTruthy()
-    expect(screen.getByText('No account yet? Sign up')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: 'Preview changed before save' } })
-    expect(screen.getByRole('heading', { name: 'Preview changed before save' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('switch', { name: 'Password sign-in' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Social sign-in' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Identifier-first flow' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Registration' }))
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'Enter your identifier' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
-    expect(screen.queryByLabelText('Password')).toBeNull()
-    expect(screen.queryByText('No account yet? Sign up')).toBeNull()
+    expect(screen.queryByText('Choose how to continue')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Continue with Email' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Continue with Phone' })).toBeNull()
+    expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+    expect(signInPreview.querySelector('button img[src="https://cdn.simpleicons.org/google"]')).toBeTruthy()
+    expect(signInPreview.querySelector('.authMethodDivider')?.textContent).toBe('or')
+    expect(signInPreview.querySelector('.authSignupPrompt')?.textContent).toBe('No account yet? Create account')
+    fireEvent.click(within(signInPreview).getByRole('button', { name: 'Continue with Email' }))
+    expect(within(signInPreview).getByRole('button', { name: /Send (code|sign-in link)/ })).toBeTruthy()
+    expect(within(signInPreview).getByRole('button', { name: 'Back to sign in' })).toBeTruthy()
+    fireEvent.click(within(signInPreview).getByRole('button', { name: 'Back to sign in' }))
+    const previewPathBeforeSignup = window.location.pathname
+    fireEvent.click(within(signInPreview).getByRole('button', { name: 'Create account' }))
+    expect(window.location.pathname).toBe(previewPathBeforeSignup)
+    expect(within(signInPreview).getByRole('heading', { name: 'Create account' })).toBeTruthy()
+    expect(within(signInPreview).getByLabelText('Name')).toBeTruthy()
+    expect(within(signInPreview).getByLabelText('Username')).toBeTruthy()
+    fireEvent.click(within(signInPreview).getByRole('button', { name: 'Already have an account?' }))
+    expect(screen.queryByLabelText('Headline')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Passwordless' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Social login' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Allow sign up' }))
+    expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+    expect(screen.queryByText('Choose how to continue')).toBeNull()
+    expect(screen.queryByText('No account yet? Create account')).toBeNull()
     const desktopPreviewButton = screen.getByRole('button', { name: 'Open hosted sign-in' })
     fireEvent.click(desktopPreviewButton)
     expect(open).toHaveBeenCalledWith('/sign-in', '_blank', 'noopener')
@@ -3569,6 +3301,31 @@ describe('admin console', () => {
     expect(screen.getByLabelText('Northstar Content hosted sign-in preview')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Terms' }).getAttribute('href')).toBe('https://northstar.example.com/terms')
     expect(screen.getByRole('link', { name: 'Support' }).getAttribute('href')).toBe('mailto:content@northstar.example')
+  })
+
+  it('renders OneTap in hosted previews from the same sign-in method controls', async () => {
+    const oneTapSettings = {
+      ...signInSettings,
+      signIn: { ...signInSettings.signIn, passwordEnabled: false, emailOtpEnabled: false, socialLoginEnabled: false },
+      builtInProviders: {
+        ...signInSettings.builtInProviders,
+        oneTap: { ...signInSettings.builtInProviders.oneTap, enabled: true, clientId: 'google-client-id' },
+      },
+    }
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(oneTapSettings))
+      if (url === '/api/management/branding-settings') return Promise.resolve(jsonResponse(brandingSettings))
+      if (url === '/api/management/connectors') return Promise.resolve(jsonResponse({ connectors: [], pagination }))
+      if (url === '/api/management/security/policy') return Promise.resolve(jsonResponse(securityPolicy))
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderWithQuery(<ContentSettingsPage />)
+
+    const signInPreview = await screen.findByLabelText('Acme Auth hosted sign-in preview')
+    expect(within(signInPreview).getByRole('button', { name: 'Continue with OneTap' })).toBeTruthy()
+    expect(within(signInPreview).queryByText('No sign-in methods are enabled.')).toBeNull()
   })
 
   it('does not apply unsafe custom CSS to the branding preview', async () => {
@@ -3628,6 +3385,7 @@ describe('admin console', () => {
 
     const { unmount } = renderWithQuery(<BrandingPage />)
 
+    fireEvent.change(await screen.findByLabelText('Product name'), { target: { value: 'Changed Auth' } })
     fireEvent.click(await screen.findByRole('button', { name: 'Save branding' }))
     expect(await screen.findByText('Branding save failed.')).toBeTruthy()
 
@@ -3708,7 +3466,7 @@ describe('admin console', () => {
     expect(screen.queryByRole('link', { name: 'Collect user profile' })).toBeNull()
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     await screen.findByRole('switch', { name: 'Profile section' })
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.queryByRole('button', { name: 'Save account center' })).toBeNull()
     fireEvent.click(screen.getByRole('switch', { name: 'Profile section' }))
     fireEvent.click(screen.getByRole('switch', { name: 'Password section' }))
     fireEvent.click(screen.getByRole('switch', { name: 'Connected accounts and apps' }))
@@ -3740,7 +3498,6 @@ describe('admin console', () => {
             signIn: {
               ...signInSettings.signIn,
               passwordEnabled: false,
-              magicLinkEnabled: true,
               emailOtpEnabled: true,
             },
           }),
@@ -3750,9 +3507,8 @@ describe('admin console', () => {
     })
     renderWithQuery(<SignInSettingsPage />)
 
-    expect(await screen.findByText('Password sign-in disabled')).toBeTruthy()
-    expect(screen.getAllByText('Magic link').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Email OTP').length).toBeGreaterThan(0)
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
+    expect(screen.queryByText('Magic link')).toBeNull()
 
     cleanup()
     renderWithQuery(<ContentSettingsPage />)
@@ -3777,23 +3533,19 @@ describe('admin console', () => {
       return Promise.resolve(jsonResponse({}))
     })
 
-    const { unmount } = renderWithQuery(<AccountCenterSettingsPage />)
+    renderWithQuery(<AccountCenterSettingsPage />)
 
     expect((await screen.findByRole('link', { name: 'Account Center' })).getAttribute('aria-current')).toBe('page')
     expect(await screen.findByRole('heading', { name: 'Profile field permissions' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open account center' })).toBeTruthy()
-
-    unmount()
-    renderWithQuery(<PasswordlessConnectorsPage />)
-
-    expect((await screen.findByRole('link', { name: 'Passwordless' })).getAttribute('aria-current')).toBe('page')
-    expect(screen.getByRole('link', { name: 'Social' }).getAttribute('aria-current')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save account center' })).toBeNull()
 
     cleanup()
     renderWithQuery(<ConnectorsPage />)
 
-    expect((await screen.findByRole('link', { name: 'Social' })).getAttribute('aria-current')).toBe('page')
-    expect(screen.getByRole('link', { name: 'Passwordless' }).getAttribute('aria-current')).toBeNull()
+    expect(await screen.findByRole('heading', { name: 'Connectors' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Passwordless' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Social' })).toBeNull()
 
     cleanup()
     renderWithQuery(<WebhooksPage section="requests" />)
@@ -4065,6 +3817,7 @@ describe('admin console', () => {
 
     renderWithQuery(<ContentSettingsPage />)
 
+    fireEvent.change(await screen.findByLabelText('Product name'), { target: { value: 'Changed Auth' } })
     fireEvent.click(await screen.findByRole('button', { name: 'Save content' }))
 
     expect(await screen.findByText('Content save failed.')).toBeTruthy()
@@ -5018,7 +4771,6 @@ describe('admin console', () => {
     const unsetSignInSettings = {
       ...signInSettings,
       signIn: { ...signInSettings.signIn, passwordEnabled: false },
-      defaults: { applicationId: null, redirectUri: null },
       links: { termsUri: null, privacyUri: null, supportEmail: null },
     }
     const passkeysDisabled = {
@@ -5038,6 +4790,7 @@ describe('admin console', () => {
       if (url === '/api/management/connectors') {
         return Promise.resolve(jsonResponse({ connectors: [defaultConnector], pagination }))
       }
+      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
       if (url === '/api/management/organizations') {
         return Promise.resolve(jsonResponse({ organizations: [{ ...organization, displayName: null }], pagination }))
       }
@@ -5073,16 +4826,17 @@ describe('admin console', () => {
 
     cleanup()
     renderWithQuery(<ConnectorsPage />)
-    expect(await screen.findByText('Default')).toBeTruthy()
+    expect(await screen.findByText('Google')).toBeTruthy()
 
     cleanup()
     renderWithQuery(<SignInSettingsPage />)
-    expect(await screen.findByLabelText('Product name')).toHaveProperty('value', 'Acme Auth')
+    expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
+    expect(screen.queryByLabelText('Product name')).toBeNull()
 
     cleanup()
     renderWithQuery(<MfaPage />)
     expect(await screen.findByText('Authenticator app')).toBeTruthy()
-    expect(screen.queryByText('Passkeys')).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Passkeys' }).getAttribute('aria-checked')).toBe('false')
 
     cleanup()
     renderWithQuery(<OrganizationsPage />)
@@ -5131,12 +4885,9 @@ describe('admin console', () => {
 
     cleanup()
     renderWithQuery(<ConnectorsPage />)
-    expect(await screen.findByText('No social connectors yet')).toBeTruthy()
+    expect(await screen.findByText('Email')).toBeTruthy()
+    expect(screen.getByText('Phone (SMS)')).toBeTruthy()
     expect(screen.getByRole('table')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Add social connector' }))
-    expect(await screen.findByRole('heading', { name: 'Create connector' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('heading', { name: 'Create connector' })).toBeNull()
 
     cleanup()
     renderWithQuery(<OrganizationsPage />)
@@ -5196,12 +4947,7 @@ describe('admin console', () => {
         searchLabel: 'Search applications',
       },
       { action: 'New user', component: <UsersPage />, heading: 'Users', searchLabel: 'Search users' },
-      {
-        action: 'Add social connector',
-        component: <ConnectorsPage />,
-        heading: 'Connectors',
-        searchLabel: 'Search social connectors',
-      },
+      { action: null, component: <ConnectorsPage />, heading: 'Connectors', searchLabel: null },
       {
         action: 'New organization',
         component: <OrganizationsPage />,
@@ -5222,7 +4968,7 @@ describe('admin console', () => {
       renderWithQuery(page.component)
 
       expect(await screen.findByRole('heading', { name: page.heading })).toBeTruthy()
-      expect(await screen.findByLabelText(page.searchLabel)).toBeTruthy()
+      if (page.searchLabel) expect(await screen.findByLabelText(page.searchLabel)).toBeTruthy()
       if (page.action) expect(screen.getAllByRole('button', { name: page.action }).length).toBeGreaterThan(0)
 
       cleanup()
@@ -5276,6 +5022,8 @@ describe('admin console', () => {
       if (url === '/api/management/connectors') {
         return Promise.resolve(jsonResponse({ connectors: [connector, githubConnector], pagination }))
       }
+      if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+      if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
       if (url === '/api/management/organizations') {
         return Promise.resolve(jsonResponse({ organizations: [organization, northwindOrganization], pagination }))
       }
@@ -5290,16 +5038,10 @@ describe('admin console', () => {
 
     const { unmount } = renderWithQuery(<ConnectorsPage />)
 
+    expect(await screen.findByText('Email')).toBeTruthy()
+    expect(screen.getByText('Phone (SMS)')).toBeTruthy()
     expect(await screen.findByText('Google')).toBeTruthy()
     expect(screen.getByText('GitHub')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Search social connectors'), { target: { value: 'github' } })
-    await waitFor(() => {
-      expect(screen.getByText('GitHub')).toBeTruthy()
-      expect(screen.queryByText('Google')).toBeNull()
-    })
-    fireEvent.change(screen.getByLabelText('Search social connectors'), { target: { value: 'missing' } })
-    expect(await screen.findByText('No social connectors found')).toBeTruthy()
-    expect(screen.getByText('No social connectors match the current search.')).toBeTruthy()
 
     unmount()
     renderWithQuery(<OrganizationsPage />)
@@ -5409,7 +5151,7 @@ describe('admin console', () => {
         component: <SignInSettingsPage />,
         matches: (url: string) => url === '/api/management/sign-in-settings',
         success: signInSettings,
-        text: 'Sign-in methods',
+        text: 'Sign-up and sign-in',
       },
       {
         component: <ContentSettingsPage />,
@@ -5457,6 +5199,8 @@ describe('admin console', () => {
             ? Promise.resolve(jsonResponse({ error: { message: 'Temporary unavailable.' } }, 503))
             : Promise.resolve(jsonResponse(scenario.success))
         }
+        if (url === '/api/management/connectors/templates') return Promise.resolve(jsonResponse(connectorTemplates))
+        if (url === '/api/management/sign-in-settings') return Promise.resolve(jsonResponse(signInSettings))
         return Promise.resolve(jsonResponse({}))
       })
 
@@ -5464,7 +5208,7 @@ describe('admin console', () => {
 
       expect(await screen.findByText('Temporary unavailable.')).toBeTruthy()
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-      expect(await screen.findByText(scenario.text)).toBeTruthy()
+      expect((await screen.findAllByText(scenario.text)).length).toBeGreaterThan(0)
 
       cleanup()
       vi.restoreAllMocks()
@@ -5814,7 +5558,7 @@ const connector = {
   displayName: 'Google',
   enabled: true,
   clientId: 'google-client',
-  clientSecretBinding: 'GOOGLE_CLIENT_SECRET',
+  clientSecretConfigured: true,
   issuer: 'https://accounts.google.com',
   authorizationEndpoint: null,
   tokenEndpoint: null,
@@ -5833,7 +5577,7 @@ const connectorTemplates = {
       providerId: 'google',
       displayName: 'Google',
       icon: 'google',
-      requiredFields: ['clientId', 'clientSecretBinding'],
+      requiredFields: ['clientId', 'clientSecret'],
       optionalFields: ['scopes'],
       defaultScopes: ['openid', 'email', 'profile'],
       endpoints: {
@@ -5851,7 +5595,7 @@ const connectorTemplates = {
       icon: 'cognito',
       requiredFields: [
         'clientId',
-        'clientSecretBinding',
+        'clientSecret',
         'providerMetadata.domain',
         'providerMetadata.region',
         'providerMetadata.userPoolId',
@@ -5867,11 +5611,27 @@ const connectorTemplates = {
       },
     },
     {
+      providerType: 'social',
+      providerId: 'github',
+      displayName: 'GitHub',
+      icon: 'github',
+      requiredFields: ['clientId', 'clientSecret'],
+      optionalFields: ['scopes'],
+      defaultScopes: ['read:user', 'user:email'],
+      endpoints: {
+        issuer: null,
+        authorizationEndpoint: null,
+        tokenEndpoint: null,
+        userInfoEndpoint: null,
+        jwksEndpoint: null,
+      },
+    },
+    {
       providerType: 'generic_oauth',
       providerId: 'generic-oauth',
       displayName: 'Generic OAuth',
       icon: 'oauth',
-      requiredFields: ['clientId', 'clientSecretBinding', 'issuer or authorizationEndpoint + tokenEndpoint'],
+      requiredFields: ['clientId', 'clientSecret', 'issuer or authorizationEndpoint + tokenEndpoint'],
       optionalFields: ['scopes'],
       defaultScopes: ['openid', 'email', 'profile'],
       endpoints: {
@@ -5959,15 +5719,47 @@ const signInSettings = {
   signIn: {
     passwordEnabled: true,
     signupEnabled: true,
-    magicLinkEnabled: true,
     emailOtpEnabled: false,
     socialLoginEnabled: true,
     usernameEnabled: true,
     identifierFirst: false,
   },
-  defaults: {
-    applicationId: 'app-1',
-    redirectUri: 'https://app.example.com/callback',
+  builtInProviders: {
+    phone: {
+      enabled: false,
+      smsProvider: 'twilio',
+      otpLength: 6,
+      expiresInSeconds: 300,
+      signUpOnVerification: false,
+      requireVerification: true,
+      twilioAccountSid: '',
+      twilioAuthToken: '',
+      twilioFromNumber: '',
+      vonageApiKey: '',
+      vonageApiSecret: '',
+      vonageFrom: '',
+      messageBirdAccessKey: '',
+      messageBirdOriginator: '',
+    },
+    web3Wallet: {
+      enabled: false,
+      chains: [1],
+      domain: '',
+      emailDomainName: '',
+      anonymous: true,
+      ensLookupEnabled: false,
+    },
+    oneTap: {
+      enabled: false,
+      clientId: '',
+      autoSelect: false,
+      cancelOnTapOutside: true,
+      uxMode: 'popup',
+      context: 'signin',
+      promptBaseDelayMs: 1000,
+      promptMaxAttempts: 5,
+      disableSignUp: false,
+    },
   },
   links: {
     termsUri: 'https://example.com/terms',
@@ -6065,7 +5857,7 @@ const readinessIncomplete = {
     {
       id: 'email_delivery',
       label: 'Confirm email delivery',
-      description: 'Email binding and sender settings are needed for verification, OTP, magic link, and reset flows.',
+      description: 'Email binding and sender settings are needed for verification, OTP, and reset flows.',
       status: 'action_needed',
       href: '/console/tenant-settings/oidc-configs',
       action: 'Review deployment',
@@ -6138,10 +5930,23 @@ const configz = {
     passwordEnabled: true,
     signupEnabled: true,
     socialLoginEnabled: false,
-    magicLinkEnabled: true,
     emailOtpEnabled: true,
     usernameEnabled: false,
     identifierFirst: false,
+  },
+  builtInProviders: {
+    phone: { enabled: false },
+    web3Wallet: { enabled: false, chains: [1] },
+    oneTap: {
+      enabled: false,
+      clientId: '',
+      autoSelect: false,
+      cancelOnTapOutside: true,
+      uxMode: 'popup',
+      context: 'signin',
+      promptBaseDelayMs: 1000,
+      promptMaxAttempts: 5,
+    },
   },
   branding: {
     logoUrl: null,
@@ -6161,10 +5966,6 @@ const configz = {
     headline: 'Sign in to Acme.',
     description: 'Use your workspace identity.',
   },
-  defaults: {
-    applicationId: null,
-    redirectUri: null,
-  },
   auth: {
     basePath: '/api/auth',
     signInEmailPath: '/api/auth/sign-in/email',
@@ -6175,7 +5976,6 @@ const configz = {
     resetPasswordPath: '/api/auth/reset-password',
     sendVerificationEmailPath: '/api/auth/send-verification-email',
     verifyEmailPath: '/api/auth/verify-email',
-    magicLinkPath: '/api/auth/sign-in/magic-link',
     emailOtpPath: '/api/auth/email-otp/send-verification-otp',
     emailOtpSignInPath: '/api/auth/sign-in/email-otp',
     emailOtpVerificationPath: '/api/auth/email-otp/verify-email',

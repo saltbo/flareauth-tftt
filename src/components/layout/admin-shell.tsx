@@ -1,3 +1,4 @@
+import type { AccountProfileResponse } from '@shared/api/account'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   AppWindow,
@@ -19,7 +20,16 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { getAccountProfile } from '@/lib/api/account'
+import { signOut } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
 type ConsoleNavItem = {
@@ -55,13 +65,13 @@ const adminNavGroups: ConsoleNavGroup[] = [
         icon: ShieldCheck,
       },
       {
-        href: '/console/connectors/passwordless',
+        href: '/console/connectors',
         label: 'Connectors',
         icon: Cable,
         match: '/console/connectors',
       },
       {
-        href: '/console/security/password-policy',
+        href: '/console/security/captcha',
         label: 'Security',
         icon: Shield,
         match: '/console/security',
@@ -116,6 +126,7 @@ const adminNavGroups: ConsoleNavGroup[] = [
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [profile, setProfile] = useState<AccountProfileResponse['user'] | null>(null)
   const currentItem = adminNavGroups
     .flatMap((group) => group.items)
     .find((item) => isActive(pathname, getItemMatchPath(item)))
@@ -123,8 +134,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
     group.items.some((item) => isActive(pathname, getItemMatchPath(item))),
   )
 
+  useEffect(() => {
+    let active = true
+    void getAccountProfile().then((response) => {
+      if (active) setProfile(response.user)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="consoleShell text-foreground">
+      <div className="consoleDesktopAccountMenu hidden lg:block">
+        <ConsoleAccountMenu profile={profile} />
+      </div>
       <header className="consoleTopbar lg:hidden">
         <div className="flex h-16 items-center justify-between gap-3 px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -163,16 +187,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <Boxes className="size-4 text-muted-foreground" aria-hidden="true" />
               <span className="font-medium">Default</span>
             </div>
-            <a
-              aria-label="Open account center"
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-              href="/profile"
-            >
-              <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                AC
-              </span>
-              <span className="hidden sm:inline">Account</span>
-            </a>
+            <ConsoleAccountMenu profile={profile} />
           </div>
         </div>
       </header>
@@ -199,17 +214,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <nav className="min-h-0 flex-1 overflow-y-auto px-4 pb-4" aria-label="Console">
             <AdminNavigation pathname={pathname} />
           </nav>
-          <div className="border-t border-border/70 p-4">
-            <a
-              className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-              href="/profile"
-            >
-              <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                AC
-              </span>
-              <span className="truncate">Account center</span>
-            </a>
-          </div>
         </aside>
         <main className="consoleMain">
           <div className="consoleContent">{children}</div>
@@ -230,6 +234,47 @@ function ConsoleBrand() {
         <p className="mt-1 truncate text-xs text-muted-foreground">Console</p>
       </div>
     </a>
+  )
+}
+
+function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user'] | null }) {
+  async function onSignOut() {
+    await signOut()
+    window.location.href = '/sign-in'
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger aria-label="Account menu" className="size-9 rounded-full p-0">
+        <ConsoleAvatar profile={profile} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-40">
+        <DropdownMenuGroup>
+          <a
+            className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
+            href="/profile"
+            role="menuitem"
+          >
+            Profile
+          </a>
+          <DropdownMenuItem onClick={() => void onSignOut()}>退出登录</DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function ConsoleAvatar({ profile }: { profile: AccountProfileResponse['user'] | null }) {
+  const fallback = (profile?.displayName || profile?.email || 'A').trim().slice(0, 1).toUpperCase()
+
+  if (profile?.image) {
+    return <img alt="" className="size-8 rounded-full object-cover" src={profile.image} width="32" height="32" />
+  }
+
+  return (
+    <span className="grid size-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+      {fallback}
+    </span>
   )
 }
 

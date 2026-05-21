@@ -267,16 +267,6 @@ describe('v1.0 release product journey', () => {
       { mfa: { secret: 'totp-secret' } },
     )
     await expectJson(
-      await app.request('/api/account/security/passkeys/registration-options', {
-        method: 'POST',
-        headers: userHeaders(),
-        body: JSON.stringify({ name: 'Laptop' }),
-      }),
-      200,
-      { challenge: 'passkey-challenge' },
-    )
-
-    await expectJson(
       await app.request('/api/management/connectors', {
         method: 'POST',
         headers: adminHeaders(),
@@ -285,7 +275,7 @@ describe('v1.0 release product journey', () => {
           providerId: 'okta-main',
           displayName: 'Okta',
           clientId: 'okta-client',
-          clientSecretBinding: 'secret://okta',
+          clientSecret: 'secret://okta',
           authorizationEndpoint: 'https://idp.example.com/oauth2/v1/authorize',
           tokenEndpoint: 'https://idp.example.com/oauth2/v1/token',
           userInfoEndpoint: 'https://idp.example.com/oauth2/v1/userinfo',
@@ -355,7 +345,6 @@ describe('v1.0 release product journey', () => {
     })
     expect(users.updateProfile).toHaveBeenCalledWith('user-1', { displayName: 'User One', username: 'userone' })
     expect(auth.api.enableTwoFactor).toHaveBeenCalled()
-    expect(auth.api.generatePasskeyRegistrationOptions).toHaveBeenCalled()
     expect(connectors.create).toHaveBeenCalled()
   })
 })
@@ -398,8 +387,6 @@ function createAuthDouble() {
     enableTwoFactor: vi.fn().mockResolvedValue({ mfa: { secret: 'totp-secret' } }),
     verifyTOTP: vi.fn().mockResolvedValue({ success: true }),
     disableTwoFactor: vi.fn().mockResolvedValue({ success: true }),
-    generatePasskeyRegistrationOptions: vi.fn().mockResolvedValue({ challenge: 'passkey-challenge' }),
-    verifyPasskeyRegistration: vi.fn().mockResolvedValue({ verified: true }),
   }
 
   return {
@@ -684,7 +671,7 @@ function createConnectorServiceDouble() {
     displayName: 'Okta',
     enabled: true,
     clientId: 'okta-client',
-    clientSecretBinding: 'secret://okta',
+    clientSecret: 'secret://okta',
     issuer: null,
     authorizationEndpoint: 'https://idp.example.com/oauth2/v1/authorize',
     tokenEndpoint: 'https://idp.example.com/oauth2/v1/token',

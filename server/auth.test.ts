@@ -58,11 +58,6 @@ describe('createAuth OAuth Provider metadata', () => {
     await auth.options.emailAndPassword?.onPasswordReset?.({
       user: createUser(),
     })
-    await findPlugin<MagicLinkPluginOptions>(auth, 'magic-link').options.sendMagicLink({
-      email: 'user@example.com',
-      url: 'https://auth.example.com/magic',
-      token: 'magic-token',
-    })
     await findPlugin<EmailOtpPluginOptions>(auth, 'email-otp').options.sendVerificationOTP({
       email: 'user@example.com',
       otp: '123456',
@@ -101,13 +96,6 @@ describe('createAuth OAuth Provider metadata', () => {
     expect(emailSender.send).toHaveBeenCalledWith({
       to: 'user@example.com',
       template: {
-        type: 'magic-link',
-        url: 'https://auth.example.com/magic',
-      },
-    })
-    expect(emailSender.send).toHaveBeenCalledWith({
-      to: 'user@example.com',
-      template: {
         type: 'otp',
         otp: '123456',
       },
@@ -122,7 +110,7 @@ describe('createAuth OAuth Provider metadata', () => {
     })
   })
 
-  it('exposes security, magic link, email OTP, username, and organization invitation APIs', () => {
+  it('exposes security, email OTP, username, and organization invitation APIs', () => {
     const auth = createAuth(
       {} as Database,
       '01234567890123456789012345678901',
@@ -138,7 +126,6 @@ describe('createAuth OAuth Provider metadata', () => {
         'verifyTOTP',
         'listPasskeys',
         'generatePasskeyRegistrationOptions',
-        'signInMagicLink',
         'sendVerificationOTP',
         'requestPasswordResetEmailOTP',
         'signInUsername',
@@ -292,7 +279,67 @@ describe('createAuth OAuth Provider metadata', () => {
     expect(findPlugin<TwoFactorPluginOptions>(auth, 'two-factor').options).toMatchObject({
       issuer: 'FlareAuth',
       allowPasswordless: true,
+      totpOptions: {
+        disable: false,
+      },
     })
+  })
+
+  it('disables TOTP when authenticator app MFA is disabled by deployment policy', () => {
+    const auth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy({
+        mfa: {
+          mode: 'optional',
+          authenticatorAppEnabled: false,
+          emailOtpEnabled: false,
+          backupCodesEnabled: true,
+        },
+      }),
+    )
+
+    expect(findPlugin<TwoFactorPluginOptions>(auth, 'two-factor').options.totpOptions).toMatchObject({
+      disable: true,
+    })
+  })
+
+  it('only exposes two-factor email OTP when the MFA email OTP method is explicitly enabled', () => {
+    const defaultAuth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy(),
+    )
+    const emailOtpAuth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy(),
+      undefined,
+      { twoFactorEmailOtpEnabled: true },
+    )
+    const totpOnlyAuth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy(),
+      undefined,
+      { twoFactorEmailOtpEnabled: false },
+    )
+
+    expect(findPlugin<TwoFactorPluginOptions>(defaultAuth, 'two-factor').options.otpOptions).toBeUndefined()
+    expect(findPlugin<TwoFactorPluginOptions>(emailOtpAuth, 'two-factor').options.otpOptions).toBeTruthy()
+    expect(findPlugin<TwoFactorPluginOptions>(totpOnlyAuth, 'two-factor').options.otpOptions).toBeUndefined()
   })
 
   it('disables direct passkey auth endpoints when passkeys are disabled by deployment policy', () => {
@@ -344,10 +391,6 @@ function createUser() {
   }
 }
 
-type MagicLinkPluginOptions = {
-  sendMagicLink: (input: { email: string; url: string; token: string }) => Promise<void>
-}
-
 type EmailOtpPluginOptions = {
   sendVerificationOTP: (input: { email: string; otp: string; type: string }) => Promise<void>
 }
@@ -375,12 +418,17 @@ type PasskeyPluginOptions = {
 type TwoFactorPluginOptions = {
   issuer: string
   allowPasswordless: boolean
+  otpOptions?: unknown
+  totpOptions?: unknown
 }
 
 function createSecurityPolicy(overrides: Partial<SecurityPolicyInput> = {}) {
   return {
     mfa: {
       mode: 'optional',
+      authenticatorAppEnabled: true,
+      emailOtpEnabled: false,
+      backupCodesEnabled: true,
       ...overrides.mfa,
     },
     passkeys: {
@@ -424,6 +472,9 @@ function createSecurityPolicy(overrides: Partial<SecurityPolicyInput> = {}) {
 interface SecurityPolicyInput {
   mfa: {
     mode: 'optional' | 'required'
+    authenticatorAppEnabled?: boolean
+    emailOtpEnabled?: boolean
+    backupCodesEnabled?: boolean
   }
   passkeys: {
     enabled: boolean

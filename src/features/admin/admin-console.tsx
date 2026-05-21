@@ -23,6 +23,7 @@ import {
   createManagementConnectorRequestSchema,
   type ListManagementConnectorsResponse,
   type ManagementReadinessItem,
+  type ManagementSignInSettingsResponse,
   type ManagementUserResponse,
   managementCreateUserRequestSchema,
   managementUpdateUserRequestSchema,
@@ -30,6 +31,7 @@ import {
   updateManagementConnectorRequestSchema,
   updateManagementSignInSettingsRequestSchema,
 } from '@shared/api/management'
+import type { SecurityPolicy } from '@shared/api/security'
 import {
   createWebhookEndpointRequestSchema,
   type WebhookEndpoint,
@@ -50,6 +52,8 @@ import {
   Globe2,
   ImageUp,
   KeyRound,
+  LifeBuoy,
+  Mail,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -58,8 +62,19 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react'
-import { type CSSProperties, createElement, type FormEvent, type ReactNode, useEffect, useId, useState } from 'react'
+import {
+  type CSSProperties,
+  createElement,
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useId,
+  useState,
+} from 'react'
 import type { z } from 'zod'
+import { AuthCardFrame } from '@/components/layout/auth-layout'
+import { ProviderIcon } from '@/components/provider-icon'
 import { Badge } from '@/components/ui/badge'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -82,9 +97,11 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Field, SelectInput, TextArea, TextInput } from '@/components/ui/field'
 import { PageHeader } from '@/components/ui/page-header'
 import { SettingRow } from '@/components/ui/setting-row'
+import { Sheet, SheetClose, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SignInCardBody, SignInMethodButtons, SignUpCardBody, SignUpForm } from '@/features/auth/auth-pages'
 import {
   type AdminDashboard,
   adminQueryKeys,
@@ -117,7 +134,6 @@ import {
   getApplication,
   getBrandingSettings,
   getConnector,
-  getConnectorReadiness,
   getOrganization,
   getRole,
   getSecurityPolicy,
@@ -197,6 +213,8 @@ type ApiResourceDetailSection = 'settings' | 'scopes' | 'permissions'
 type OrganizationTemplateSection = 'organization-roles' | 'organization-permissions'
 type WebhooksSection = 'endpoints' | 'requests'
 type SignInPreviewSurface = 'desktop' | 'mobile'
+type SignInMode = 'password' | 'otp'
+type HostedAuthPreviewFlow = 'sign-in' | 'email' | 'sign-up'
 type HostedAuthPreviewState = {
   backgroundColor?: string
   customCss?: string
@@ -205,18 +223,29 @@ type HostedAuthPreviewState = {
   headline: string
   identifierFirst?: boolean
   logoUrl?: string
-  magicLinkEnabled?: boolean
   passwordEnabled?: boolean
   primaryColor?: string
   privacyUri?: string
   productName: string
+  passkeysEnabled?: boolean
+  phoneEnabled?: boolean
+  oneTapEnabled?: boolean
   signupEnabled?: boolean
   socialLoginEnabled?: boolean
-  socialProviders?: Array<{ displayName: string; slug: string }>
+  socialProviders?: Array<{ displayName: string; icon: string; providerId: string; slug: string }>
   supportEmail?: string
   termsUri?: string
   usernameEnabled?: boolean
+  web3WalletEnabled?: boolean
 }
+
+type SmsProviderId = ManagementSignInSettingsResponse['builtInProviders']['phone']['smsProvider']
+
+const smsProviderOptions: Array<{ value: SmsProviderId; label: string }> = [
+  { value: 'twilio', label: 'Twilio' },
+  { value: 'vonage', label: 'Vonage' },
+  { value: 'messagebird', label: 'MessageBird' },
+]
 
 const applicationTypeOptions = [
   {
@@ -250,12 +279,7 @@ export function AdminDashboardPage() {
 
   return (
     <>
-      <PageHeader
-        breadcrumb={['Overview']}
-        eyebrow="Overview"
-        title="Dashboard"
-        description="Get an overview about your identity service performance."
-      />
+      <PageHeader title="Dashboard" description="Get an overview about your identity service performance." />
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
           detail="Tenant identities available to hosted auth."
@@ -1817,285 +1841,145 @@ function UserIdentitySummaryCard({
   )
 }
 
-export function PasswordlessConnectorsPage() {
-  const signInQuery = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-  const readinessQuery = useQuery({ queryKey: adminQueryKeys.readiness, queryFn: getAdminReadiness })
-  const [emailDetailsOpen, setEmailDetailsOpen] = useState(false)
-  const emailReady = readinessQuery.data?.recommended?.some(
-    (item) => item.id === 'email_delivery' && item.status === 'complete',
-  )
-  const emailReadiness = readinessQuery.data?.recommended?.find((item) => item.id === 'email_delivery')
-
-  return (
-    <ResourcePage
-      title="Connectors"
-      description="Review email and SMS delivery connectors for passwordless hosted authentication."
-      error={signInQuery.error ?? readinessQuery.error}
-      framed={false}
-      loading={signInQuery.isLoading || readinessQuery.isLoading}
-      onRetry={() => {
-        signInQuery.refetch()
-        readinessQuery.refetch()
-      }}
-    >
-      <div className="grid gap-4">
-        <ConnectorSectionTabs active="passwordless" />
-        <SettingsSections>
-          <SettingsSection
-            title="Email connector"
-            description="Passwordless delivery options exposed by the current Cloudflare deployment."
-          >
-            <div className="overflow-hidden rounded-md border border-border">
-              <ConnectorSetupRow
-                action="Inspect"
-                description="Cloudflare Email is built into this deployment. Magic links and email codes use the runtime EMAIL binding and EMAIL_FROM sender."
-                onAction={() => setEmailDetailsOpen(true)}
-                status={
-                  <StatusBadge
-                    active={emailReady === true}
-                    activeLabel="Configured"
-                    inactiveLabel={emailReady === false ? 'Unconfigured' : 'Unknown'}
-                  />
-                }
-                title="Cloudflare Email"
-                type="Built-in"
-              />
-            </div>
-          </SettingsSection>
-          <SettingsSection
-            title="Runtime state"
-            description="Passwordless sign-in flags currently loaded from hosted auth settings."
-          >
-            <div className="grid gap-3">
-              <SettingRow
-                label="Magic link"
-                value={signInQuery.data?.signIn.magicLinkEnabled ? 'Enabled' : 'Disabled'}
-              />
-              <SettingRow
-                label="Email code"
-                value={signInQuery.data?.signIn.emailOtpEnabled ? 'Enabled' : 'Disabled'}
-              />
-              <SettingRow label="Runtime requirement" value="EMAIL binding and EMAIL_FROM sender must be present." />
-            </div>
-          </SettingsSection>
-        </SettingsSections>
-      </div>
-      <EmailConnectorDetailsDialog
-        emailReadiness={emailReadiness}
-        emailReady={emailReady}
-        magicLinkEnabled={signInQuery.data?.signIn.magicLinkEnabled ?? false}
-        emailOtpEnabled={signInQuery.data?.signIn.emailOtpEnabled ?? false}
-        onClose={() => setEmailDetailsOpen(false)}
-        open={emailDetailsOpen}
-      />
-    </ResourcePage>
-  )
-}
-
 export function ConnectorsPage() {
   const query = useQuery({ queryKey: adminQueryKeys.connectors, queryFn: listConnectors })
   const templatesQuery = useQuery({
     queryKey: [...adminQueryKeys.connectors, 'templates'],
     queryFn: listConnectorTemplates,
   })
+  const signInQuery = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
+  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
   const queryClient = useQueryClient()
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null)
-  const [connectorDialogMode, setConnectorDialogMode] = useState<'edit' | 'test'>('edit')
+  const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ConnectorResponse | null>(null)
   const createMutation = useAdminMutation({
     mutationFn: createConnector,
     onSuccess: () => {
-      setDialogOpen(false)
+      setSelectedProviderKey(null)
       return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
     },
   })
+  const connectors = query.data?.connectors ?? []
+  const templates = templatesQuery.data?.templates ?? []
+  const providerRows = connectorProviderRows(templates, connectors, signInQuery.data, securityQuery.data?.policy)
+  const selectedProvider = providerRows.find((provider) => provider.key === selectedProviderKey) ?? null
+  const selectedConnectorId = selectedProvider?.connector?.id ?? null
   const detailQuery = useQuery({
     queryKey: [...adminQueryKeys.connectors, selectedConnectorId],
     queryFn: () => getConnector(selectedConnectorId ?? ''),
-    enabled: selectedConnectorId !== null,
-  })
-  const readinessQuery = useQuery({
-    queryKey: [...adminQueryKeys.connectors, selectedConnectorId, 'readiness'],
-    queryFn: () => getConnectorReadiness(selectedConnectorId ?? ''),
     enabled: selectedConnectorId !== null,
   })
   const updateMutation = useAdminMutation({
     mutationFn: ({ id, input }: { id: string; input: z.infer<typeof updateManagementConnectorRequestSchema> }) =>
       updateConnector(id, input),
     onSuccess: (connector) => {
+      setSelectedProviderKey(null)
       queryClient.setQueryData([...adminQueryKeys.connectors, connector.id], connector)
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors }),
-        queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.connectors, connector.id, 'readiness'] }),
-      ])
+      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
     },
   })
   const deleteMutation = useAdminMutation({
     mutationFn: deleteConnector,
     onSuccess: () => {
       setDeleteTarget(null)
-      setSelectedConnectorId(null)
+      setSelectedProviderKey(null)
       return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
     },
   })
-  const connectors = query.data?.connectors ?? []
-  const templateByConnector = new Map(
-    (templatesQuery.data?.templates ?? []).map((template) => [connectorTemplateKey(template), template]),
-  )
-  const visibleConnectors = connectors.filter((connector) =>
-    [connector.displayName, connector.slug, connector.providerId].some((value) =>
-      value.toLowerCase().includes(search.trim().toLowerCase()),
-    ),
-  )
+  const updateBuiltInSignInMutation = useAdminMutation({
+    mutationFn: updateSignInSettings,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.signIn }),
+  })
+  const updateBuiltInSecurityMutation = useAdminMutation({
+    mutationFn: updateSecurityPolicy,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.security }),
+  })
 
   return (
     <ResourcePage
       title="Connectors"
-      description="Configure social and generic OAuth providers used by the hosted sign-in settings."
-      action={
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          Add social connector
-        </Button>
-      }
-      auxiliary={
-        <CreateConnectorDialog
-          error={createMutation.errorMessage}
-          onClose={() => setDialogOpen(false)}
-          onSubmit={createMutation.mutate}
-          open={dialogOpen}
-          pending={createMutation.isPending}
-          templates={templatesQuery.data?.templates ?? []}
-        />
-      }
-      error={query.error ?? templatesQuery.error}
-      empty={connectors.length === 0}
-      emptyDescription="Add social or OAuth identity providers when your sign-in experience needs them."
-      emptyTitle="No social connectors yet"
-      loading={query.isLoading}
+      description="Configure built-in and social identity providers used by the hosted sign-in experience."
+      error={query.error ?? templatesQuery.error ?? signInQuery.error ?? securityQuery.error}
+      loading={query.isLoading || templatesQuery.isLoading || signInQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
         void query.refetch()
         void templatesQuery.refetch()
+        void signInQuery.refetch()
+        void securityQuery.refetch()
       }}
-      toolbar={
-        <div className="consoleToolbar rounded-lg border border-border bg-background p-3">
-          <ConnectorSectionTabs active="social" />
-          <TextInput
-            aria-label="Search social connectors"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search connectors"
-            value={search}
-          />
-        </div>
-      }
     >
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Connector</TableHead>
             <TableHead>Provider</TableHead>
-            <TableHead>Scopes</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Configuration</TableHead>
+            <TableHead>Provider</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Readiness</TableHead>
-            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {visibleConnectors.length ? (
-            visibleConnectors.map((connector) => (
-              <TableRow key={connector.id}>
-                <TableCell>
-                  <div className="font-medium">{connector.displayName}</div>
-                  <div className="text-xs text-muted-foreground">{connector.slug}</div>
-                </TableCell>
-                <TableCell>{connector.providerId}</TableCell>
-                <TableCell>{connector.scopes.join(', ') || 'Default'}</TableCell>
-                <TableCell>
-                  <StatusBadge active={connector.enabled} activeLabel="Enabled" inactiveLabel="Disabled" />
-                </TableCell>
-                <TableCell>{connector.clientSecretBinding ? 'Binding configured' : 'Needs binding'}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Switch
-                      aria-label={`Toggle ${connector.displayName}`}
-                      checked={connector.enabled}
-                      onCheckedChange={(enabled) => updateMutation.mutate({ id: connector.id, input: { enabled } })}
-                    />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger aria-label={`Actions for ${connector.displayName}`}>
-                        <MoreHorizontal data-icon="inline-start" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuGroup>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setConnectorDialogMode('edit')
-                              setSelectedConnectorId(connector.id)
-                            }}
-                          >
-                            Edit connector
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setConnectorDialogMode('test')
-                              setSelectedConnectorId(connector.id)
-                              void queryClient.invalidateQueries({
-                                queryKey: [...adminQueryKeys.connectors, connector.id, 'readiness'],
-                              })
-                            }}
-                          >
-                            <RefreshCw data-icon="inline-start" />
-                            Test setup
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setDeleteTarget(connector)}>
-                            <Trash2 data-icon="inline-start" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+          {providerRows.map((provider) => (
+            <TableRow
+              className="cursor-pointer"
+              key={provider.key}
+              onClick={() => setSelectedProviderKey(provider.key)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') setSelectedProviderKey(provider.key)
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <ProviderIcon provider={provider} />
+                  <div className="min-w-0">
+                    <div className="font-medium">{provider.displayName}</div>
+                    <div className="text-xs text-muted-foreground">{provider.description}</div>
                   </div>
-                </TableCell>
-              </TableRow>
-            ))
-          ) : (
-            <TableEmptyRow
-              colSpan={6}
-              description={
-                search
-                  ? 'No social connectors match the current search.'
-                  : 'Add social or OAuth identity providers when your sign-in experience needs them.'
-              }
-              title={search ? 'No social connectors found' : 'No social connectors yet'}
-            />
-          )}
+                </div>
+              </TableCell>
+              <TableCell>{provider.typeLabel}</TableCell>
+              <TableCell>{provider.configurationLabel}</TableCell>
+              <TableCell>{provider.providerId}</TableCell>
+              <TableCell>
+                <StatusBadge active={provider.enabled} activeLabel="Enabled" inactiveLabel="Not enabled" />
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
-      <ConnectorDetailDialog
-        key={detailQuery.data?.id ?? selectedConnectorId ?? 'connector-detail'}
-        connector={detailQuery.data ?? null}
-        error={
-          updateMutation.errorMessage ??
-          (detailQuery.error instanceof Error ? detailQuery.error.message : null) ??
-          (readinessQuery.error instanceof Error ? readinessQuery.error.message : null)
+      <ConnectorProviderDrawer
+        connector={detailQuery.data ?? selectedProvider?.connector ?? null}
+        createError={createMutation.errorMessage}
+        createPending={createMutation.isPending}
+        detailError={
+          updateMutation.errorMessage ?? (detailQuery.error instanceof Error ? detailQuery.error.message : null)
         }
-        mode={connectorDialogMode}
-        onClose={() => setSelectedConnectorId(null)}
-        onRefreshReadiness={() => readinessQuery.refetch()}
-        onSubmit={(input) => {
-          if (detailQuery.data) updateMutation.mutate({ id: detailQuery.data.id, input })
+        loading={detailQuery.isLoading}
+        onClose={() => setSelectedProviderKey(null)}
+        onCreate={(input) => createMutation.mutate(input)}
+        onDelete={(connector) => {
+          setSelectedProviderKey(null)
+          setDeleteTarget(connector)
         }}
-        open={selectedConnectorId !== null}
-        pending={updateMutation.isPending || detailQuery.isLoading}
-        readiness={readinessQuery.data ?? null}
-        template={
-          detailQuery.data
-            ? (templateByConnector.get(`${detailQuery.data.providerType}:${detailQuery.data.providerId}`) ?? null)
-            : null
+        onUpdate={(connector, input) => updateMutation.mutate({ id: connector.id, input })}
+        onUpdateBuiltInPasskey={(enabled) =>
+          updateBuiltInSecurityMutation.mutate({
+            policy: {
+              passkeys: { enabled },
+            },
+          })
         }
-        templateLoading={templatesQuery.isLoading}
+        onUpdateBuiltInSignIn={(input) => updateBuiltInSignInMutation.mutate(input)}
+        open={selectedProvider !== null}
+        provider={selectedProvider}
+        builtInProviders={signInQuery.data?.builtInProviders ?? null}
+        security={securityQuery.data?.policy ?? null}
+        signIn={signInQuery.data?.signIn ?? null}
+        updateBuiltInError={updateBuiltInSignInMutation.errorMessage ?? updateBuiltInSecurityMutation.errorMessage}
+        updateBuiltInPending={updateBuiltInSignInMutation.isPending || updateBuiltInSecurityMutation.isPending}
+        updatePending={updateMutation.isPending}
       />
       <ConfirmDialog
         description={
@@ -2114,291 +1998,1237 @@ export function ConnectorsPage() {
   )
 }
 
+type ConnectorProviderRow = {
+  key: string
+  displayName: string
+  description: string
+  icon: string
+  providerId: string
+  providerType: 'builtin' | 'social'
+  typeLabel: string
+  configurationLabel: string
+  enabled: boolean
+  connector: ConnectorResponse | null
+  template: ConnectorTemplate | null
+}
+
+function connectorProviderRows(
+  templates: ConnectorTemplate[],
+  connectors: ConnectorResponse[],
+  signInSettings: ManagementSignInSettingsResponse | undefined,
+  security: SecurityPolicy | undefined,
+): ConnectorProviderRow[] {
+  const connectorsByProvider = new Map(connectors.map((connector) => [connector.providerId, connector]))
+  const signIn = signInSettings?.signIn
+  const builtIn = signInSettings?.builtInProviders
+  const socialRows = templates
+    .filter((template) => template.providerType === 'social')
+    .map((template) => {
+      const connector = connectorsByProvider.get(template.providerId) ?? null
+      return {
+        key: `social:${template.providerId}`,
+        displayName: template.displayName,
+        description: 'Social sign-in provider',
+        icon: template.icon,
+        providerId: template.providerId,
+        providerType: 'social' as const,
+        typeLabel: 'Social',
+        configurationLabel: connector?.clientSecretConfigured ? 'Credentials configured' : 'Credentials required',
+        enabled: connector?.enabled ?? false,
+        connector,
+        template,
+      }
+    })
+
+  return [
+    {
+      key: 'builtin:email',
+      displayName: 'Email',
+      description: 'Email code sign-in',
+      icon: 'email',
+      providerId: 'email',
+      providerType: 'builtin',
+      typeLabel: 'Built-in',
+      configurationLabel: signIn?.emailOtpEnabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(signIn?.emailOtpEnabled),
+      connector: null,
+      template: null,
+    },
+    {
+      key: 'builtin:phone',
+      displayName: 'Phone (SMS)',
+      description: 'SMS sign-in provider',
+      icon: 'phone',
+      providerId: 'phone',
+      providerType: 'builtin',
+      typeLabel: 'Built-in',
+      configurationLabel: builtIn?.phone.enabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(builtIn?.phone.enabled),
+      connector: null,
+      template: null,
+    },
+    {
+      key: 'builtin:web3-wallet',
+      displayName: 'Web3 wallet',
+      description: 'Wallet-based sign-in provider',
+      icon: 'wallet',
+      providerId: 'web3-wallet',
+      providerType: 'builtin',
+      typeLabel: 'Built-in',
+      configurationLabel: builtIn?.web3Wallet.enabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(builtIn?.web3Wallet.enabled),
+      connector: null,
+      template: null,
+    },
+    {
+      key: 'builtin:passkey',
+      displayName: 'Passkey',
+      description: 'Passkey authentication provider',
+      icon: 'passkey',
+      providerId: 'passkey',
+      providerType: 'builtin',
+      typeLabel: 'Built-in',
+      configurationLabel: security?.passkeys.enabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(security?.passkeys.enabled),
+      connector: null,
+      template: null,
+    },
+    {
+      key: 'builtin:onetap',
+      displayName: 'OneTap',
+      description: 'One-tap sign-in provider',
+      icon: 'onetap',
+      providerId: 'onetap',
+      providerType: 'builtin',
+      typeLabel: 'Built-in',
+      configurationLabel: builtIn?.oneTap.enabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(builtIn?.oneTap.enabled),
+      connector: null,
+      template: null,
+    },
+    ...socialRows,
+  ]
+}
+
+function ConnectorProviderDrawer({
+  builtInProviders,
+  connector,
+  createError,
+  createPending,
+  detailError,
+  loading,
+  onClose,
+  onCreate,
+  onDelete,
+  onUpdate,
+  onUpdateBuiltInPasskey,
+  onUpdateBuiltInSignIn,
+  open,
+  provider,
+  security,
+  signIn,
+  updateBuiltInError,
+  updateBuiltInPending,
+  updatePending,
+}: {
+  builtInProviders: ManagementSignInSettingsResponse['builtInProviders'] | null
+  connector: ConnectorResponse | null
+  createError: string | null
+  createPending: boolean
+  detailError: string | null
+  loading: boolean
+  onClose: () => void
+  onCreate: (input: z.infer<typeof createManagementConnectorRequestSchema>) => void
+  onDelete: (connector: ConnectorResponse) => void
+  onUpdate: (connector: ConnectorResponse, input: z.infer<typeof updateManagementConnectorRequestSchema>) => void
+  onUpdateBuiltInPasskey: (enabled: boolean) => void
+  onUpdateBuiltInSignIn: (input: z.infer<typeof updateManagementSignInSettingsRequestSchema>) => void
+  open: boolean
+  provider: ConnectorProviderRow | null
+  security: SecurityPolicy | null
+  signIn: { emailOtpEnabled: boolean } | null
+  updateBuiltInError: string | null
+  updateBuiltInPending: boolean
+  updatePending: boolean
+}) {
+  const [form, setForm] = useState<FormState>(emptyForm)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const activeConnector = connector ?? provider?.connector ?? null
+  const isExisting = activeConnector !== null
+  const pending = createPending || updatePending || loading
+  const error = validationError ?? detailError ?? createError
+
+  useEffect(() => {
+    setValidationError(null)
+    if (!provider) {
+      setForm(emptyForm)
+      return
+    }
+    if (activeConnector) {
+      setForm(connectorToForm(activeConnector))
+      return
+    }
+    setForm({
+      enabled: 'false',
+      clientId: '',
+      clientSecret: '',
+      scopes: provider.template?.defaultScopes.join(' ') ?? '',
+      providerMetadata: '',
+    })
+  }, [provider, activeConnector])
+
+  if (!provider) return null
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose()
+      }}
+    >
+      <SheetContent
+        aria-describedby={undefined}
+        aria-label={provider.displayName}
+        className="w-full overflow-hidden data-[side=right]:sm:w-1/2 data-[side=right]:sm:max-w-none"
+      >
+        <SheetHeader className="border-b border-border">
+          <SheetTitle className="flex items-center gap-3">
+            <ProviderIcon className="providerIcon providerIconLarge" provider={provider} />
+            {provider.displayName}
+          </SheetTitle>
+        </SheetHeader>
+        {provider.providerType === 'builtin' ? (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto px-8">
+              <BuiltinProviderPanel
+                error={updateBuiltInError}
+                onUpdatePasskey={onUpdateBuiltInPasskey}
+                onUpdateSignIn={onUpdateBuiltInSignIn}
+                pending={updateBuiltInPending}
+                provider={provider}
+                builtInProviders={builtInProviders}
+                security={security}
+                signIn={signIn}
+              />
+            </div>
+            <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
+              <SheetClose asChild>
+                <Button type="button" variant="secondary">
+                  Close
+                </Button>
+              </SheetClose>
+            </SheetFooter>
+          </>
+        ) : (
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              try {
+                setValidationError(null)
+                const scopes = form.scopes?.split(/\s+/).filter(Boolean)
+                const providerMetadata = parseConnectorMetadata(form)
+                if (isExisting) {
+                  onUpdate(
+                    activeConnector,
+                    parseForm(updateManagementConnectorRequestSchema, {
+                      ...connectorUpdateForm(form),
+                      enabled: form.enabled === 'true',
+                      scopes,
+                      providerMetadata,
+                    }),
+                  )
+                  return
+                }
+                onCreate(
+                  parseForm(createManagementConnectorRequestSchema, {
+                    ...form,
+                    slug: provider.providerId,
+                    enabled: form.enabled === 'true',
+                    providerType: 'social',
+                    providerId: provider.providerId,
+                    displayName: provider.displayName,
+                    scopes,
+                    providerMetadata,
+                  }),
+                )
+              } catch (submitError) {
+                setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+              }
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto px-8">
+              <div className="grid gap-5">
+                {error ? (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Enabled</p>
+                    <p className="text-xs text-muted-foreground">Show this provider on hosted sign-in.</p>
+                  </div>
+                  <Switch
+                    aria-label="Enabled"
+                    checked={form.enabled === 'true'}
+                    onCheckedChange={(enabled) => setValue(setForm, 'enabled', String(enabled))}
+                    type="button"
+                  />
+                </div>
+                <ConnectorDynamicFields
+                  form={form}
+                  isExisting={isExisting}
+                  setForm={setForm}
+                  template={provider.template}
+                />
+                <CallbackUrlField value={connectorCallbackUrl(provider.providerId)} />
+              </div>
+            </div>
+            <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
+              {isExisting ? (
+                <Button onClick={() => onDelete(activeConnector)} type="button" variant="secondary">
+                  <Trash2 data-icon="inline-start" />
+                  Delete
+                </Button>
+              ) : null}
+              <SheetClose asChild>
+                <Button type="button" variant="secondary">
+                  Close
+                </Button>
+              </SheetClose>
+              <Button disabled={pending} type="submit">
+                {pending ? 'Saving...' : 'Save'}
+              </Button>
+            </SheetFooter>
+          </form>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function BuiltinProviderPanel({
+  builtInProviders,
+  error,
+  onUpdatePasskey,
+  onUpdateSignIn,
+  pending,
+  provider,
+  security,
+  signIn,
+}: {
+  builtInProviders: ManagementSignInSettingsResponse['builtInProviders'] | null
+  error: string | null
+  onUpdatePasskey: (enabled: boolean) => void
+  onUpdateSignIn: (input: z.infer<typeof updateManagementSignInSettingsRequestSchema>) => void
+  pending: boolean
+  provider: ConnectorProviderRow
+  security: SecurityPolicy | null
+  signIn: { emailOtpEnabled: boolean } | null
+}) {
+  const [emailOtpEnabled, setEmailOtpEnabled] = useState(false)
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false)
+  const [phoneForm, setPhoneForm] = useState(defaultPhoneProviderSettings())
+  const [web3Form, setWeb3Form] = useState(defaultWeb3ProviderSettings())
+  const [oneTapForm, setOneTapForm] = useState(defaultOneTapProviderSettings())
+
+  useEffect(() => {
+    setEmailOtpEnabled(signIn?.emailOtpEnabled ?? false)
+  }, [signIn])
+
+  useEffect(() => {
+    setPasskeyEnabled(security?.passkeys.enabled ?? false)
+  }, [security])
+
+  useEffect(() => {
+    setPhoneForm({ ...defaultPhoneProviderSettings(), ...(builtInProviders?.phone ?? {}) })
+    setWeb3Form({ ...defaultWeb3ProviderSettings(), ...(builtInProviders?.web3Wallet ?? {}) })
+    setOneTapForm({ ...defaultOneTapProviderSettings(), ...(builtInProviders?.oneTap ?? {}) })
+  }, [builtInProviders])
+
+  if (provider.providerId === 'email') {
+    const hasChanges = emailOtpEnabled !== Boolean(signIn?.emailOtpEnabled)
+
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onUpdateSignIn({ signIn: { emailOtpEnabled } })
+        }}
+      >
+        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <BuiltInProviderSwitch
+          checked={emailOtpEnabled}
+          description="Allow users to receive a one-time sign-in code by email."
+          label="Email code"
+          onCheckedChange={setEmailOtpEnabled}
+        />
+        <SettingRow label="Delivery" value="Cloudflare Email binding" />
+        <div className="flex justify-end gap-2">
+          <Button disabled={!hasChanges || pending} type="submit">
+            Save
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  if (provider.providerId === 'passkey') {
+    const hasChanges = passkeyEnabled !== Boolean(security?.passkeys.enabled)
+
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onUpdatePasskey(passkeyEnabled)
+        }}
+      >
+        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <BuiltInProviderSwitch
+          checked={passkeyEnabled}
+          description={`Use WebAuthn passkeys for this tenant (${security?.passkeys.rpName ?? 'tenant'}).`}
+          label="Passkey sign-in"
+          onCheckedChange={setPasskeyEnabled}
+        />
+        <SettingRow label="Relying party" value={security?.passkeys.rpName ?? 'Not loaded'} />
+        <div className="flex justify-end gap-2">
+          <Button disabled={!hasChanges || pending} type="submit">
+            Save
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  if (provider.providerId === 'phone') {
+    const loaded = { ...defaultPhoneProviderSettings(), ...(builtInProviders?.phone ?? {}) }
+    const hasChanges = !shallowEqual(phoneForm, loaded)
+
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onUpdateSignIn({ builtInProviders: { phone: phoneForm } })
+        }}
+      >
+        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <BuiltInProviderSwitch
+          checked={phoneForm.enabled}
+          description="Show phone number sign-in and verification flows."
+          label="Phone sign-in"
+          onCheckedChange={(enabled) => setPhoneForm((current) => ({ ...current, enabled }))}
+        />
+        <Field label="SMS provider">
+          <SelectInput
+            onChange={(event) =>
+              setPhoneForm((current) => ({ ...current, smsProvider: event.target.value as SmsProviderId }))
+            }
+            value={phoneForm.smsProvider}
+          >
+            {smsProviderOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        {phoneForm.smsProvider === 'twilio' ? (
+          <>
+            <Field label="Twilio Account SID">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioAccountSid: event.target.value }))}
+                value={phoneForm.twilioAccountSid}
+              />
+            </Field>
+            <Field label="Twilio Auth Token">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioAuthToken: event.target.value }))}
+                type="password"
+                value={phoneForm.twilioAuthToken}
+              />
+            </Field>
+            <Field label="From number">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioFromNumber: event.target.value }))}
+                placeholder="+15551234567"
+                value={phoneForm.twilioFromNumber}
+              />
+            </Field>
+          </>
+        ) : null}
+        {phoneForm.smsProvider === 'vonage' ? (
+          <>
+            <Field label="Vonage API key">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageApiKey: event.target.value }))}
+                value={phoneForm.vonageApiKey}
+              />
+            </Field>
+            <Field label="Vonage API secret">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageApiSecret: event.target.value }))}
+                type="password"
+                value={phoneForm.vonageApiSecret}
+              />
+            </Field>
+            <Field label="From name or number">
+              <TextInput
+                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageFrom: event.target.value }))}
+                value={phoneForm.vonageFrom}
+              />
+            </Field>
+          </>
+        ) : null}
+        {phoneForm.smsProvider === 'messagebird' ? (
+          <>
+            <Field label="MessageBird access key">
+              <TextInput
+                onChange={(event) =>
+                  setPhoneForm((current) => ({ ...current, messageBirdAccessKey: event.target.value }))
+                }
+                type="password"
+                value={phoneForm.messageBirdAccessKey}
+              />
+            </Field>
+            <Field label="Originator">
+              <TextInput
+                onChange={(event) =>
+                  setPhoneForm((current) => ({ ...current, messageBirdOriginator: event.target.value }))
+                }
+                value={phoneForm.messageBirdOriginator}
+              />
+            </Field>
+          </>
+        ) : null}
+        <Field label="OTP length">
+          <TextInput
+            onChange={(event) => setPhoneForm((current) => ({ ...current, otpLength: Number(event.target.value) }))}
+            type="number"
+            value={String(phoneForm.otpLength)}
+          />
+        </Field>
+        <Field label="Code expiry seconds">
+          <TextInput
+            onChange={(event) =>
+              setPhoneForm((current) => ({ ...current, expiresInSeconds: Number(event.target.value) }))
+            }
+            type="number"
+            value={String(phoneForm.expiresInSeconds)}
+          />
+        </Field>
+        <BuiltInProviderSwitch
+          checked={phoneForm.signUpOnVerification}
+          description="Create a new account after successful phone verification."
+          label="Sign up on verification"
+          onCheckedChange={(signUpOnVerification) => setPhoneForm((current) => ({ ...current, signUpOnVerification }))}
+        />
+        <BuiltInProviderSwitch
+          checked={phoneForm.requireVerification}
+          description="Require phone verification before phone sign-in."
+          label="Require verification"
+          onCheckedChange={(requireVerification) => setPhoneForm((current) => ({ ...current, requireVerification }))}
+        />
+        <div className="flex justify-end gap-2">
+          <Button disabled={!hasChanges || pending} type="submit">
+            Save
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  if (provider.providerId === 'web3-wallet') {
+    const loaded = { ...defaultWeb3ProviderSettings(), ...(builtInProviders?.web3Wallet ?? {}) }
+    const hasChanges = !shallowEqual(web3Form, loaded)
+
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onUpdateSignIn({ builtInProviders: { web3Wallet: web3Form } })
+        }}
+      >
+        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <BuiltInProviderSwitch
+          checked={web3Form.enabled}
+          description="Enable Sign In With Ethereum wallet authentication."
+          label="Wallet sign-in"
+          onCheckedChange={(enabled) => setWeb3Form((current) => ({ ...current, enabled }))}
+        />
+        <Field label="Enabled chains">
+          <div className="grid gap-3">
+            {web3ChainOptions.map((chain) => (
+              <div
+                className="flex items-center justify-between gap-4 rounded-md border border-border px-3 py-2"
+                key={chain.id}
+              >
+                <span className="text-sm font-medium">{chain.label}</span>
+                <Switch
+                  aria-label={chain.label}
+                  checked={web3Form.chains.includes(chain.id)}
+                  onCheckedChange={(checked) =>
+                    setWeb3Form((current) => ({
+                      ...current,
+                      chains: checked
+                        ? Array.from(new Set([...current.chains, chain.id]))
+                        : current.chains.filter((id) => id !== chain.id),
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </Field>
+        <BuiltInProviderSwitch
+          checked={web3Form.anonymous}
+          description="Allow wallet-only accounts without requiring an email address."
+          label="Anonymous wallet accounts"
+          onCheckedChange={(anonymous) => setWeb3Form((current) => ({ ...current, anonymous }))}
+        />
+        <BuiltInProviderSwitch
+          checked={web3Form.ensLookupEnabled}
+          description="Use ENS lookup for wallet display names and avatars when available."
+          label="ENS lookup"
+          onCheckedChange={(ensLookupEnabled) => setWeb3Form((current) => ({ ...current, ensLookupEnabled }))}
+        />
+        <div className="flex justify-end gap-2">
+          <Button disabled={!hasChanges || pending} type="submit">
+            Save
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  if (provider.providerId === 'onetap') {
+    const loaded = { ...defaultOneTapProviderSettings(), ...(builtInProviders?.oneTap ?? {}) }
+    const hasChanges = !shallowEqual(oneTapForm, loaded)
+
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onUpdateSignIn({ builtInProviders: { oneTap: oneTapForm } })
+        }}
+      >
+        {error ? <div className="text-sm text-destructive">{error}</div> : null}
+        <BuiltInProviderSwitch
+          checked={oneTapForm.enabled}
+          description="Enable Google One Tap on hosted sign-in."
+          label="One Tap"
+          onCheckedChange={(enabled) => setOneTapForm((current) => ({ ...current, enabled }))}
+        />
+        <Field label="Client ID">
+          <TextInput
+            onChange={(event) => setOneTapForm((current) => ({ ...current, clientId: event.target.value }))}
+            value={oneTapForm.clientId}
+          />
+        </Field>
+        <Field label="UX mode">
+          <SelectInput
+            onChange={(event) => setOneTapForm((current) => ({ ...current, uxMode: event.target.value as never }))}
+            value={oneTapForm.uxMode}
+          >
+            <option value="popup">Popup</option>
+            <option value="redirect">Redirect</option>
+          </SelectInput>
+        </Field>
+        <Field label="Context">
+          <SelectInput
+            onChange={(event) => setOneTapForm((current) => ({ ...current, context: event.target.value as never }))}
+            value={oneTapForm.context}
+          >
+            <option value="signin">Sign in</option>
+            <option value="signup">Sign up</option>
+            <option value="use">Use</option>
+          </SelectInput>
+        </Field>
+        <BuiltInProviderSwitch
+          checked={oneTapForm.autoSelect}
+          description="Automatically select the Google account when possible."
+          label="Auto select"
+          onCheckedChange={(autoSelect) => setOneTapForm((current) => ({ ...current, autoSelect }))}
+        />
+        <BuiltInProviderSwitch
+          checked={oneTapForm.cancelOnTapOutside}
+          description="Allow the prompt to close when users tap outside it."
+          label="Cancel on outside tap"
+          onCheckedChange={(cancelOnTapOutside) => setOneTapForm((current) => ({ ...current, cancelOnTapOutside }))}
+        />
+        <BuiltInProviderSwitch
+          checked={oneTapForm.disableSignUp}
+          description="Only allow existing users to sign in with One Tap."
+          label="Disable sign up"
+          onCheckedChange={(disableSignUp) => setOneTapForm((current) => ({ ...current, disableSignUp }))}
+        />
+        <Field label="Prompt base delay">
+          <TextInput
+            onChange={(event) =>
+              setOneTapForm((current) => ({ ...current, promptBaseDelayMs: Number(event.target.value) }))
+            }
+            type="number"
+            value={String(oneTapForm.promptBaseDelayMs)}
+          />
+        </Field>
+        <Field label="Prompt max attempts">
+          <TextInput
+            onChange={(event) =>
+              setOneTapForm((current) => ({ ...current, promptMaxAttempts: Number(event.target.value) }))
+            }
+            type="number"
+            value={String(oneTapForm.promptMaxAttempts)}
+          />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <Button disabled={!hasChanges || pending} type="submit">
+            Save
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  const runtimeTitle = builtinProviderRuntimeTitle(provider.providerId)
+  const runtimeDescription = builtinProviderRuntimeDescription(provider.providerId)
+
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm font-semibold">{runtimeTitle}</p>
+      <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+        {runtimeDescription}
+      </p>
+    </div>
+  )
+}
+
+function BuiltInProviderSwitch({
+  checked,
+  description,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean
+  description: string
+  label: string
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch aria-label={label} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
+
+const web3ChainOptions = [
+  { id: 1, label: 'Ethereum Mainnet' },
+  { id: 137, label: 'Polygon' },
+  { id: 8453, label: 'Base' },
+  { id: 42161, label: 'Arbitrum One' },
+  { id: 10, label: 'Optimism' },
+]
+
+function defaultPhoneProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['phone'] {
+  return {
+    enabled: false,
+    smsProvider: 'twilio',
+    otpLength: 6,
+    expiresInSeconds: 300,
+    signUpOnVerification: false,
+    requireVerification: true,
+    twilioAccountSid: '',
+    twilioAuthToken: '',
+    twilioFromNumber: '',
+    vonageApiKey: '',
+    vonageApiSecret: '',
+    vonageFrom: '',
+    messageBirdAccessKey: '',
+    messageBirdOriginator: '',
+  }
+}
+
+function defaultWeb3ProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['web3Wallet'] {
+  return {
+    enabled: false,
+    chains: [1],
+    domain: '',
+    emailDomainName: '',
+    anonymous: true,
+    ensLookupEnabled: false,
+  }
+}
+
+function defaultOneTapProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['oneTap'] {
+  return {
+    enabled: false,
+    clientId: '',
+    autoSelect: false,
+    cancelOnTapOutside: true,
+    uxMode: 'popup',
+    context: 'signin',
+    promptBaseDelayMs: 1000,
+    promptMaxAttempts: 5,
+    disableSignUp: false,
+  }
+}
+
+function builtinProviderRuntimeTitle(providerId: string) {
+  if (providerId === 'phone') return 'SMS runtime'
+  if (providerId === 'web3-wallet') return 'Web3 wallet runtime'
+  if (providerId === 'passkey') return 'Passkey runtime'
+  if (providerId === 'onetap') return 'OneTap runtime'
+  return 'Provider runtime'
+}
+
+function builtinProviderRuntimeDescription(providerId: string) {
+  if (providerId === 'phone') return 'SMS provider is not configured in this runtime.'
+  if (providerId === 'web3-wallet') return 'Wallet sign-in is not configured in this runtime.'
+  if (providerId === 'passkey') return 'Passkey sign-in is managed by Multi-Factor Auth and is not enabled here.'
+  if (providerId === 'onetap') return 'OneTap sign-in is not configured in this runtime.'
+  return 'This provider is not configured in this runtime.'
+}
+
+function CallbackUrlField({ value }: { value: string }) {
+  const id = useId()
+  return (
+    <div className="field">
+      <label htmlFor={id}>Callback URL</label>
+      <div className="flex gap-2">
+        <TextInput className="font-mono" id={id} readOnly value={value} />
+        <Button onClick={() => navigator.clipboard.writeText(value)} type="button" variant="secondary">
+          <Copy data-icon="inline-start" />
+          Copy
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ConnectorDynamicFields({
+  form,
+  isExisting,
+  setForm,
+  template,
+}: {
+  form: FormState
+  isExisting: boolean
+  setForm: (value: SetStateAction<FormState>) => void
+  template: ConnectorTemplate | null
+}) {
+  const fields = connectorTemplateFields(template)
+  if (!fields.length) return null
+
+  return (
+    <div className="grid gap-4">
+      {fields.map((field) => {
+        const value = form[field.formKey] ?? ''
+        return (
+          <Field
+            help={
+              field.key === 'clientSecret' && isExisting
+                ? 'Leave blank to keep the current secret.'
+                : field.required
+                  ? 'Required by this Better Auth provider.'
+                  : 'Optional provider parameter.'
+            }
+            key={field.formKey}
+            label={field.label}
+          >
+            <TextInput
+              onChange={(event) => setValue(setForm, field.formKey, event.target.value)}
+              required={field.required && !(field.key === 'clientSecret' && isExisting)}
+              type={field.secret ? 'password' : 'text'}
+              value={value}
+            />
+          </Field>
+        )
+      })}
+    </div>
+  )
+}
+
+type ConnectorTemplateField = {
+  formKey: string
+  key: string
+  label: string
+  required: boolean
+  secret: boolean
+}
+
+function connectorTemplateFields(template: ConnectorTemplate | null): ConnectorTemplateField[] {
+  if (!template) return []
+  const fields = new Map<string, ConnectorTemplateField>()
+  for (const field of template.requiredFields) addConnectorTemplateField(fields, field, true)
+  for (const field of template.optionalFields) addConnectorTemplateField(fields, field, false)
+  return Array.from(fields.values())
+}
+
+function addConnectorTemplateField(fields: Map<string, ConnectorTemplateField>, field: string, required: boolean) {
+  if (!isConnectorProductField(field)) return
+  const metadataPrefix = 'providerMetadata.'
+  const key = field.startsWith(metadataPrefix) ? field.slice(metadataPrefix.length) : field
+  const formKey = field.startsWith(metadataPrefix) ? `metadata.${key}` : key
+  const existing = fields.get(formKey)
+  fields.set(formKey, {
+    formKey,
+    key,
+    label: connectorFieldLabel(key),
+    required: existing?.required || required,
+    secret: key.toLowerCase().includes('secret'),
+  })
+}
+
+const connectorProductFields = new Set([
+  'clientId',
+  'clientSecret',
+  'providerMetadata.domain',
+  'providerMetadata.region',
+  'providerMetadata.userPoolId',
+])
+
+function isConnectorProductField(field: string) {
+  return connectorProductFields.has(field)
+}
+
+function connectorCallbackUrl(providerId: string) {
+  return `${window.location.origin}/api/auth/callback/${providerId}`
+}
+
 export function SignInSettingsPage() {
   const query = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
   const brandingQuery = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
+  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
-    passwordEnabled: true,
+    passkeyLoginEnabled: false,
+    passwordlessEnabled: false,
+    phoneLoginEnabled: false,
     signupEnabled: true,
     socialLoginEnabled: true,
-    identifierFirst: false,
-    applicationId: '',
-    redirectUri: '',
-    termsUri: '',
-    privacyUri: '',
-    supportEmail: '',
-    productName: '',
-    headline: '',
-    description: '',
+    web3WalletLoginEnabled: false,
   })
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const [minLength, setMinLength] = useState(8)
+  const [requiredCharacterTypes, setRequiredCharacterTypes] = useState(1)
+  const [customWords, setCustomWords] = useState('')
+  const [rejectUserInfo, setRejectUserInfo] = useState(true)
+  const [rejectSequential, setRejectSequential] = useState(true)
+  const [rejectCustomWords, setRejectCustomWords] = useState(false)
   const updateMutation = useAdminMutation({
     mutationFn: updateSignInSettings,
     onSuccess: () => {
-      setValidationError(null)
       return queryClient.invalidateQueries({ queryKey: adminQueryKeys.signIn })
+    },
+  })
+  const securityMutation = useMutation({
+    mutationFn: () =>
+      updateSecurityPolicy({
+        policy: {
+          passkeys: {
+            enabled: form.passkeyLoginEnabled,
+          },
+          password: {
+            minLength,
+            requiredCharacterTypes,
+            customWords: lines(customWords),
+            rejectUserInfo,
+            rejectSequential,
+            rejectCustomWords,
+          },
+        },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
     },
   })
 
   useEffect(() => {
-    if (!query.data) return
+    if (!query.data?.signIn || !query.data.builtInProviders) return
     setForm({
-      passwordEnabled: query.data.signIn.passwordEnabled,
+      passkeyLoginEnabled: securityQuery.data?.policy?.passkeys?.enabled ?? false,
+      passwordlessEnabled: !query.data.signIn.passwordEnabled,
+      phoneLoginEnabled: query.data.builtInProviders.phone.enabled,
       signupEnabled: query.data.signIn.signupEnabled,
       socialLoginEnabled: query.data.signIn.socialLoginEnabled,
-      identifierFirst: query.data.signIn.identifierFirst,
-      applicationId: query.data.defaults.applicationId ?? '',
-      redirectUri: query.data.defaults.redirectUri ?? '',
-      termsUri: query.data.links.termsUri ?? '',
-      privacyUri: query.data.links.privacyUri ?? '',
-      supportEmail: query.data.links.supportEmail ?? '',
-      productName: query.data.copy.productName,
-      headline: query.data.copy.headline,
-      description: query.data.copy.description,
+      web3WalletLoginEnabled: query.data.builtInProviders.web3Wallet.enabled,
     })
-  }, [query.data])
+  }, [query.data, securityQuery.data])
+
+  useEffect(() => {
+    if (!securityQuery.data?.policy?.password) return
+    const policy = securityQuery.data.policy.password
+    setMinLength(policy.minLength)
+    setRequiredCharacterTypes(policy.requiredCharacterTypes)
+    setCustomWords(policy.customWords.join('\n'))
+    setRejectUserInfo(policy.rejectUserInfo)
+    setRejectSequential(policy.rejectSequential)
+    setRejectCustomWords(policy.rejectCustomWords)
+  }, [securityQuery.data])
+
+  const loadedForm =
+    query.data?.signIn && query.data.builtInProviders
+      ? {
+          passkeyLoginEnabled: securityQuery.data?.policy?.passkeys?.enabled ?? false,
+          passwordlessEnabled: !query.data.signIn.passwordEnabled,
+          phoneLoginEnabled: query.data.builtInProviders.phone.enabled,
+          signupEnabled: query.data.signIn.signupEnabled,
+          socialLoginEnabled: query.data.signIn.socialLoginEnabled,
+          web3WalletLoginEnabled: query.data.builtInProviders.web3Wallet.enabled,
+        }
+      : null
+  const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
+  const signInHasChanges = loadedForm
+    ? !shallowEqual(
+        {
+          passwordlessEnabled: form.passwordlessEnabled,
+          phoneLoginEnabled: form.phoneLoginEnabled,
+          signupEnabled: form.signupEnabled,
+          socialLoginEnabled: form.socialLoginEnabled,
+          web3WalletLoginEnabled: form.web3WalletLoginEnabled,
+        },
+        {
+          passwordlessEnabled: loadedForm.passwordlessEnabled,
+          phoneLoginEnabled: loadedForm.phoneLoginEnabled,
+          signupEnabled: loadedForm.signupEnabled,
+          socialLoginEnabled: loadedForm.socialLoginEnabled,
+          web3WalletLoginEnabled: loadedForm.web3WalletLoginEnabled,
+        },
+      )
+    : false
+  const passkeyHasChanges = loadedForm ? form.passkeyLoginEnabled !== loadedForm.passkeyLoginEnabled : false
+  const loadedPasswordPolicy = securityQuery.data?.policy?.password
+    ? {
+        minLength: securityQuery.data.policy.password.minLength,
+        requiredCharacterTypes: securityQuery.data.policy.password.requiredCharacterTypes,
+        customWords: securityQuery.data.policy.password.customWords.join('\n'),
+        rejectUserInfo: securityQuery.data.policy.password.rejectUserInfo,
+        rejectSequential: securityQuery.data.policy.password.rejectSequential,
+        rejectCustomWords: securityQuery.data.policy.password.rejectCustomWords,
+      }
+    : null
+  const passwordPolicyHasChanges = loadedPasswordPolicy
+    ? !shallowEqual(
+        { minLength, requiredCharacterTypes, customWords, rejectUserInfo, rejectSequential, rejectCustomWords },
+        loadedPasswordPolicy,
+      )
+    : false
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    const payload = updateManagementSignInSettingsRequestSchema.safeParse(
-      removeBlankValues({
+    if (signInHasChanges && query.data) {
+      const payload = updateManagementSignInSettingsRequestSchema.parse({
+        builtInProviders: {
+          phone: {
+            ...query.data.builtInProviders.phone,
+            enabled: form.phoneLoginEnabled,
+          },
+          web3Wallet: {
+            ...query.data.builtInProviders.web3Wallet,
+            enabled: form.web3WalletLoginEnabled,
+          },
+        },
         signIn: {
-          passwordEnabled: form.passwordEnabled,
+          passwordEnabled: !form.passwordlessEnabled,
           signupEnabled: form.signupEnabled,
           socialLoginEnabled: form.socialLoginEnabled,
-          identifierFirst: form.identifierFirst,
         },
-        defaults: {
-          applicationId: nullableString(form.applicationId),
-          redirectUri: nullableString(form.redirectUri),
-        },
-        links: {
-          termsUri: nullableString(form.termsUri),
-          privacyUri: nullableString(form.privacyUri),
-          supportEmail: nullableString(form.supportEmail),
-        },
-        copy: {
-          productName: form.productName,
-          headline: form.headline,
-          description: form.description,
-        },
-      }),
-    )
-    if (!payload.success) {
-      setValidationError(payload.error.issues[0]?.message ?? 'Invalid sign-in settings.')
-      return
+      })
+      updateMutation.mutate(payload)
     }
-    setValidationError(null)
-    updateMutation.mutate(payload.data)
+    if (passwordPolicyHasChanges || passkeyHasChanges) securityMutation.mutate()
   }
 
   const preview: HostedAuthPreviewState = {
-    productName: form.productName,
-    headline: form.headline,
-    description: form.description,
+    productName: query.data?.copy?.productName ?? '',
+    headline: query.data?.copy?.headline ?? '',
+    description: query.data?.copy?.description ?? '',
     logoUrl: brandingQuery.data?.branding?.logoUrl ?? undefined,
     primaryColor: brandingQuery.data?.branding?.primaryColor ?? undefined,
     backgroundColor: brandingQuery.data?.branding?.backgroundColor ?? undefined,
     customCss: brandingQuery.data?.branding?.customCss ?? undefined,
-    passwordEnabled: form.passwordEnabled,
+    passwordEnabled: !form.passwordlessEnabled,
+    passkeysEnabled: form.passkeyLoginEnabled,
+    phoneEnabled: form.phoneLoginEnabled,
     signupEnabled: form.signupEnabled,
     socialLoginEnabled: form.socialLoginEnabled,
     socialProviders: connectorsQuery.providers,
-    identifierFirst: form.identifierFirst,
-    usernameEnabled: query.data?.signIn.usernameEnabled,
-    magicLinkEnabled: query.data?.signIn.magicLinkEnabled,
-    emailOtpEnabled: query.data?.signIn.emailOtpEnabled,
-    termsUri: form.termsUri,
-    privacyUri: form.privacyUri,
-    supportEmail: form.supportEmail,
+    oneTapEnabled: query.data?.builtInProviders?.oneTap?.enabled,
+    web3WalletEnabled: form.web3WalletLoginEnabled,
+    identifierFirst: false,
+    usernameEnabled: query.data?.signIn?.usernameEnabled,
+    emailOtpEnabled: query.data?.signIn?.emailOtpEnabled,
+    termsUri: query.data?.links?.termsUri ?? '',
+    privacyUri: query.data?.links?.privacyUri ?? '',
+    supportEmail: query.data?.links?.supportEmail ?? '',
   }
 
   return (
     <SignInExperiencePage
       activeTab="sign-up-and-sign-in"
-      description="Configure identifiers, authentication method visibility, recovery behavior, and hosted auth defaults."
-      error={query.error ?? brandingQuery.error ?? connectorsQuery.error}
-      loading={query.isLoading || brandingQuery.isLoading}
+      description="Configure self-service registration and hosted sign-in method visibility."
+      error={query.error ?? brandingQuery.error ?? securityQuery.error ?? connectorsQuery.error}
+      loading={query.isLoading || brandingQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
         void query.refetch()
         void brandingQuery.refetch()
+        void securityQuery.refetch()
         void connectorsQuery.refetch()
       }}
       title="Sign-up and sign-in"
     >
-      {query.data ? (
+      {query.data && securityQuery.data ? (
         <form onSubmit={onSubmit}>
           <SignInExperienceEditorLayout
             preview={<HostedAuthPreview preview={preview} />}
             settings={
               <SettingsSections>
-                <SettingsSection
-                  title="Sign-up"
-                  description="Control self-service registration and the identifiers collected by hosted auth."
-                >
+                <SettingsSection title="Sign-up" description="Control whether new users can create accounts.">
                   <div className="grid gap-3">
                     <SwitchRow
                       checked={form.signupEnabled}
-                      label="Registration"
+                      label="Allow sign up"
                       onCheckedChange={(signupEnabled) => setForm((value) => ({ ...value, signupEnabled }))}
-                    />
-                    <SettingRow
-                      label="Sign-up identifiers"
-                      value={query.data.signIn.usernameEnabled ? 'Email and username' : 'Email'}
-                    />
-                    <SettingRow
-                      label="Sign-up password requirement"
-                      value={form.passwordEnabled ? 'Password required' : 'Password sign-in disabled'}
                     />
                   </div>
                 </SettingsSection>
                 <SettingsSection
-                  title="Sign-in methods"
-                  description="Control which hosted sign-in options are visible at runtime."
+                  title="Sign-in"
+                  description="Control which non-password sign-in methods are available."
                 >
                   <div className="grid gap-3">
                     <SwitchRow
-                      checked={form.passwordEnabled}
-                      label="Password sign-in"
-                      onCheckedChange={(passwordEnabled) => setForm((value) => ({ ...value, passwordEnabled }))}
-                    />
-                    <SwitchRow
                       checked={form.socialLoginEnabled}
-                      label="Social sign-in"
+                      label="Social login"
                       onCheckedChange={(socialLoginEnabled) => setForm((value) => ({ ...value, socialLoginEnabled }))}
                     />
                     <SwitchRow
-                      checked={form.identifierFirst}
-                      label="Identifier-first flow"
-                      onCheckedChange={(identifierFirst) => setForm((value) => ({ ...value, identifierFirst }))}
+                      checked={form.phoneLoginEnabled}
+                      label="Phone login"
+                      onCheckedChange={(phoneLoginEnabled) => setForm((value) => ({ ...value, phoneLoginEnabled }))}
                     />
-                    <SettingRow
-                      label="Sign-in identifiers"
-                      value={query.data.signIn.usernameEnabled ? 'Email and username' : 'Email'}
+                    <SwitchRow
+                      checked={form.passkeyLoginEnabled}
+                      label="Passkey login"
+                      onCheckedChange={(passkeyLoginEnabled) => setForm((value) => ({ ...value, passkeyLoginEnabled }))}
                     />
-                    {query.data.signIn.magicLinkEnabled ? <SettingRow label="Magic link" value="Enabled" /> : null}
-                    {query.data.signIn.emailOtpEnabled ? <SettingRow label="Email OTP" value="Enabled" /> : null}
-                    <SettingRow label="Social provider setup" value="Managed from Connectors" />
+                    <SwitchRow
+                      checked={form.web3WalletLoginEnabled}
+                      label="Web3 wallet login"
+                      onCheckedChange={(web3WalletLoginEnabled) =>
+                        setForm((value) => ({ ...value, web3WalletLoginEnabled }))
+                      }
+                    />
                   </div>
                 </SettingsSection>
                 <SettingsSection
-                  title="Recovery and redirects"
-                  description="Public defaults exposed through configz and hosted recovery flows."
+                  title="Passwordless"
+                  description="Turn off password-based hosted auth. Password requirements stay visible but only apply when passwords are used."
                 >
-                  <div className="formStack">
-                    <Field label="Default application ID">
+                  <div className="grid gap-4">
+                    <Field label="Passwordless">
+                      <div className="flex min-h-10 items-center justify-between gap-4 rounded-md border border-border px-3 py-2">
+                        <span className="text-sm text-muted-foreground">
+                          {form.passwordlessEnabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <Switch
+                          aria-label="Passwordless"
+                          checked={form.passwordlessEnabled}
+                          onCheckedChange={(passwordlessEnabled) =>
+                            setForm((value) => ({ ...value, passwordlessEnabled }))
+                          }
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Minimum length">
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, applicationId: event.target.value }))}
-                        value={form.applicationId}
+                        aria-label="Minimum length"
+                        disabled={form.passwordlessEnabled}
+                        min={8}
+                        max={128}
+                        onChange={(event) => setMinLength(Number(event.target.value))}
+                        type="number"
+                        value={String(minLength)}
                       />
                     </Field>
-                    <Field label="Unknown-session redirect URL">
-                      <TextInput
-                        aria-label="Default redirect URI"
-                        onChange={(event) => setForm((value) => ({ ...value, redirectUri: event.target.value }))}
-                        type="url"
-                        value={form.redirectUri}
-                      />
+                    <Field label="Required character types">
+                      <SelectInput
+                        aria-label="Required character types"
+                        disabled={form.passwordlessEnabled}
+                        onChange={(event) => setRequiredCharacterTypes(Number(event.target.value))}
+                        value={String(requiredCharacterTypes)}
+                      >
+                        <option value="1">1 required character type</option>
+                        <option value="2">2 required character types</option>
+                        <option value="3">3 required character types</option>
+                        <option value="4">4 required character types</option>
+                      </SelectInput>
                     </Field>
-                    <SettingRow
-                      label="Forgot-password verification"
-                      value={query.data.signIn.emailOtpEnabled ? 'Email OTP available' : 'Email link'}
+                    <SwitchRow
+                      checked={rejectSequential}
+                      disabled={form.passwordlessEnabled}
+                      label="Reject repetitive or sequential characters"
+                      onCheckedChange={setRejectSequential}
                     />
-                    {validationError || updateMutation.errorMessage ? (
-                      <StatusBadge
-                        active={false}
-                        activeLabel=""
-                        inactiveLabel={validationError ?? updateMutation.errorMessage ?? ''}
-                      />
+                    <SwitchRow
+                      checked={rejectUserInfo}
+                      disabled={form.passwordlessEnabled}
+                      label="Reject user information"
+                      onCheckedChange={setRejectUserInfo}
+                    />
+                    <SwitchRow
+                      checked={rejectCustomWords}
+                      disabled={form.passwordlessEnabled}
+                      label="Reject custom words"
+                      onCheckedChange={setRejectCustomWords}
+                    />
+                    {rejectCustomWords && !form.passwordlessEnabled ? (
+                      <Field label="Custom words">
+                        <TextArea
+                          aria-label="Custom words"
+                          onChange={(event) => setCustomWords(event.target.value)}
+                          placeholder={'company\nproduct'}
+                          value={customWords}
+                        />
+                      </Field>
                     ) : null}
                   </div>
                 </SettingsSection>
-                <SettingsSection
-                  title="Hosted copy source"
-                  description="Content is also available on the Content tab and saves through the same management boundary."
-                >
-                  <div className="formStack">
-                    <Field label="Product name">
-                      <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, productName: event.target.value }))}
-                        required
-                        value={form.productName}
-                      />
-                    </Field>
-                    <Field label="Headline">
-                      <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, headline: event.target.value }))}
-                        required
-                        value={form.headline}
-                      />
-                    </Field>
-                    <Field label="Description">
-                      <TextArea
-                        onChange={(event) => setForm((value) => ({ ...value, description: event.target.value }))}
-                        required
-                        value={form.description}
-                      />
-                    </Field>
-                    <Field label="Terms URL">
-                      <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, termsUri: event.target.value }))}
-                        type="url"
-                        value={form.termsUri}
-                      />
-                    </Field>
-                    <Field label="Privacy URL">
-                      <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, privacyUri: event.target.value }))}
-                        type="url"
-                        value={form.privacyUri}
-                      />
-                    </Field>
-                    <Field label="Support email">
-                      <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, supportEmail: event.target.value }))}
-                        type="email"
-                        value={form.supportEmail}
-                      />
-                    </Field>
-                  </div>
-                </SettingsSection>
-                <SettingsSection
-                  title="Changes"
+                <ChangesSection
                   description="Save updates through the management boundary or restore the loaded values."
-                >
-                  <ConsoleActionBar>
-                    <Button disabled={updateMutation.isPending} type="submit">
-                      <Save data-icon="inline-start" />
-                      Save sign-in settings
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setForm({
-                          passwordEnabled: query.data.signIn.passwordEnabled,
-                          signupEnabled: query.data.signIn.signupEnabled,
-                          socialLoginEnabled: query.data.signIn.socialLoginEnabled,
-                          identifierFirst: query.data.signIn.identifierFirst,
-                          applicationId: query.data.defaults.applicationId ?? '',
-                          redirectUri: query.data.defaults.redirectUri ?? '',
-                          termsUri: query.data.links.termsUri ?? '',
-                          privacyUri: query.data.links.privacyUri ?? '',
-                          supportEmail: query.data.links.supportEmail ?? '',
-                          productName: query.data.copy.productName,
-                          headline: query.data.copy.headline,
-                          description: query.data.copy.description,
-                        })
-                        setValidationError(null)
-                      }}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Undo2 data-icon="inline-start" />
-                      Discard
-                    </Button>
-                  </ConsoleActionBar>
-                </SettingsSection>
+                  error={
+                    updateMutation.errorMessage || securityMutation.error ? (
+                      <div className="text-sm text-destructive">
+                        {updateMutation.errorMessage ??
+                          (securityMutation.error instanceof Error
+                            ? securityMutation.error.message
+                            : 'Request failed.')}
+                      </div>
+                    ) : null
+                  }
+                  onDiscard={() => {
+                    if (loadedForm) setForm(loadedForm)
+                    if (loadedPasswordPolicy) {
+                      setMinLength(loadedPasswordPolicy.minLength)
+                      setRequiredCharacterTypes(loadedPasswordPolicy.requiredCharacterTypes)
+                      setCustomWords(loadedPasswordPolicy.customWords)
+                      setRejectUserInfo(loadedPasswordPolicy.rejectUserInfo)
+                      setRejectSequential(loadedPasswordPolicy.rejectSequential)
+                      setRejectCustomWords(loadedPasswordPolicy.rejectCustomWords)
+                    }
+                  }}
+                  pending={updateMutation.isPending || securityMutation.isPending}
+                  saveLabel="Save sign-in settings"
+                  visible={hasChanges || passwordPolicyHasChanges}
+                />
               </SettingsSections>
             }
           />
@@ -2412,16 +3242,54 @@ export function MfaPage() {
   const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
   const queryClient = useQueryClient()
   const [mode, setMode] = useState<'optional' | 'required'>('optional')
+  const [passkeysEnabled, setPasskeysEnabled] = useState(true)
+  const [authenticatorAppEnabled, setAuthenticatorAppEnabled] = useState(true)
+  const [emailOtpEnabled, setEmailOtpEnabled] = useState(false)
+  const [backupCodesEnabled, setBackupCodesEnabled] = useState(true)
   const updateMutation = useMutation({
-    mutationFn: () => updateSecurityPolicy({ policy: { mfa: { mode } } }),
+    mutationFn: () =>
+      updateSecurityPolicy({
+        policy: {
+          mfa: {
+            mode,
+            authenticatorAppEnabled,
+            emailOtpEnabled,
+            backupCodesEnabled,
+          },
+          passkeys: {
+            enabled: passkeysEnabled,
+          },
+        },
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
     },
   })
 
   useEffect(() => {
-    if (query.data) setMode(query.data.policy.mfa.mode)
+    if (!query.data) return
+    setMode(query.data.policy.mfa.mode)
+    setPasskeysEnabled(query.data.policy.passkeys.enabled)
+    setAuthenticatorAppEnabled(query.data.policy.mfa.authenticatorAppEnabled ?? true)
+    setEmailOtpEnabled(query.data.policy.mfa.emailOtpEnabled ?? false)
+    setBackupCodesEnabled(query.data.policy.mfa.backupCodesEnabled ?? true)
   }, [query.data])
+
+  const loadedPolicy = query.data
+    ? {
+        mode: query.data.policy.mfa.mode,
+        passkeysEnabled: query.data.policy.passkeys.enabled,
+        authenticatorAppEnabled: query.data.policy.mfa.authenticatorAppEnabled ?? true,
+        emailOtpEnabled: query.data.policy.mfa.emailOtpEnabled ?? false,
+        backupCodesEnabled: query.data.policy.mfa.backupCodesEnabled ?? true,
+      }
+    : null
+  const hasChanges = loadedPolicy
+    ? !shallowEqual(
+        { mode, passkeysEnabled, authenticatorAppEnabled, emailOtpEnabled, backupCodesEnabled },
+        loadedPolicy,
+      )
+    : false
 
   return (
     <ResourcePage
@@ -2446,12 +3314,34 @@ export function MfaPage() {
               description="Available second factors surfaced by account and deployment support."
             >
               <div className="grid gap-3">
-                {query.data.policy.passkeys.enabled ? (
-                  <SettingRow label="Passkeys" value={query.data.policy.passkeys.rpName} />
-                ) : null}
-                <SettingRow label="Authenticator app" value="Available" />
-                <SettingRow label="Email verification code" value="Available" />
-                <SettingRow label="Backup codes" value="Available" />
+                <MfaFactorSwitch
+                  checked={passkeysEnabled}
+                  description={`Use WebAuthn passkeys for this tenant (${query.data.policy.passkeys.rpName}).`}
+                  icon={<KeyRound size={18} />}
+                  label="Passkeys"
+                  onCheckedChange={setPasskeysEnabled}
+                />
+                <MfaFactorSwitch
+                  checked={authenticatorAppEnabled}
+                  description="Allow users to enroll an authenticator app and verify time-based codes."
+                  icon={<Smartphone size={18} />}
+                  label="Authenticator app"
+                  onCheckedChange={setAuthenticatorAppEnabled}
+                />
+                <MfaFactorSwitch
+                  checked={emailOtpEnabled}
+                  description="Allow email verification codes as a second factor when email delivery is configured."
+                  icon={<Mail size={18} />}
+                  label="Email verification code"
+                  onCheckedChange={setEmailOtpEnabled}
+                />
+                <MfaFactorSwitch
+                  checked={backupCodesEnabled}
+                  description="Allow recovery backup codes generated during authenticator enrollment."
+                  icon={<LifeBuoy size={18} />}
+                  label="Backup codes"
+                  onCheckedChange={setBackupCodesEnabled}
+                />
               </div>
             </SettingsSection>
             <SettingsSection
@@ -2472,19 +3362,21 @@ export function MfaPage() {
                 <SettingRow label="Persisted mode" value={query.data.policy.mfa.mode} />
               </div>
             </SettingsSection>
-            <SettingsSection title="Changes" description="Save or reset tenant MFA policy changes.">
-              <MutationError error={updateMutation.error} />
-              <ConsoleActionBar>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  <Save data-icon="inline-start" />
-                  Save changes
-                </Button>
-                <Button onClick={() => setMode(query.data.policy.mfa.mode)} type="button" variant="ghost">
-                  <Undo2 data-icon="inline-start" />
-                  Discard
-                </Button>
-              </ConsoleActionBar>
-            </SettingsSection>
+            <ChangesSection
+              description="Save or reset tenant MFA policy changes."
+              error={<MutationError error={updateMutation.error} />}
+              onDiscard={() => {
+                if (!loadedPolicy) return
+                setMode(loadedPolicy.mode)
+                setPasskeysEnabled(loadedPolicy.passkeysEnabled)
+                setAuthenticatorAppEnabled(loadedPolicy.authenticatorAppEnabled)
+                setEmailOtpEnabled(loadedPolicy.emailOtpEnabled)
+                setBackupCodesEnabled(loadedPolicy.backupCodesEnabled)
+              }}
+              pending={updateMutation.isPending}
+              saveLabel="Save changes"
+              visible={hasChanges}
+            />
           </SettingsSections>
         </form>
       ) : null}
@@ -2492,158 +3384,38 @@ export function MfaPage() {
   )
 }
 
-export function SecurityPasswordPolicyPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
-  const queryClient = useQueryClient()
-  const [minLength, setMinLength] = useState(8)
-  const [requiredCharacterTypes, setRequiredCharacterTypes] = useState(1)
-  const [customWords, setCustomWords] = useState('')
-  const [rejectUserInfo, setRejectUserInfo] = useState(true)
-  const [rejectSequential, setRejectSequential] = useState(true)
-  const [rejectCustomWords, setRejectCustomWords] = useState(false)
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      updateSecurityPolicy({
-        policy: {
-          password: {
-            minLength,
-            requiredCharacterTypes,
-            customWords: lines(customWords),
-            rejectUserInfo,
-            rejectSequential,
-            rejectCustomWords,
-          },
-        },
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
-    },
-  })
-
-  useEffect(() => {
-    if (!query.data) return
-    const policy = query.data.policy.password
-    setMinLength(policy.minLength)
-    setRequiredCharacterTypes(policy.requiredCharacterTypes)
-    setCustomWords(policy.customWords.join('\n'))
-    setRejectUserInfo(policy.rejectUserInfo)
-    setRejectSequential(policy.rejectSequential)
-    setRejectCustomWords(policy.rejectCustomWords)
-  }, [query.data])
-
+function MfaFactorSwitch({
+  checked,
+  description,
+  icon,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean
+  description: string
+  icon: ReactNode
+  label: string
+  onCheckedChange: (checked: boolean) => void
+}) {
   return (
-    <ResourcePage
-      title="Security"
-      description="Configure password requirements enforced by hosted account flows."
-      error={query.error}
-      framed={false}
-      loading={query.isLoading}
-      onRetry={() => query.refetch()}
-    >
-      <SecuritySectionTabs active="password-policy" />
-      {query.data ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            updateMutation.mutate()
-          }}
-        >
-          <SettingsSections>
-            <SettingsSection title="Password requirements" description="Set minimum strength for new passwords.">
-              <div className="grid gap-4">
-                <Field label="Minimum length">
-                  <TextInput
-                    aria-label="Minimum length"
-                    min={8}
-                    max={128}
-                    onChange={(event) => setMinLength(Number(event.target.value))}
-                    type="number"
-                    value={String(minLength)}
-                  />
-                </Field>
-                <Field label="Required character types">
-                  <SelectInput
-                    aria-label="Required character types"
-                    onChange={(event) => setRequiredCharacterTypes(Number(event.target.value))}
-                    value={String(requiredCharacterTypes)}
-                  >
-                    <option value="1">1 required character type</option>
-                    <option value="2">2 required character types</option>
-                    <option value="3">3 required character types</option>
-                    <option value="4">4 required character types</option>
-                  </SelectInput>
-                </Field>
-                <Field label="Custom words">
-                  <TextArea
-                    aria-label="Custom words"
-                    onChange={(event) => setCustomWords(event.target.value)}
-                    placeholder={'company\nproduct'}
-                    value={customWords}
-                  />
-                </Field>
-              </div>
-            </SettingsSection>
-            <SettingsSection title="Password rejection" description="Choose persisted password rejection rules.">
-              <div className="grid gap-3">
-                <label className="flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm font-medium">
-                  <input
-                    checked={rejectSequential}
-                    className="size-4 accent-primary"
-                    onChange={(event) => setRejectSequential(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Reject repetitive or sequential characters</span>
-                </label>
-                <label className="flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm font-medium">
-                  <input
-                    checked={rejectUserInfo}
-                    className="size-4 accent-primary"
-                    onChange={(event) => setRejectUserInfo(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Reject user information</span>
-                </label>
-                <label className="flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm font-medium">
-                  <input
-                    checked={rejectCustomWords}
-                    className="size-4 accent-primary"
-                    onChange={(event) => setRejectCustomWords(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Reject custom words</span>
-                </label>
-              </div>
-            </SettingsSection>
-            <SettingsSection title="Changes" description="Save or reset password policy changes.">
-              <MutationError error={updateMutation.error} />
-              <ConsoleActionBar>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  <Save data-icon="inline-start" />
-                  Save changes
-                </Button>
-                <Button
-                  onClick={() => {
-                    const policy = query.data.policy.password
-                    setMinLength(policy.minLength)
-                    setRequiredCharacterTypes(policy.requiredCharacterTypes)
-                    setCustomWords(policy.customWords.join('\n'))
-                    setRejectUserInfo(policy.rejectUserInfo)
-                    setRejectSequential(policy.rejectSequential)
-                    setRejectCustomWords(policy.rejectCustomWords)
-                  }}
-                  type="button"
-                  variant="ghost"
-                >
-                  <Undo2 data-icon="inline-start" />
-                  Discard
-                </Button>
-              </ConsoleActionBar>
-            </SettingsSection>
-          </SettingsSections>
-        </form>
-      ) : null}
-    </ResourcePage>
+    <div className="flex items-center gap-3 rounded-md border border-border p-3">
+      <div
+        aria-hidden="true"
+        className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-muted text-primary"
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold leading-5">{label}</div>
+        <p className="m-0 text-sm leading-5 text-muted-foreground">{description}</p>
+      </div>
+      <Switch aria-label={label} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
   )
+}
+
+export function SecurityPasswordPolicyPage() {
+  return <SignInSettingsPage />
 }
 
 export function SecurityCaptchaPage() {
@@ -2668,6 +3440,15 @@ export function SecurityCaptchaPage() {
     setSiteKey(query.data.policy.captcha.siteKey)
     setSecretBinding(query.data.policy.captcha.secretBinding)
   }, [query.data])
+
+  const loadedPolicy = query.data
+    ? {
+        enabled: query.data.policy.captcha.enabled,
+        siteKey: query.data.policy.captcha.siteKey,
+        secretBinding: query.data.policy.captcha.secretBinding,
+      }
+    : null
+  const hasChanges = loadedPolicy ? !shallowEqual({ enabled, siteKey, secretBinding }, loadedPolicy) : false
 
   return (
     <ResourcePage
@@ -2702,9 +3483,9 @@ export function SecurityCaptchaPage() {
                     value={siteKey}
                   />
                 </Field>
-                <Field label="Secret binding">
+                <Field label="Client secret">
                   <TextInput
-                    aria-label="Secret binding"
+                    aria-label="Client secret"
                     onChange={(event) => setSecretBinding(event.target.value)}
                     placeholder="TURNSTILE_SECRET"
                     value={secretBinding}
@@ -2712,27 +3493,19 @@ export function SecurityCaptchaPage() {
                 </Field>
               </div>
             </SettingsSection>
-            <SettingsSection title="Changes" description="Save or reset CAPTCHA policy changes.">
-              <MutationError error={updateMutation.error} />
-              <ConsoleActionBar>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  <Save data-icon="inline-start" />
-                  Save changes
-                </Button>
-                <Button
-                  onClick={() => {
-                    setEnabled(query.data.policy.captcha.enabled)
-                    setSiteKey(query.data.policy.captcha.siteKey)
-                    setSecretBinding(query.data.policy.captcha.secretBinding)
-                  }}
-                  type="button"
-                  variant="ghost"
-                >
-                  <Undo2 data-icon="inline-start" />
-                  Discard
-                </Button>
-              </ConsoleActionBar>
-            </SettingsSection>
+            <ChangesSection
+              description="Save or reset CAPTCHA policy changes."
+              error={<MutationError error={updateMutation.error} />}
+              onDiscard={() => {
+                if (!loadedPolicy) return
+                setEnabled(loadedPolicy.enabled)
+                setSiteKey(loadedPolicy.siteKey)
+                setSecretBinding(loadedPolicy.secretBinding)
+              }}
+              pending={updateMutation.isPending}
+              saveLabel="Save changes"
+              visible={hasChanges}
+            />
           </SettingsSections>
         </form>
       ) : null}
@@ -2760,6 +3533,14 @@ export function SecurityBlocklistPage() {
     setBlockSubaddressing(query.data.policy.blocklist.blockSubaddressing)
     setEntries(query.data.policy.blocklist.entries.join('\n'))
   }, [query.data])
+
+  const loadedPolicy = query.data
+    ? {
+        blockSubaddressing: query.data.policy.blocklist.blockSubaddressing,
+        entries: query.data.policy.blocklist.entries.join('\n'),
+      }
+    : null
+  const hasChanges = loadedPolicy ? !shallowEqual({ blockSubaddressing, entries }, loadedPolicy) : false
 
   return (
     <ResourcePage
@@ -2796,26 +3577,18 @@ export function SecurityBlocklistPage() {
                 </Field>
               </div>
             </SettingsSection>
-            <SettingsSection title="Changes" description="Save or reset blocklist changes.">
-              <MutationError error={updateMutation.error} />
-              <ConsoleActionBar>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  <Save data-icon="inline-start" />
-                  Save changes
-                </Button>
-                <Button
-                  onClick={() => {
-                    setBlockSubaddressing(query.data.policy.blocklist.blockSubaddressing)
-                    setEntries(query.data.policy.blocklist.entries.join('\n'))
-                  }}
-                  type="button"
-                  variant="ghost"
-                >
-                  <Undo2 data-icon="inline-start" />
-                  Discard
-                </Button>
-              </ConsoleActionBar>
-            </SettingsSection>
+            <ChangesSection
+              description="Save or reset blocklist changes."
+              error={<MutationError error={updateMutation.error} />}
+              onDiscard={() => {
+                if (!loadedPolicy) return
+                setBlockSubaddressing(loadedPolicy.blockSubaddressing)
+                setEntries(loadedPolicy.entries)
+              }}
+              pending={updateMutation.isPending}
+              saveLabel="Save changes"
+              visible={hasChanges}
+            />
           </SettingsSections>
         </form>
       ) : null}
@@ -3991,6 +4764,7 @@ function ApiResourceSummaryCard({
 export function BrandingPage() {
   const query = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
   const signInQuery = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
+  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -4027,7 +4801,7 @@ export function BrandingPage() {
   })
 
   useEffect(() => {
-    if (!query.data) return
+    if (!query.data?.copy) return
     setForm({
       logoUrl: query.data.branding.logoUrl ?? '',
       faviconUrl: query.data.branding.faviconUrl ?? '',
@@ -4039,6 +4813,20 @@ export function BrandingPage() {
       description: query.data.copy.description,
     })
   }, [query.data])
+
+  const loadedForm = query.data?.copy
+    ? {
+        logoUrl: query.data.branding.logoUrl ?? '',
+        faviconUrl: query.data.branding.faviconUrl ?? '',
+        primaryColor: query.data.branding.primaryColor ?? '#b42318',
+        backgroundColor: query.data.branding.backgroundColor ?? '#f7f3ee',
+        customCss: query.data.branding.customCss ?? '',
+        productName: query.data.copy.productName,
+        headline: query.data.copy.headline,
+        description: query.data.copy.description,
+      }
+    : null
+  const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -4078,9 +4866,12 @@ export function BrandingPage() {
     signupEnabled: signInQuery.data?.signIn?.signupEnabled,
     socialLoginEnabled: signInQuery.data?.signIn?.socialLoginEnabled,
     socialProviders: connectorsQuery.providers,
+    passkeysEnabled: securityQuery.data?.policy?.passkeys?.enabled,
+    oneTapEnabled: signInQuery.data?.builtInProviders?.oneTap?.enabled,
+    phoneEnabled: signInQuery.data?.builtInProviders?.phone?.enabled,
+    web3WalletEnabled: signInQuery.data?.builtInProviders?.web3Wallet?.enabled,
     identifierFirst: signInQuery.data?.signIn?.identifierFirst,
     usernameEnabled: signInQuery.data?.signIn?.usernameEnabled,
-    magicLinkEnabled: signInQuery.data?.signIn?.magicLinkEnabled,
     emailOtpEnabled: signInQuery.data?.signIn?.emailOtpEnabled,
   }
 
@@ -4089,11 +4880,12 @@ export function BrandingPage() {
       activeTab="branding"
       title="Branding"
       description="Configure hosted sign-in and Account Center brand assets, colors, and constrained theme variables."
-      error={query.error ?? signInQuery.error ?? connectorsQuery.error}
-      loading={query.isLoading || signInQuery.isLoading}
+      error={query.error ?? signInQuery.error ?? securityQuery.error ?? connectorsQuery.error}
+      loading={query.isLoading || signInQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
         void query.refetch()
         void signInQuery.refetch()
+        void securityQuery.refetch()
         void connectorsQuery.refetch()
       }}
     >
@@ -4175,34 +4967,16 @@ export function BrandingPage() {
                     ) : null}
                   </div>
                 </SettingsSection>
-                <SettingsSection title="Changes" description="Save brand updates or restore the loaded values.">
-                  <ConsoleActionBar>
-                    <Button disabled={updateMutation.isPending} type="submit">
-                      <Save data-icon="inline-start" />
-                      Save branding
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setForm({
-                          logoUrl: query.data.branding.logoUrl ?? '',
-                          faviconUrl: query.data.branding.faviconUrl ?? '',
-                          primaryColor: query.data.branding.primaryColor ?? '#b42318',
-                          backgroundColor: query.data.branding.backgroundColor ?? '#f7f3ee',
-                          customCss: query.data.branding.customCss ?? '',
-                          productName: query.data.copy.productName,
-                          headline: query.data.copy.headline,
-                          description: query.data.copy.description,
-                        })
-                        setValidationError(null)
-                      }}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Undo2 data-icon="inline-start" />
-                      Discard
-                    </Button>
-                  </ConsoleActionBar>
-                </SettingsSection>
+                <ChangesSection
+                  description="Save brand updates or restore the loaded values."
+                  onDiscard={() => {
+                    if (loadedForm) setForm(loadedForm)
+                    setValidationError(null)
+                  }}
+                  pending={updateMutation.isPending}
+                  saveLabel="Save branding"
+                  visible={hasChanges}
+                />
               </SettingsSections>
             }
           />
@@ -4259,6 +5033,9 @@ export function AccountCenterSettingsPage() {
     if (query.data) setForm(query.data.accountCenter)
   }, [query.data])
 
+  const loadedForm = query.data?.accountCenter ?? null
+  const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
+
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     updateMutation.mutate({ accountCenter: form })
@@ -4266,6 +5043,12 @@ export function AccountCenterSettingsPage() {
 
   return (
     <SignInExperiencePage
+      action={
+        <Button onClick={() => window.open('/profile', '_blank', 'noopener')} type="button" variant="secondary">
+          <ExternalLink data-icon="inline-start" />
+          Open account center
+        </Button>
+      }
       activeTab="account-center"
       description="Configure the self-service account center exposure and review available account management surfaces."
       error={query.error}
@@ -4332,25 +5115,20 @@ export function AccountCenterSettingsPage() {
                 />
               </div>
             </SettingsSection>
-            <SettingsSection title="Changes" description="Save account center visibility and field permissions.">
-              <ConsoleActionBar>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  <Save data-icon="inline-start" />
-                  Save account center
-                </Button>
-                <Button onClick={() => setForm(query.data.accountCenter)} type="button" variant="ghost">
-                  <Undo2 data-icon="inline-start" />
-                  Discard
-                </Button>
-                <Button onClick={() => window.open('/profile', '_blank', 'noopener')} type="button" variant="secondary">
-                  <ExternalLink data-icon="inline-start" />
-                  Open account center
-                </Button>
-              </ConsoleActionBar>
-              {updateMutation.errorMessage ? (
-                <div className="text-sm text-destructive">{updateMutation.errorMessage}</div>
-              ) : null}
-            </SettingsSection>
+            <ChangesSection
+              description="Save account center visibility and field permissions."
+              error={
+                updateMutation.errorMessage ? (
+                  <div className="text-sm text-destructive">{updateMutation.errorMessage}</div>
+                ) : null
+              }
+              onDiscard={() => {
+                if (loadedForm) setForm(loadedForm)
+              }}
+              pending={updateMutation.isPending}
+              saveLabel="Save account center"
+              visible={hasChanges}
+            />
           </SettingsSections>
         </form>
       ) : null}
@@ -4361,6 +5139,7 @@ export function AccountCenterSettingsPage() {
 export function ContentSettingsPage() {
   const query = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
   const brandingQuery = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
+  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -4381,16 +5160,28 @@ export function ContentSettingsPage() {
   })
 
   useEffect(() => {
-    if (!query.data) return
+    if (!query.data?.copy) return
     setForm({
       productName: query.data.copy.productName,
       headline: query.data.copy.headline,
       description: query.data.copy.description,
-      termsUri: query.data.links.termsUri ?? '',
-      privacyUri: query.data.links.privacyUri ?? '',
-      supportEmail: query.data.links.supportEmail ?? '',
+      termsUri: query.data.links?.termsUri ?? '',
+      privacyUri: query.data.links?.privacyUri ?? '',
+      supportEmail: query.data.links?.supportEmail ?? '',
     })
   }, [query.data])
+
+  const loadedForm = query.data?.copy
+    ? {
+        productName: query.data.copy.productName,
+        headline: query.data.copy.headline,
+        description: query.data.copy.description,
+        termsUri: query.data.links?.termsUri ?? '',
+        privacyUri: query.data.links?.privacyUri ?? '',
+        supportEmail: query.data.links?.supportEmail ?? '',
+      }
+    : null
+  const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -4422,14 +5213,17 @@ export function ContentSettingsPage() {
     primaryColor: brandingQuery.data?.branding?.primaryColor ?? undefined,
     backgroundColor: brandingQuery.data?.branding?.backgroundColor ?? undefined,
     customCss: brandingQuery.data?.branding?.customCss ?? undefined,
-    passwordEnabled: query.data?.signIn.passwordEnabled,
-    signupEnabled: query.data?.signIn.signupEnabled,
-    socialLoginEnabled: query.data?.signIn.socialLoginEnabled,
+    passwordEnabled: query.data?.signIn?.passwordEnabled,
+    signupEnabled: query.data?.signIn?.signupEnabled,
+    socialLoginEnabled: query.data?.signIn?.socialLoginEnabled,
     socialProviders: connectorsQuery.providers,
-    identifierFirst: query.data?.signIn.identifierFirst,
-    usernameEnabled: query.data?.signIn.usernameEnabled,
-    magicLinkEnabled: query.data?.signIn.magicLinkEnabled,
-    emailOtpEnabled: query.data?.signIn.emailOtpEnabled,
+    passkeysEnabled: securityQuery.data?.policy?.passkeys?.enabled,
+    oneTapEnabled: query.data?.builtInProviders?.oneTap?.enabled,
+    phoneEnabled: query.data?.builtInProviders?.phone?.enabled,
+    web3WalletEnabled: query.data?.builtInProviders?.web3Wallet?.enabled,
+    identifierFirst: query.data?.signIn?.identifierFirst,
+    usernameEnabled: query.data?.signIn?.usernameEnabled,
+    emailOtpEnabled: query.data?.signIn?.emailOtpEnabled,
     termsUri: form.termsUri,
     privacyUri: form.privacyUri,
     supportEmail: form.supportEmail,
@@ -4439,11 +5233,12 @@ export function ContentSettingsPage() {
     <SignInExperiencePage
       activeTab="content"
       description="Manage hosted authentication language, page messages, and legal links."
-      error={query.error ?? brandingQuery.error ?? connectorsQuery.error}
-      loading={query.isLoading || brandingQuery.isLoading}
+      error={query.error ?? brandingQuery.error ?? securityQuery.error ?? connectorsQuery.error}
+      loading={query.isLoading || brandingQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
         void query.refetch()
         void brandingQuery.refetch()
+        void securityQuery.refetch()
         void connectorsQuery.refetch()
       }}
       title="Content"
@@ -4517,32 +5312,16 @@ export function ContentSettingsPage() {
                     ) : null}
                   </div>
                 </SettingsSection>
-                <SettingsSection title="Changes" description="Save hosted copy updates or restore the loaded values.">
-                  <ConsoleActionBar>
-                    <Button disabled={updateMutation.isPending} type="submit">
-                      <Save data-icon="inline-start" />
-                      Save content
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setForm({
-                          productName: query.data.copy.productName,
-                          headline: query.data.copy.headline,
-                          description: query.data.copy.description,
-                          termsUri: query.data.links.termsUri ?? '',
-                          privacyUri: query.data.links.privacyUri ?? '',
-                          supportEmail: query.data.links.supportEmail ?? '',
-                        })
-                        setValidationError(null)
-                      }}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Undo2 data-icon="inline-start" />
-                      Discard
-                    </Button>
-                  </ConsoleActionBar>
-                </SettingsSection>
+                <ChangesSection
+                  description="Save hosted copy updates or restore the loaded values."
+                  onDiscard={() => {
+                    if (loadedForm) setForm(loadedForm)
+                    setValidationError(null)
+                  }}
+                  pending={updateMutation.isPending}
+                  saveLabel="Save content"
+                  visible={hasChanges}
+                />
               </SettingsSections>
             }
           />
@@ -5226,6 +6005,7 @@ const signInExperienceTabs: SignInExperienceTab[] = [
 
 function SignInExperiencePage({
   activeTab,
+  action,
   children,
   description,
   error,
@@ -5234,6 +6014,7 @@ function SignInExperiencePage({
   title,
 }: {
   activeTab: string
+  action?: ReactNode
   children: ReactNode
   description: string
   error?: Error | null
@@ -5243,6 +6024,7 @@ function SignInExperiencePage({
 }) {
   return (
     <ResourcePage
+      action={action}
       description={description}
       error={error}
       framed={false}
@@ -5275,19 +6057,29 @@ function SignInExperienceEditorLayout({ preview, settings }: { preview: ReactNod
 
 function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
   const [surface, setSurface] = useState<SignInPreviewSurface>('desktop')
+  const [flow, setFlow] = useState<HostedAuthPreviewFlow>('sign-in')
+  const [signupForm, setSignupForm] = useState({ email: '', name: '', password: '', username: '' })
   const previewStyle = {
     '--brand-primary': preview.primaryColor ?? '#b42318',
     '--brand-background': preview.backgroundColor ?? '#f7f3ee',
     ...customCssProperties(preview.customCss ?? ''),
   } as CSSProperties
   const productName = preview.productName || 'FlareAuth'
-  const methods = hostedAuthMethods(preview)
+  const primaryMode = hostedAuthMode(preview)
+  const previewMode = flow === 'email' ? 'otp' : primaryMode
   const socialProviders = preview.socialProviders ?? []
+  const effectiveFlow =
+    flow === 'sign-up' && !preview.signupEnabled
+      ? 'sign-in'
+      : flow === 'email' && !preview.emailOtpEnabled
+        ? 'sign-in'
+        : flow
   const legalLinks = [
     preview.termsUri ? ['Terms', preview.termsUri] : null,
     preview.privacyUri ? ['Privacy', preview.privacyUri] : null,
     preview.supportEmail ? ['Support', `mailto:${preview.supportEmail}`] : null,
   ].filter((link): link is [string, string] => link !== null)
+  const previewTitle = effectiveFlow === 'sign-up' ? 'Create account' : preview.headline || 'Sign in to continue.'
 
   return (
     <div className="hostedPreviewShell">
@@ -5307,75 +6099,134 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
         className={cn('brandingPreview hostedAuthPreview', surface === 'mobile' && 'hostedAuthPreview-mobile')}
         style={previewStyle}
       >
-        <section className="hostedAuthPanel" aria-label={`${productName} hosted sign-in preview`}>
-          <div className="authBrandPanel">
+        <AuthCardFrame
+          ariaLabel={`${productName} hosted sign-in preview`}
+          brand={
             <div className="brand brandLink">
               <PreviewBrandMark logoUrl={preview.logoUrl} productName={productName} />
               <span>{productName}</span>
             </div>
-            <p className="eyebrow">Hosted sign-in</p>
-            <h2>{preview.headline || 'Sign in to continue.'}</h2>
-            <p>{preview.description || 'Use one of the enabled methods to access this application.'}</p>
-          </div>
-          <div className="authContent">
-            <div className="authCardHeader">
-              <h2>{preview.identifierFirst ? 'Enter your identifier' : 'Choose how to continue'}</h2>
-              <p>
-                {preview.identifierFirst
-                  ? 'Start with the email or username for your hosted account.'
-                  : methodHelpText(methods)}
-              </p>
-            </div>
-            {methods.length > 1 ? (
-              <div className="segmented" role="tablist" aria-label="Sign-in method preview">
-                {methods.map((method, index) => (
-                  <button className={index === 0 ? 'active' : ''} key={method} type="button">
-                    {method}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="formStack">
-              <label className="field">
-                {preview.usernameEnabled ? 'Email or username' : 'Email'}
-                <input className="textInput" readOnly type="text" value="" />
-              </label>
-              {preview.passwordEnabled !== false && !preview.identifierFirst ? (
+          }
+          className="hostedAuthPanel"
+          description={preview.description || 'Use one of the enabled methods to access this application.'}
+          eyebrow="Hosted sign-in"
+          headingLevel={2}
+          legalLinks={legalLinks}
+          productName={productName}
+          title={previewTitle}
+          titleId="hosted-preview-title"
+        >
+          {effectiveFlow === 'sign-up' ? (
+            <SignUpCardBody
+              created={false}
+              form={
+                <SignUpForm
+                  email={signupForm.email}
+                  name={signupForm.name}
+                  onEmailChange={(email) => setSignupForm((current) => ({ ...current, email }))}
+                  onNameChange={(name) => setSignupForm((current) => ({ ...current, name }))}
+                  onPasswordChange={(password) => setSignupForm((current) => ({ ...current, password }))}
+                  onSubmit={(event) => event.preventDefault()}
+                  onUsernameChange={(username) => setSignupForm((current) => ({ ...current, username }))}
+                  password={signupForm.password}
+                  username={signupForm.username}
+                  usernameEnabled={preview.usernameEnabled}
+                />
+              }
+              signInAction={
+                <button className="authSignupLink" onClick={() => setFlow('sign-in')} type="button">
+                  Already have an account?
+                </button>
+              }
+              socialButtons={
+                preview.socialLoginEnabled && socialProviders.length > 0 ? (
+                  <SignInMethodButtons
+                    callback={undefined}
+                    emailEnabled={false}
+                    onEmailClick={() => undefined}
+                    oneTapEnabled={false}
+                    onProviderClick={() => undefined}
+                    passkeyEnabled={false}
+                    phoneEnabled={false}
+                    phoneVisible={false}
+                    providers={socialProviders}
+                    walletEnabled={false}
+                  />
+                ) : null
+              }
+            />
+          ) : (
+            <SignInCardBody
+              footer={null}
+              methodButtons={
+                preview.emailOtpEnabled ||
+                preview.phoneEnabled ||
+                preview.passkeysEnabled ||
+                preview.oneTapEnabled ||
+                preview.web3WalletEnabled ||
+                (preview.socialLoginEnabled && socialProviders.length > 0) ? (
+                  <SignInMethodButtons
+                    callback={undefined}
+                    emailEnabled={Boolean(preview.emailOtpEnabled)}
+                    onEmailClick={() => setFlow('email')}
+                    onOneTapClick={() => undefined}
+                    onPasskeyClick={() => undefined}
+                    onPhoneClick={() => undefined}
+                    onProviderClick={() => undefined}
+                    onWalletClick={() => undefined}
+                    oneTapEnabled={Boolean(preview.oneTapEnabled)}
+                    passkeyEnabled={Boolean(preview.passkeysEnabled)}
+                    phoneEnabled={Boolean(preview.phoneEnabled)}
+                    phoneVisible={Boolean(preview.phoneEnabled)}
+                    providers={preview.socialLoginEnabled ? socialProviders : []}
+                    walletEnabled={Boolean(preview.web3WalletEnabled)}
+                  />
+                ) : null
+              }
+              showDivider={Boolean(
+                previewMode &&
+                  (preview.emailOtpEnabled ||
+                    preview.phoneEnabled ||
+                    preview.passkeysEnabled ||
+                    preview.oneTapEnabled ||
+                    preview.web3WalletEnabled ||
+                    (preview.socialLoginEnabled && socialProviders.length > 0)),
+              )}
+            >
+              <div className="formStack">
                 <label className="field">
-                  Password
-                  <input className="textInput" readOnly type="password" value="" />
+                  {effectiveFlow === 'email' || !preview.usernameEnabled ? 'Email' : 'Email or username'}
+                  <input className="textInput" readOnly type={effectiveFlow === 'email' ? 'email' : 'text'} value="" />
                 </label>
-              ) : null}
-              <button className="uiButton uiButton-primary w-full" type="button">
-                <KeyRound data-icon="inline-start" size={16} />
-                {preview.identifierFirst ? 'Continue' : 'Sign in'}
-              </button>
-            </div>
-            {preview.socialLoginEnabled && socialProviders.length > 0 ? (
-              <div className="socialGrid mt-3">
-                {socialProviders.map((provider) => (
-                  <button className="socialButton w-full" key={provider.slug} type="button">
-                    <span aria-hidden="true" className="providerIcon">
-                      {provider.displayName.slice(0, 2).toUpperCase()}
-                    </span>
-                    Continue with {provider.displayName}
+                {previewMode === 'password' && !preview.identifierFirst ? (
+                  <label className="field">
+                    Password
+                    <input className="textInput" readOnly type="password" value="" />
+                  </label>
+                ) : null}
+                <button className="uiButton uiButton-primary w-full" type="button">
+                  <KeyRound data-icon="inline-start" size={16} />
+                  {preview.identifierFirst && effectiveFlow === 'sign-in'
+                    ? 'Continue'
+                    : previewSignInAction(previewMode)}
+                </button>
+                {effectiveFlow === 'email' ? (
+                  <button className="authBackAction" onClick={() => setFlow('sign-in')} type="button">
+                    Back to sign in
                   </button>
-                ))}
+                ) : null}
+                {effectiveFlow === 'sign-in' && preview.signupEnabled ? (
+                  <p className="authSignupPrompt">
+                    No account yet?{' '}
+                    <button className="authSignupLink" onClick={() => setFlow('sign-up')} type="button">
+                      Create account
+                    </button>
+                  </p>
+                ) : null}
               </div>
-            ) : null}
-            {preview.signupEnabled ? <p className="hostedPreviewPrompt">No account yet? Sign up</p> : null}
-            {legalLinks.length > 0 ? (
-              <div className="authLinks">
-                {legalLinks.map(([label, href]) => (
-                  <a href={href} key={label}>
-                    {label}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <p className="authPoweredBy">Powered by {productName}</p>
-        </section>
+            </SignInCardBody>
+          )}
+        </AuthCardFrame>
       </div>
       <Button onClick={() => window.open('/sign-in', '_blank', 'noopener')} type="button" variant="secondary">
         <Eye data-icon="inline-start" />
@@ -5406,19 +6257,15 @@ function PreviewBrandMark({ logoUrl, productName }: { logoUrl?: string | null; p
   return <span className="brandMark">{brandInitial}</span>
 }
 
-function hostedAuthMethods(preview: HostedAuthPreviewState) {
-  const methods = [
-    preview.passwordEnabled === false ? null : 'Password',
-    preview.magicLinkEnabled ? 'Magic link' : null,
-    preview.emailOtpEnabled ? 'Email OTP' : null,
-  ].filter((method): method is string => method !== null)
-  return methods.length > 0 ? methods : ['Unavailable']
+function hostedAuthMode(preview: HostedAuthPreviewState): SignInMode | null {
+  if (preview.passwordEnabled !== false) return 'password'
+  if (preview.emailOtpEnabled) return 'otp'
+  return null
 }
 
-function methodHelpText(methods: string[]) {
-  if (methods.length === 1 && methods[0] === 'Unavailable') return 'No sign-in methods are enabled.'
-  if (methods.length === 1) return `${methods[0]} sign-in is available for hosted auth.`
-  return 'Choose an enabled method to access this application.'
+function previewSignInAction(mode: SignInMode | null) {
+  if (mode === 'otp') return 'Send code'
+  return 'Sign in'
 }
 
 function SettingsSections({ children }: { children: ReactNode }) {
@@ -5441,6 +6288,49 @@ function SettingsSection({
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
       </div>
       <div className="min-w-0">{children}</div>
+    </section>
+  )
+}
+
+function ChangesSection({
+  description,
+  error,
+  extraAction,
+  onDiscard,
+  pending,
+  saveLabel,
+  visible,
+}: {
+  description: string
+  error?: ReactNode
+  extraAction?: ReactNode
+  onDiscard: () => void
+  pending: boolean
+  saveLabel: string
+  visible: boolean
+}) {
+  if (!visible) return null
+
+  return (
+    <section aria-label="Unsaved changes" className="changesSheet">
+      <div className="min-w-0">
+        <h2 className="text-xs font-semibold uppercase leading-5 tracking-[0.12em] text-muted-foreground">Changes</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      <div className="changesSheetControls">
+        {error}
+        <div className="changesSheetActions">
+          {extraAction}
+          <Button onClick={onDiscard} type="button" variant="ghost">
+            <Undo2 data-icon="inline-start" />
+            Discard
+          </Button>
+          <Button disabled={pending} type="submit">
+            <Save data-icon="inline-start" />
+            {saveLabel}
+          </Button>
+        </div>
+      </div>
     </section>
   )
 }
@@ -5657,13 +6547,7 @@ function ResourcePage({
 }) {
   return (
     <>
-      <PageHeader
-        action={action}
-        breadcrumb={['Console', title]}
-        description={description}
-        eyebrow="Console"
-        title={title}
-      />
+      <PageHeader action={action} description={description} title={title} />
       {toolbar ? <div>{toolbar}</div> : null}
       {loading ? <LoadingState label={`Loading ${title.toLowerCase()}`} /> : null}
       {error ? <ErrorState error={error} onRetry={onRetry} /> : null}
@@ -5895,13 +6779,12 @@ function SetupChecklist({ items, title }: { items: ManagementReadinessItem[]; ti
   )
 }
 
-function SecuritySectionTabs({ active }: { active: 'password-policy' | 'captcha' | 'blocklist' | 'general' }) {
+function SecuritySectionTabs({ active }: { active: 'captcha' | 'blocklist' | 'general' }) {
   return (
     <RoutedSettingsTabs
       active={active}
       ariaLabel="Security settings"
       tabs={[
-        ['password-policy', 'Password policy', '/console/security/password-policy'],
         ['captcha', 'CAPTCHA', '/console/security/captcha'],
         ['blocklist', 'Blocklist', '/console/security/blocklist'],
         ['general', 'General', '/console/security/general'],
@@ -5915,19 +6798,6 @@ function lines(value: string) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-}
-
-function ConnectorSectionTabs({ active }: { active: 'passwordless' | 'social' }) {
-  return (
-    <RoutedSettingsTabs
-      active={active}
-      ariaLabel="Connector settings"
-      tabs={[
-        ['passwordless', 'Passwordless', '/console/connectors/passwordless'],
-        ['social', 'Social', '/console/connectors/social'],
-      ]}
-    />
-  )
 }
 
 function RoutedSettingsTabs<TValue extends string>({
@@ -5967,83 +6837,6 @@ function RoutedSettingsTabs<TValue extends string>({
         </a>
       ))}
     </nav>
-  )
-}
-
-function ConnectorSetupRow({
-  action,
-  description,
-  onAction,
-  status,
-  title,
-  type,
-}: {
-  action: string
-  description: string
-  onAction: () => void
-  status: ReactNode
-  title: string
-  type: string
-}) {
-  return (
-    <div className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_10rem_14rem] md:items-center">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
-      </div>
-      <span className="text-sm text-muted-foreground">{type}</span>
-      <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        {status}
-        <Button className="whitespace-nowrap" onClick={onAction} size="sm" type="button" variant="secondary">
-          {action}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function EmailConnectorDetailsDialog({
-  emailOtpEnabled,
-  emailReadiness,
-  emailReady,
-  magicLinkEnabled,
-  onClose,
-  open,
-}: {
-  emailOtpEnabled: boolean
-  emailReadiness: ManagementReadinessItem | undefined
-  emailReady: boolean | undefined
-  magicLinkEnabled: boolean
-  onClose: () => void
-  open: boolean
-}) {
-  return (
-    <Dialog open={open}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Cloudflare Email connector</DialogTitle>
-          <DialogDescription>
-            Built-in passwordless email delivery uses the Worker runtime binding and configured sender.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3 p-4">
-          <SettingRow
-            label="Runtime state"
-            value={emailReady === true ? 'Configured' : emailReady === false ? 'Needs configuration' : 'Unknown'}
-          />
-          <SettingRow label="Delivery binding" value="EMAIL" />
-          <SettingRow label="Sender binding" value="EMAIL_FROM" />
-          <SettingRow label="Magic link" value={magicLinkEnabled ? 'Enabled' : 'Disabled'} />
-          <SettingRow label="Email code" value={emailOtpEnabled ? 'Enabled' : 'Disabled'} />
-          {emailReadiness ? <SettingRow label="Readiness detail" value={emailReadiness.description} /> : null}
-        </div>
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="secondary">
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -6348,7 +7141,12 @@ function useConnectorPreviewProviders() {
     ...query,
     providers: connectors
       .filter((connector) => connector.enabled)
-      .map((connector) => ({ displayName: connector.displayName, slug: connector.slug })),
+      .map((connector) => ({
+        displayName: connector.displayName,
+        icon: connector.providerType === 'social' ? connector.providerId : 'oauth',
+        providerId: connector.providerId,
+        slug: connector.slug,
+      })),
   }
 }
 
@@ -6554,203 +7352,6 @@ function CreateUserDialog({
   )
 }
 
-function CreateConnectorDialog({
-  error,
-  onClose,
-  onSubmit,
-  open,
-  pending,
-  templates,
-}: {
-  error: string | null
-  onClose: () => void
-  onSubmit: (input: z.infer<typeof createManagementConnectorRequestSchema>) => void
-  open: boolean
-  pending: boolean
-  templates: ConnectorTemplate[]
-}) {
-  const [form, setForm] = useState<FormState>(emptyForm)
-  const [validationError, setValidationError] = useState<string | null>(null)
-  const selectedTemplate = templates.find((template) => connectorTemplateKey(template) === form.templateKey)
-  const selectedProviderType = selectedTemplate?.providerType ?? 'social'
-  const isGenericOAuth = selectedProviderType === 'generic_oauth'
-  const isSocial = selectedProviderType === 'social'
-  const requiredMetadataFields =
-    selectedTemplate?.requiredFields.filter((field) => field.startsWith('providerMetadata.')) ?? []
-  return (
-    <Dialog open={open}>
-      <FormDialog
-        error={validationError ?? error}
-        onClose={onClose}
-        onSubmit={(event) => {
-          event.preventDefault()
-          try {
-            setValidationError(null)
-            onSubmit(
-              parseForm(createManagementConnectorRequestSchema, {
-                ...form,
-                enabled: form.enabled === 'false' ? false : undefined,
-                providerType: selectedProviderType,
-                providerId:
-                  selectedTemplate?.providerType === 'generic_oauth'
-                    ? form.providerId
-                    : (selectedTemplate?.providerId ?? form.providerId),
-                displayName: isSocial
-                  ? selectedTemplate?.displayName
-                  : form.displayName || selectedTemplate?.displayName,
-                templateKey: undefined,
-                scopes: isSocial ? selectedTemplate?.defaultScopes : form.scopes?.split(/\s+/).filter(Boolean),
-                providerMetadata: parseConnectorMetadata(form),
-              }),
-            )
-          } catch (submitError) {
-            setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
-          }
-        }}
-        pending={pending}
-        title="Create connector"
-      >
-        <ConnectorTemplateCards
-          onChange={(template) => {
-            setForm({
-              templateKey: connectorTemplateKey(template),
-              displayName: template.displayName,
-              providerId: template.providerType === 'generic_oauth' ? '' : template.providerId,
-              scopes: template.defaultScopes.join(' '),
-              enabled: 'true',
-            })
-          }}
-          templates={templates}
-          value={form.templateKey ?? ''}
-        />
-        {selectedTemplate ? (
-          <div className="rounded-md border border-border bg-muted/25 p-3 text-sm text-muted-foreground">
-            {selectedTemplate.displayName} defaults are applied from the provider template. Only deployment credentials
-            and required provider-specific fields are collected here.
-          </div>
-        ) : null}
-        {isGenericOAuth ? (
-          <Field label="Provider ID" help="Stable provider key used by hosted sign-in.">
-            <TextInput
-              onChange={(event) => setValue(setForm, 'providerId', event.target.value)}
-              placeholder="acme-idp"
-              required
-              value={form.providerId ?? ''}
-            />
-          </Field>
-        ) : null}
-        {isGenericOAuth ? (
-          <>
-            <Field label="Display name">
-              <TextInput
-                onChange={(event) => setValue(setForm, 'displayName', event.target.value)}
-                required
-                value={form.displayName ?? ''}
-              />
-            </Field>
-            <Field label="Status">
-              <SelectInput
-                onChange={(event) => setValue(setForm, 'enabled', event.target.value)}
-                value={form.enabled ?? 'true'}
-              >
-                <option value="true">Enabled</option>
-                <option value="false">Disabled draft</option>
-              </SelectInput>
-            </Field>
-          </>
-        ) : null}
-        <Field label="Client ID">
-          <TextInput onChange={(event) => setValue(setForm, 'clientId', event.target.value)} />
-        </Field>
-        <Field label="Client secret binding">
-          <TextInput onChange={(event) => setValue(setForm, 'clientSecretBinding', event.target.value)} />
-        </Field>
-        {requiredMetadataFields.map((field) => {
-          const metadataKey = field.replace('providerMetadata.', '')
-          return (
-            <Field key={field} label={connectorFieldLabel(metadataKey)}>
-              <TextInput
-                onChange={(event) => setValue(setForm, `metadata.${metadataKey}`, event.target.value)}
-                required
-                value={form[`metadata.${metadataKey}`] ?? ''}
-              />
-            </Field>
-          )
-        })}
-        {isGenericOAuth ? (
-          <>
-            <Field label="Issuer">
-              <TextInput onChange={(event) => setValue(setForm, 'issuer', event.target.value)} />
-            </Field>
-            <Field label="Authorization endpoint">
-              <TextInput onChange={(event) => setValue(setForm, 'authorizationEndpoint', event.target.value)} />
-            </Field>
-            <Field label="Token endpoint">
-              <TextInput onChange={(event) => setValue(setForm, 'tokenEndpoint', event.target.value)} />
-            </Field>
-            <Field label="User info endpoint">
-              <TextInput onChange={(event) => setValue(setForm, 'userInfoEndpoint', event.target.value)} />
-            </Field>
-            <Field label="JWKS endpoint">
-              <TextInput onChange={(event) => setValue(setForm, 'jwksEndpoint', event.target.value)} />
-            </Field>
-            <Field label="Provider metadata JSON">
-              <TextArea onChange={(event) => setValue(setForm, 'providerMetadata', event.target.value)} />
-            </Field>
-          </>
-        ) : null}
-        {isGenericOAuth ? (
-          <Field label="Scopes" help="Space-separated OAuth scopes. Provider defaults are prefilled.">
-            <TextInput
-              onChange={(event) => setValue(setForm, 'scopes', event.target.value)}
-              placeholder="openid profile email"
-              value={form.scopes ?? ''}
-            />
-          </Field>
-        ) : null}
-      </FormDialog>
-    </Dialog>
-  )
-}
-
-function ConnectorTemplateCards({
-  onChange,
-  templates,
-  value,
-}: {
-  onChange: (template: ConnectorTemplate) => void
-  templates: ConnectorTemplate[]
-  value: string
-}) {
-  return (
-    <fieldset className="applicationTypeGrid">
-      <legend>Provider template</legend>
-      {templates.map((template) => {
-        const key = connectorTemplateKey(template)
-        return (
-          <button
-            aria-pressed={value === key}
-            className={cn('applicationTypeCard', value === key && 'selected')}
-            key={key}
-            onClick={() => onChange(template)}
-            type="button"
-          >
-            <span className="applicationTypeIcon" aria-hidden="true">
-              {template.providerType === 'generic_oauth' ? <Globe2 size={18} /> : <AppWindow size={18} />}
-            </span>
-            <span>
-              <strong>{template.displayName}</strong>
-              <small>
-                {template.providerType === 'generic_oauth' ? 'Custom OAuth endpoints' : 'Managed social defaults'}
-              </small>
-            </span>
-          </button>
-        )
-      })}
-    </fieldset>
-  )
-}
-
 function CreateRoleDialog({
   error,
   onClose,
@@ -6805,250 +7406,6 @@ function CreateRoleDialog({
           </SelectInput>
         </Field>
       </FormDialog>
-    </Dialog>
-  )
-}
-
-function ConnectorDetailDialog({
-  connector,
-  error,
-  mode,
-  onClose,
-  onRefreshReadiness,
-  onSubmit,
-  open,
-  pending,
-  readiness,
-  template,
-  templateLoading,
-}: {
-  connector: ConnectorResponse | null
-  error: string | null
-  mode: 'edit' | 'test'
-  onClose: () => void
-  onRefreshReadiness: () => void
-  onSubmit: (input: z.infer<typeof updateManagementConnectorRequestSchema>) => void
-  open: boolean
-  pending: boolean
-  readiness: { ready: boolean; checks: Array<{ key: string; label: string; ok: boolean; message: string }> } | null
-  template: ConnectorTemplate | null
-  templateLoading: boolean
-}) {
-  const [form, setForm] = useState<FormState>(() => connectorToForm(connector))
-  const [validationError, setValidationError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setForm(connectorToForm(connector))
-    setValidationError(null)
-  }, [connector])
-  const isGenericOAuth = connector?.providerType === 'generic_oauth'
-  const requiredMetadataFields = template?.requiredFields.filter((field) => field.startsWith('providerMetadata.')) ?? []
-
-  if (!connector) {
-    return (
-      <Dialog open={open}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Connector details</DialogTitle>
-            <DialogDescription>Loading connector configuration.</DialogDescription>
-          </DialogHeader>
-          {error ? (
-            <div className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">{error}</div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  return (
-    <Dialog open={open}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{connector.displayName}</DialogTitle>
-          <DialogDescription>
-            {mode === 'test' ? 'Review the latest readiness checks for' : 'Edit'} {connector.providerId}{' '}
-            {connector.providerType === 'generic_oauth' ? 'generic OAuth' : 'social'} connector configuration.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 p-4">
-          <div className="grid gap-2 rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium">Configuration readiness</span>
-              <div className="flex items-center gap-2">
-                <Badge variant={readiness?.ready ? 'secondary' : 'outline'}>
-                  {readiness?.ready ? 'Ready' : 'Needs attention'}
-                </Badge>
-                <Button disabled={pending} onClick={onRefreshReadiness} size="sm" type="button" variant="secondary">
-                  <RefreshCw data-icon="inline-start" />
-                  Run test
-                </Button>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              {readiness?.checks.length ? (
-                readiness.checks.map((check) => (
-                  <div className="flex items-start gap-2 text-sm" key={check.key}>
-                    {check.ok ? (
-                      <CheckCircle2 aria-hidden="true" size={16} />
-                    ) : (
-                      <AlertCircle aria-hidden="true" size={16} />
-                    )}
-                    <div>
-                      <div>{check.label}</div>
-                      <div className="text-xs text-muted-foreground">{check.message}</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">Readiness checks have not reported for this connector.</p>
-              )}
-            </div>
-          </div>
-          {mode === 'edit' ? (
-            <form
-              className="grid gap-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                try {
-                  setValidationError(null)
-                  onSubmit(
-                    parseForm(updateManagementConnectorRequestSchema, {
-                      ...connectorUpdateForm(form),
-                      enabled: form.enabled === 'true',
-                      scopes: form.scopes?.split(/\s+/).filter(Boolean),
-                      providerMetadata: parseConnectorMetadata(form),
-                    }),
-                  )
-                } catch (submitError) {
-                  setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
-                }
-              }}
-            >
-              {(validationError ?? error) ? (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                  {validationError ?? error}
-                </div>
-              ) : null}
-              <div className="grid gap-3 rounded-md border border-border p-3">
-                <p className="text-sm font-semibold">Connector identity</p>
-                <Field label="Display name">
-                  <TextInput
-                    onChange={(event) => setValue(setForm, 'displayName', event.target.value)}
-                    value={form.displayName ?? ''}
-                  />
-                </Field>
-                <Field label="Status">
-                  <SelectInput
-                    onChange={(event) => setValue(setForm, 'enabled', event.target.value)}
-                    value={form.enabled ?? 'true'}
-                  >
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
-                  </SelectInput>
-                </Field>
-              </div>
-              <div className="grid gap-3 rounded-md border border-border p-3">
-                <p className="text-sm font-semibold">Deployment credentials</p>
-                <Field label="Client ID">
-                  <TextInput
-                    onChange={(event) => setValue(setForm, 'clientId', event.target.value)}
-                    value={form.clientId ?? ''}
-                  />
-                </Field>
-                <Field label="Client secret binding">
-                  <TextInput
-                    onChange={(event) => setValue(setForm, 'clientSecretBinding', event.target.value)}
-                    value={form.clientSecretBinding ?? ''}
-                  />
-                </Field>
-              </div>
-              {connector.providerType === 'social' && templateLoading ? (
-                <div className="rounded-md border border-border bg-muted/25 p-3 text-sm text-muted-foreground">
-                  Loading provider requirements.
-                </div>
-              ) : null}
-              {requiredMetadataFields.length > 0 ? (
-                <div className="grid gap-3 rounded-md border border-border p-3">
-                  <p className="text-sm font-semibold">Provider requirements</p>
-                  {requiredMetadataFields.map((field) => {
-                    const metadataKey = field.replace('providerMetadata.', '')
-                    return (
-                      <Field key={field} label={connectorFieldLabel(metadataKey)}>
-                        <TextInput
-                          onChange={(event) => setValue(setForm, `metadata.${metadataKey}`, event.target.value)}
-                          required
-                          value={form[`metadata.${metadataKey}`] ?? ''}
-                        />
-                      </Field>
-                    )
-                  })}
-                </div>
-              ) : null}
-              {isGenericOAuth ? (
-                <div className="grid gap-3 rounded-md border border-border p-3">
-                  <p className="text-sm font-semibold">OAuth endpoints</p>
-                  <Field label="Issuer">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'issuer', event.target.value)}
-                      value={form.issuer ?? ''}
-                    />
-                  </Field>
-                  <Field label="Authorization endpoint">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'authorizationEndpoint', event.target.value)}
-                      value={form.authorizationEndpoint ?? ''}
-                    />
-                  </Field>
-                  <Field label="Token endpoint">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'tokenEndpoint', event.target.value)}
-                      value={form.tokenEndpoint ?? ''}
-                    />
-                  </Field>
-                  <Field label="User info endpoint">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'userInfoEndpoint', event.target.value)}
-                      value={form.userInfoEndpoint ?? ''}
-                    />
-                  </Field>
-                  <Field label="JWKS endpoint">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'jwksEndpoint', event.target.value)}
-                      value={form.jwksEndpoint ?? ''}
-                    />
-                  </Field>
-                  <Field label="Scopes">
-                    <TextInput
-                      onChange={(event) => setValue(setForm, 'scopes', event.target.value)}
-                      value={form.scopes ?? ''}
-                    />
-                  </Field>
-                  <Field label="Provider metadata JSON">
-                    <TextArea
-                      onChange={(event) => setValue(setForm, 'providerMetadata', event.target.value)}
-                      value={form.providerMetadata ?? ''}
-                    />
-                  </Field>
-                </div>
-              ) : null}
-              <DialogFooter className="m-0 -mx-4 -mb-4">
-                <Button onClick={onClose} type="button" variant="secondary">
-                  Close
-                </Button>
-                <Button disabled={pending} type="submit">
-                  {pending ? 'Saving...' : 'Save changes'}
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : (
-            <DialogFooter className="m-0 -mx-4 -mb-4">
-              <Button onClick={onClose} type="button" variant="secondary">
-                Close
-              </Button>
-            </DialogFooter>
-          )}
-        </div>
-      </DialogContent>
     </Dialog>
   )
 }
@@ -7207,10 +7564,6 @@ function parseConnectorMetadata(form: FormState) {
   return Object.keys(metadata).length ? metadata : undefined
 }
 
-function connectorTemplateKey(template: ConnectorTemplate) {
-  return `${template.providerType}:${template.providerId}`
-}
-
 function connectorFieldLabel(field: string) {
   return field
     .replace(/URI/g, 'Uri')
@@ -7222,16 +7575,19 @@ function connectorFieldLabel(field: string) {
 }
 
 function connectorUpdateForm(form: FormState) {
-  return {
+  const input = {
     ...form,
     clientId: nullableFormValue(form.clientId),
-    clientSecretBinding: nullableFormValue(form.clientSecretBinding),
     issuer: nullableFormValue(form.issuer),
     authorizationEndpoint: nullableFormValue(form.authorizationEndpoint),
     tokenEndpoint: nullableFormValue(form.tokenEndpoint),
     userInfoEndpoint: nullableFormValue(form.userInfoEndpoint),
     jwksEndpoint: nullableFormValue(form.jwksEndpoint),
   }
+  if (form.clientSecret?.trim()) {
+    return { ...input, clientSecret: form.clientSecret.trim() }
+  }
+  return input
 }
 
 function nullableFormValue(value: string | undefined) {
@@ -7245,7 +7601,7 @@ function connectorToForm(connector: ConnectorResponse | null): FormState {
     displayName: connector.displayName,
     enabled: String(connector.enabled),
     clientId: connector.clientId ?? '',
-    clientSecretBinding: connector.clientSecretBinding ?? '',
+    clientSecret: '',
     issuer: connector.issuer ?? '',
     authorizationEndpoint: connector.authorizationEndpoint ?? '',
     tokenEndpoint: connector.tokenEndpoint ?? '',
@@ -7264,6 +7620,12 @@ function connectorToForm(connector: ConnectorResponse | null): FormState {
 function removeBlankValues(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ''))
+}
+
+function shallowEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
+  const leftEntries = Object.entries(left)
+  if (leftEntries.length !== Object.keys(right).length) return false
+  return leftEntries.every(([key, value]) => Object.is(value, right[key]))
 }
 
 function nullableString(value: string) {
