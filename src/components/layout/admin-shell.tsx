@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
+import { PreferencesControls } from '@/components/preferences-controls'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,104 +30,133 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getAccountProfile } from '@/lib/api/account'
 import { signOut } from '@/lib/auth-client'
+import { tt } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 type ConsoleNavItem = {
   href: string
   icon: typeof Gauge
-  label: string
+  labelKey: string
   match?: string
 }
-
 type ConsoleNavGroup = {
   items: ConsoleNavItem[]
-  label: string
+  labelKey: string
 }
-
 const adminNavGroups: ConsoleNavGroup[] = [
   {
-    label: 'Overview',
-    items: [{ href: '/console', label: 'Dashboard', icon: Gauge }],
+    labelKey: 'console.overview',
+    items: [
+      {
+        href: '/console',
+        labelKey: 'console.dashboard',
+        icon: Gauge,
+      },
+    ],
   },
   {
-    label: 'Authentication',
+    labelKey: 'console.authentication',
     items: [
-      { href: '/console/applications', label: 'Applications', icon: AppWindow },
+      {
+        href: '/console/applications',
+        labelKey: 'common.applications',
+        icon: AppWindow,
+      },
       {
         href: '/console/sign-in-experience/sign-up-and-sign-in',
-        label: 'Sign-in & account',
+        labelKey: 'console.signInAccount',
         icon: Fingerprint,
         match: '/console/sign-in-experience',
       },
       {
         href: '/console/mfa',
-        label: 'Multi-factor auth',
+        labelKey: 'Multi-factor auth',
         icon: ShieldCheck,
       },
       {
         href: '/console/connectors',
-        label: 'Connectors',
+        labelKey: 'Connectors',
         icon: Cable,
         match: '/console/connectors',
       },
       {
         href: '/console/security/captcha',
-        label: 'Security',
+        labelKey: 'common.security',
         icon: Shield,
         match: '/console/security',
       },
     ],
   },
   {
-    label: 'Authorization',
+    labelKey: 'console.authorization',
     items: [
-      { href: '/console/api-resources', label: 'API resources', icon: KeyRound },
-      { href: '/console/roles', label: 'Roles', icon: LockKeyhole },
+      {
+        href: '/console/api-resources',
+        labelKey: 'API resources',
+        icon: KeyRound,
+      },
+      {
+        href: '/console/roles',
+        labelKey: 'Roles',
+        icon: LockKeyhole,
+      },
       {
         href: '/console/organization-template/organization-roles',
-        label: 'Organization template',
+        labelKey: 'Organization template',
         icon: Network,
         match: '/console/organization-template',
       },
     ],
   },
   {
-    label: 'Users',
+    labelKey: 'common.users',
     items: [
-      { href: '/console/organizations', label: 'Organizations', icon: Building2 },
-      { href: '/console/users', label: 'User management', icon: UsersRound },
+      {
+        href: '/console/organizations',
+        labelKey: 'Organizations',
+        icon: Building2,
+      },
+      {
+        href: '/console/users',
+        labelKey: 'User management',
+        icon: UsersRound,
+      },
     ],
   },
   {
-    label: 'Developer',
+    labelKey: 'console.developer',
     items: [
-      { href: '/console/customize-jwt', label: 'Custom JWT', icon: Code2 },
+      {
+        href: '/console/customize-jwt',
+        labelKey: 'Custom JWT',
+        icon: Code2,
+      },
       {
         href: '/console/webhooks/endpoints',
-        label: 'Webhooks',
+        labelKey: 'Webhooks',
         icon: BellRing,
         match: '/console/webhooks',
       },
     ],
   },
   {
-    label: 'Tenant',
+    labelKey: 'console.tenant',
     items: [
       {
         href: '/console/tenant-settings/oidc-configs',
-        label: 'Settings',
+        labelKey: 'Settings',
         icon: Settings,
         match: '/console/tenant-settings',
       },
     ],
   },
 ]
-
 export function AdminShell({ children }: { children: ReactNode }) {
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [profile, setProfile] = useState<AccountProfileResponse['user'] | null>(null)
-
   useEffect(() => {
     let active = true
     void getAccountProfile().then((response) => {
@@ -136,7 +166,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
       active = false
     }
   }, [])
-
   return (
     <div className="consoleShell text-foreground">
       <header className="consoleTopbar">
@@ -144,7 +173,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-3">
             <button
               aria-expanded={mobileNavOpen}
-              aria-label={mobileNavOpen ? 'Close console navigation' : 'Open console navigation'}
+              aria-label={mobileNavOpen ? tt('console.closeNavigation') : tt('Open console navigation')}
               className="inline-flex size-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
               onClick={() => setMobileNavOpen((open) => !open)}
               type="button"
@@ -161,7 +190,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="flex shrink-0 items-center gap-2">
             <div className="hidden h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm lg:flex">
               <Boxes className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span className="font-medium">Default</span>
+              <span className="font-medium">{tt('common.default')}</span>
             </div>
             <ConsoleAccountMenu profile={profile} />
           </div>
@@ -170,13 +199,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
       {mobileNavOpen ? (
         <div className="consoleMobileNavLayer lg:hidden">
           <button
-            aria-label="Dismiss console navigation"
+            aria-label={tt('console.dismissNavigation')}
             className="absolute inset-0 cursor-default bg-transparent"
             onClick={() => setMobileNavOpen(false)}
             type="button"
           />
           <aside className="relative h-full w-[min(320px,calc(100vw-32px))] border-r border-border bg-background shadow-lg">
-            <nav aria-label="Console mobile" className="consoleNavScroll h-full overflow-y-auto px-3 py-4">
+            <nav
+              aria-label={tt('console.mobileNavigation')}
+              className="consoleNavScroll h-full overflow-y-auto px-3 py-4"
+            >
               <AdminNavigation onNavigate={() => setMobileNavOpen(false)} pathname={pathname} />
             </nav>
           </aside>
@@ -184,7 +216,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       ) : null}
       <div className="consoleBody lg:flex">
         <aside className="consoleRail hidden lg:flex">
-          <nav className="consoleNavScroll min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-label="Console">
+          <nav className="consoleNavScroll min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-label={tt('console.console')}>
             <AdminNavigation pathname={pathname} />
           </nav>
         </aside>
@@ -195,68 +227,68 @@ export function AdminShell({ children }: { children: ReactNode }) {
     </div>
   )
 }
-
 function ConsoleBrand() {
   return (
-    <a className="flex h-10 min-w-0 items-center gap-3 text-foreground" href="/console">
+    <a className="consoleBrand flex h-10 min-w-0 items-center gap-3 text-foreground" href="/console">
       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-        F
+        {' '}
+        {tt('F')}{' '}
       </span>
-      <span className="truncate text-sm font-semibold leading-none">FlareAuth</span>
+      <span className="consoleBrandName truncate text-sm font-semibold leading-none">{tt('FlareAuth')}</span>
       <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border" />
-      <span className="truncate text-sm font-medium text-muted-foreground">Admin Console</span>
+      <span className="consoleBrandContext truncate text-sm font-medium text-muted-foreground">
+        {tt('common.adminConsole')}
+      </span>
     </a>
   )
 }
-
 function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user'] | null }) {
   async function onSignOut() {
     await signOut()
     window.location.href = '/sign-in'
   }
-
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Account menu" className="size-9 rounded-full p-0">
+      <DropdownMenuTrigger aria-label={tt('console.accountMenu')} className="size-9 rounded-full p-0">
         <ConsoleAvatar profile={profile} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-40">
+      <DropdownMenuContent className="min-w-64">
         <DropdownMenuGroup>
+          <div className="consoleAccountMenuPreferences">
+            <PreferencesControls className="consoleMenuPreferences" />
+          </div>
+          <hr className="my-1 border-border" />
           <a
             className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
             href="/profile"
             role="menuitem"
           >
-            Profile
+            {tt('common.profile')}
           </a>
-          <DropdownMenuItem onClick={() => void onSignOut()}>Sign out</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void onSignOut()}>{tt('common.signOut')}</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
-
 function ConsoleAvatar({ profile }: { profile: AccountProfileResponse['user'] | null }) {
   const fallback = (profile?.displayName || profile?.email || 'A').trim().slice(0, 1).toUpperCase()
-
   if (profile?.image) {
     return <img alt="" className="size-8 rounded-full object-cover" src={profile.image} width="32" height="32" />
   }
-
   return (
     <span className="grid size-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
       {fallback}
     </span>
   )
 }
-
 function AdminNavigation({ onNavigate, pathname }: { onNavigate?: () => void; pathname: string }) {
   return (
     <div className="grid gap-3">
       {adminNavGroups.map((group) => (
-        <div className="grid gap-1" key={group.label}>
+        <div className="grid gap-1" key={group.labelKey}>
           <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
-            {group.label}
+            {tt(group.labelKey)}
           </p>
           {group.items.map((item) => {
             const active = isActive(pathname, getItemMatchPath(item))
@@ -272,7 +304,7 @@ function AdminNavigation({ onNavigate, pathname }: { onNavigate?: () => void; pa
                 to={item.href}
               >
                 <item.icon aria-hidden="true" className="size-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{tt(item.labelKey)}</span>
               </Link>
             )
           })}
@@ -281,11 +313,9 @@ function AdminNavigation({ onNavigate, pathname }: { onNavigate?: () => void; pa
     </div>
   )
 }
-
 function getItemMatchPath(item: ConsoleNavItem) {
   return item.match ?? item.href
 }
-
 function isActive(pathname: string, href: string) {
   if (href === '/console') return pathname === href || pathname === '/console/dashboard'
   return pathname === href || pathname.startsWith(`${href}/`)

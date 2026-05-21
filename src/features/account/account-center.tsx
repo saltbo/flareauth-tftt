@@ -14,9 +14,11 @@ import {
   Wallet,
 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { createSiweMessage } from 'viem/siwe'
 import { BrandIdentity, brandingStyle } from '@/components/layout/auth-layout'
+import { PreferencesControls } from '@/components/preferences-controls'
 import { ProviderIcon } from '@/components/provider-icon'
 import { Button } from '@/components/ui/button'
 import {
@@ -57,6 +59,7 @@ import {
   verifyTotp,
 } from '@/lib/api/account'
 import { requestWalletNonce, signOut } from '@/lib/auth-client'
+import { tt } from '@/lib/i18n'
 
 type UserProfile = {
   id: string
@@ -67,14 +70,12 @@ type UserProfile = {
   avatarAssetId: string | null
   image: string | null
 }
-
 type LinkedAccount = {
   id: string
   accountId: string
   providerId: string
   createdAt: string
 }
-
 type IdentityProvider = {
   slug: string
   providerType: string
@@ -82,7 +83,6 @@ type IdentityProvider = {
   displayName: string
   icon: string
 }
-
 type ConsentedApplication = {
   id: string
   applicationName: string
@@ -91,7 +91,6 @@ type ConsentedApplication = {
   grantedAt: string
   expiresAt: string | null
 }
-
 type UserSessionDevice = {
   id: string
   expiresAt: string
@@ -100,13 +99,29 @@ type UserSessionDevice = {
   userAgent: string | null
   current?: boolean
 }
-
 type SecurityState = {
-  mfa: { enabled: boolean; factors: Array<{ id: string; type: string; verified: boolean | null }> }
-  passkeys: { enabled: boolean; count: number }
-  policy: { mfa: { mode: 'optional' | 'required' }; passkeys: { enabled: boolean; rpName: string } }
+  mfa: {
+    enabled: boolean
+    factors: Array<{
+      id: string
+      type: string
+      verified: boolean | null
+    }>
+  }
+  passkeys: {
+    enabled: boolean
+    count: number
+  }
+  policy: {
+    mfa: {
+      mode: 'optional' | 'required'
+    }
+    passkeys: {
+      enabled: boolean
+      rpName: string
+    }
+  }
 }
-
 type Passkey = {
   id: string
   name: string | null
@@ -114,14 +129,12 @@ type Passkey = {
   backedUp: boolean
   createdAt: string | null
 }
-
 type TotpEnrollmentDisplay = {
   qrCode: string | null
   otpAuthUri: string | null
   secret: string | null
   backupCodes: string[]
 }
-
 type AccountData = {
   profile: UserProfile | null
   linkedAccounts: LinkedAccount[]
@@ -130,7 +143,6 @@ type AccountData = {
   security: SecurityState | null
   passkeys: Passkey[]
 }
-
 const emptyAccountData: AccountData = {
   profile: null,
   linkedAccounts: [],
@@ -139,29 +151,39 @@ const emptyAccountData: AccountData = {
   security: null,
   passkeys: [],
 }
-
 export function AccountCenterPage() {
   return <AccountCenter />
 }
-
 export function AccountCenter() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const configState = useConfigz()
   const config = configState.data
   const accountCenter = config?.accountCenter ?? defaultAccountCenterSettings
   const [data, setData] = useState(emptyAccountData)
   const [loading, setLoading] = useState(true)
   const [confirmation, setConfirmation] = useState<DestructiveConfirmation | null>(null)
-
   const reload = useCallback(async () => {
     if (!config) return
     setLoading(true)
     try {
       const [profile, linkedAccounts, applications, sessions, security, passkeys] = await Promise.all([
         getAccountProfile(),
-        accountCenter.connectedAccountsEnabled ? listLinkedAccounts() : Promise.resolve({ accounts: [] }),
-        accountCenter.connectedAccountsEnabled ? listConsentedApplications() : Promise.resolve({ applications: [] }),
-        accountCenter.sessionsViewEnabled ? listAccountSessions() : Promise.resolve({ sessions: [] }),
+        accountCenter.connectedAccountsEnabled
+          ? listLinkedAccounts()
+          : Promise.resolve({
+              accounts: [],
+            }),
+        accountCenter.connectedAccountsEnabled
+          ? listConsentedApplications()
+          : Promise.resolve({
+              applications: [],
+            }),
+        accountCenter.sessionsViewEnabled
+          ? listAccountSessions()
+          : Promise.resolve({
+              sessions: [],
+            }),
         getAccountSecurity(),
         listPasskeys(),
       ])
@@ -174,75 +196,79 @@ export function AccountCenter() {
         passkeys: passkeys.passkeys,
       })
     } catch (loadError) {
-      toast.error(loadError instanceof Error ? loadError.message : 'Unable to load account center.')
+      toast.error(loadError instanceof Error ? tt(loadError.message) : tt('Unable to load account center.'))
     } finally {
       setLoading(false)
     }
   }, [accountCenter.connectedAccountsEnabled, accountCenter.sessionsViewEnabled, config])
-
   useEffect(() => {
     if (configState.loading) return
     if (configState.error) {
-      toast.error(configState.error)
+      toast.error(tt(configState.error))
       setLoading(false)
       return
     }
     void reload()
   }, [configState.error, configState.loading, reload])
-
   async function mutate<T>(
     label: string,
     operation: () => Promise<T>,
-    options: { onError?: (message: string) => void; reload?: boolean } = {},
+    options: {
+      onError?: (message: string) => void
+      reload?: boolean
+    } = {},
   ): Promise<T | undefined> {
     try {
       const result = await operation()
-      toast.success(label)
+      toast.success(tt(label))
       if (options.reload !== false) await reload()
       return result
     } catch (mutationError) {
-      const message = mutationError instanceof Error ? mutationError.message : 'Account update failed.'
+      const message = mutationError instanceof Error ? tt(mutationError.message) : tt('Account update failed.')
       options.onError?.(message)
       toast.error(message)
       return undefined
     }
   }
-
   async function signOutFromAccount() {
     try {
       await signOut()
       setData(emptyAccountData)
       setLoading(false)
       setConfirmation(null)
-      toast.success('Signed out.')
-      await navigate({ to: '/sign-in' })
+      toast.success(tt('Sign out'))
+      await navigate({
+        to: '/sign-in',
+      })
     } catch (mutationError) {
-      toast.error(mutationError instanceof Error ? mutationError.message : 'Account update failed.')
+      toast.error(mutationError instanceof Error ? tt(mutationError.message) : tt('Account update failed.'))
     }
   }
-
   return (
     <main className="accountShell" style={brandingStyle(config)}>
       <div className="accountChrome">
-        <BrandIdentity config={config} />
+        <div className="accountTopbar">
+          <BrandIdentity config={config} />
+          <PreferencesControls />
+        </div>
         <section className="accountContent">
           {!data.profile ? (
             <div className="accountHeader">
               <div>
-                <p className="eyebrow">Account settings</p>
-                <h1>Your account</h1>
+                <p className="eyebrow">{t('account.settings')}</p>
+                <h1>{t('account.title')}</h1>
               </div>
             </div>
           ) : null}
           {loading ? (
             <Status>
               <LoaderCircle className="spin" size={18} />
-              Loading account
+              {t('account.loading')}
             </Status>
           ) : null}
           {!loading && data.profile ? (
             <div className="accountSectionStack">
-              <section className="accountHero" aria-label="Profile summary">
+              <section className="accountHero" aria-label={tt('Profile summary')}>
                 <div className="accountHeroIdentity">
                   {data.profile.image ? (
                     <img alt="" className="accountHeaderAvatar" src={data.profile.image} width="64" height="64" />
@@ -252,40 +278,43 @@ export function AccountCenter() {
                     </div>
                   )}
                   <div className="accountHeaderMeta">
-                    <p className="eyebrow">Profile</p>
+                    <p className="eyebrow">{t('common.profile')}</p>
                     <h1>{data.profile.displayName}</h1>
                     <p>{data.profile.email}</p>
                   </div>
                 </div>
                 <div className="accountSummaryStrip">
-                  <StatusPill label={data.profile.emailVerified ? 'Verified' : 'Required'} value="Email" />
-                  <StatusPill label={data.security?.mfa.enabled ? 'Enabled' : 'Off'} value="MFA" />
-                  <StatusPill label={String(data.passkeys.length)} value="Passkeys" />
-                  <StatusPill label={String(data.sessions.length)} value="Sessions" />
+                  <StatusPill
+                    label={data.profile.emailVerified ? tt('Verified') : tt('Required')}
+                    value={tt('Email')}
+                  />
+                  <StatusPill label={data.security?.mfa.enabled ? tt('Enabled') : tt('Off')} value={tt('MFA')} />
+                  <StatusPill label={String(data.passkeys.length)} value={tt('Passkeys')} />
+                  <StatusPill label={String(data.sessions.length)} value={tt('Sessions')} />
                 </div>
                 <Button onClick={() => void signOutFromAccount()} variant="secondary">
-                  Sign out
+                  {t('account.signOut')}
                 </Button>
               </section>
               <div className="accountDashboardGrid">
                 {accountCenter.profileEditingEnabled || accountCenter.passwordChangeEnabled ? (
-                  <section className="accountPanelGroup accountDashboardPanel" aria-label="Profile settings">
+                  <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Profile settings')}>
                     <div className="accountPanelHeader">
                       <PanelTitle
-                        description="Profile information and sign-in identifiers."
+                        description={tt('Profile information and sign-in identifiers.')}
                         icon={<UserRound size={18} />}
-                        title="Account details"
+                        title={tt('Account details')}
                       />
                     </div>
                     <ProfileSections accountCenter={accountCenter} profile={data.profile} mutate={mutate} />
                   </section>
                 ) : null}
-                <section className="accountPanelGroup accountDashboardPanel" aria-label="Security settings">
+                <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Security settings')}>
                   <div className="accountPanelHeader">
                     <PanelTitle
-                      description="Credentials and second-factor controls."
+                      description={tt('Credentials and second-factor controls.')}
                       icon={<ShieldCheck size={18} />}
-                      title="Sign-in security"
+                      title={tt('Sign-in security')}
                     />
                   </div>
                   <SecuritySections
@@ -296,12 +325,12 @@ export function AccountCenter() {
                   />
                 </section>
                 {accountCenter.connectedAccountsEnabled ? (
-                  <section className="accountPanelGroup accountDashboardPanel" aria-label="Social and app access">
+                  <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Social and app access')}>
                     <div className="accountPanelHeader">
                       <PanelTitle
-                        description="Linked identities and authorized applications."
+                        description={tt('Linked identities and authorized applications.')}
                         icon={<Link2 size={18} />}
-                        title="Connections and apps"
+                        title={tt('Connections and apps')}
                       />
                     </div>
                     <ConnectionsSection
@@ -317,7 +346,7 @@ export function AccountCenter() {
                 {accountCenter.sessionsViewEnabled ? (
                   <section
                     className="accountPanelGroup accountDashboardPanel accountDashboardPanelWide"
-                    aria-label="Session management"
+                    aria-label={tt('Session management')}
                   >
                     <div className="accountPanelHeader">
                       <PanelTitle
@@ -325,21 +354,22 @@ export function AccountCenter() {
                           <Button
                             onClick={() =>
                               setConfirmation({
-                                title: 'Revoke other sessions',
-                                description: 'Every other active session for this account will be signed out.',
-                                actionLabel: 'Revoke sessions',
+                                title: tt('Revoke other sessions'),
+                                description: tt('Every other active session for this account will be signed out.'),
+                                actionLabel: tt('Revoke sessions'),
                                 onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
                               })
                             }
                             type="button"
                             variant="secondary"
                           >
-                            Revoke other sessions
+                            {' '}
+                            {tt('Revoke other sessions')}{' '}
                           </Button>
                         }
-                        description="Devices currently signed in to this account."
+                        description={tt('Devices currently signed in to this account.')}
                         icon={<Laptop size={18} />}
-                        title="Active sessions"
+                        title={tt('Active sessions')}
                       />
                     </div>
                     <SessionsSection confirm={setConfirmation} sessions={data.sessions} mutate={mutate} />
@@ -354,7 +384,6 @@ export function AccountCenter() {
     </main>
   )
 }
-
 const defaultAccountCenterSettings = {
   profileEditingEnabled: true,
   displayNameEditable: true,
@@ -366,7 +395,6 @@ const defaultAccountCenterSettings = {
   sessionsViewEnabled: true,
   dangerZoneEnabled: false,
 }
-
 function ProfileSections({
   accountCenter,
   profile,
@@ -387,7 +415,6 @@ function ProfileSections({
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
-
   useEffect(() => {
     setDisplayName(profile.displayName)
     setUsername(profile.username ?? '')
@@ -397,7 +424,6 @@ function ProfileSections({
     setEmailOtp('')
     setEmailStep('request')
   }, [profile])
-
   async function saveProfile(event: FormEvent) {
     event.preventDefault()
     const result = await mutate('Profile updated.', () =>
@@ -409,35 +435,51 @@ function ProfileSections({
     )
     if (result) setDialog(null)
   }
-
   async function changeEmail(event: FormEvent) {
     event.preventDefault()
     if (emailStep === 'request') {
-      const result = await mutate('Verification code sent.', () => requestAccountEmailChange({ email }), {
-        reload: false,
-      })
+      const result = await mutate(
+        'Verification code sent.',
+        () =>
+          requestAccountEmailChange({
+            email,
+          }),
+        {
+          reload: false,
+        },
+      )
       if (result) {
         setEmailOtp('')
         setEmailStep('confirm')
       }
       return
     }
-
-    const result = await mutate('Email changed.', () => confirmAccountEmailChange({ email, otp: emailOtp }))
+    const result = await mutate('Email changed.', () =>
+      confirmAccountEmailChange({
+        email,
+        otp: emailOtp,
+      }),
+    )
     if (result) {
       setEmailOtp('')
       setEmailStep('request')
       setDialog(null)
     }
   }
-
   async function changePassword(event: FormEvent) {
     event.preventDefault()
     setPasswordError(null)
     const result = await mutate(
       'Password changed.',
-      () => changeAccountPassword({ currentPassword, newPassword, revokeOtherSessions: true }),
-      { onError: setPasswordError },
+      () =>
+        changeAccountPassword({
+          currentPassword,
+          newPassword,
+          revokeOtherSessions: true,
+        }),
+      {
+        onError: setPasswordError,
+      },
     )
     if (result) {
       setCurrentPassword('')
@@ -446,10 +488,11 @@ function ProfileSections({
       setDialog(null)
     }
   }
-
   function uploadAvatar(file: File | undefined) {
     if (!file) return
-    return mutate('Avatar uploaded.', () => uploadAccountAvatar(file), { reload: false }).then((response) => {
+    return mutate('Avatar uploaded.', () => uploadAccountAvatar(file), {
+      reload: false,
+    }).then((response) => {
       if (response) {
         setAvatarAssetId(response.asset.id)
         setAvatarPreview(response.asset.publicUrl)
@@ -457,7 +500,6 @@ function ProfileSections({
       return response
     })
   }
-
   return (
     <>
       {accountCenter.profileEditingEnabled ? (
@@ -466,16 +508,17 @@ function ProfileSections({
             action={
               accountCenter.displayNameEditable || accountCenter.avatarEditable ? (
                 <Button onClick={() => setDialog('profile')} type="button" variant="secondary">
-                  <Pencil size={16} />
-                  Edit profile
+                  <Pencil size={16} /> {tt('Edit profile')}{' '}
                 </Button>
               ) : null
             }
             icon={<UserRound size={18} />}
             meta={
-              accountCenter.avatarEditable ? 'Avatar can be updated in the edit dialog.' : 'Profile editing is limited.'
+              accountCenter.avatarEditable
+                ? tt('Avatar can be updated in the edit dialog.')
+                : tt('Profile editing is limited.')
             }
-            title="Profile"
+            title={tt('Profile')}
             value={profile.displayName}
           />
         </section>
@@ -486,25 +529,25 @@ function ProfileSections({
             <SettingsAction
               action={
                 <Button onClick={() => setDialog('username')} type="button" variant="secondary">
-                  Edit username
+                  {' '}
+                  {tt('Edit username')}{' '}
                 </Button>
               }
               icon={<UserRound size={18} />}
-              meta={profile.username ? `@${profile.username}` : 'No username set'}
-              title="Username"
+              meta={profile.username ? `@${profile.username}` : tt('No username set')}
+              title={tt('Username')}
             />
           ) : null}
           {accountCenter.emailChangeEnabled ? (
             <SettingsAction
               action={
                 <Button onClick={() => setDialog('email')} type="button" variant="secondary">
-                  <Mail size={18} />
-                  Change email
+                  <Mail size={18} /> {tt('Change email')}{' '}
                 </Button>
               }
               icon={<Mail size={18} />}
               meta={profile.email}
-              title="Email"
+              title={tt('Email')}
             />
           ) : null}
         </section>
@@ -514,14 +557,13 @@ function ProfileSections({
           <SettingsAction
             action={
               <Button onClick={() => setDialog('password')} type="button" variant="secondary">
-                <KeyRound size={18} />
-                Change password
+                <KeyRound size={18} /> {tt('Change password')}{' '}
               </Button>
             }
             icon={<LockKeyhole size={18} />}
-            meta="Use this when you need to rotate your hosted sign-in password."
-            title="Password"
-            value="Hosted sign-in"
+            meta={tt('Use this when you need to rotate your hosted sign-in password.')}
+            title={tt('Password')}
+            value={tt('Hosted sign-in')}
           />
         </section>
       ) : null}
@@ -529,8 +571,10 @@ function ProfileSections({
         <DialogContent>
           <form onSubmit={saveProfile}>
             <DialogHeader>
-              <DialogTitle>Edit profile</DialogTitle>
-              <DialogDescription>Update the name and avatar shown across trusted applications.</DialogDescription>
+              <DialogTitle>{tt('Edit profile')}</DialogTitle>
+              <DialogDescription>
+                {tt('Update the name and avatar shown across trusted applications.')}
+              </DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
               {accountCenter.avatarEditable ? (
@@ -543,19 +587,18 @@ function ProfileSections({
                     </div>
                   )}
                   <div className="avatarUploadMeta">
-                    <span className="avatarUploadLabel">Avatar image</span>
-                    <span className="avatarUploadHelp">PNG, JPEG, or WebP up to 2 MB.</span>
+                    <span className="avatarUploadLabel">{tt('Avatar image')}</span>
+                    <span className="avatarUploadHelp">{tt('PNG, JPEG, or WebP up to 2 MB.')}</span>
                     <button
                       className="avatarUploadButton"
                       onClick={() => document.getElementById('account-avatar-upload')?.click()}
                       type="button"
                     >
-                      <Upload size={16} />
-                      Upload image
+                      <Upload size={16} /> {tt('Upload image')}{' '}
                     </button>
                     <input
                       accept="image/png,image/jpeg,image/webp"
-                      aria-label="Avatar image"
+                      aria-label={tt('Avatar image')}
                       className="visuallyHidden"
                       id="account-avatar-upload"
                       onChange={(event) => uploadAvatar(event.currentTarget.files?.[0])}
@@ -566,7 +609,7 @@ function ProfileSections({
                 </div>
               ) : null}
               {accountCenter.displayNameEditable ? (
-                <Field label="Display name">
+                <Field label={tt('Display name')}>
                   <TextInput
                     autoComplete="name"
                     onChange={(event) => setDisplayName(event.target.value)}
@@ -578,9 +621,10 @@ function ProfileSections({
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
-              <Button type="submit">Save profile</Button>
+              <Button type="submit">{tt('Save profile')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -589,11 +633,11 @@ function ProfileSections({
         <DialogContent>
           <form onSubmit={saveProfile}>
             <DialogHeader>
-              <DialogTitle>Edit username</DialogTitle>
-              <DialogDescription>Choose the username associated with this hosted account.</DialogDescription>
+              <DialogTitle>{tt('Edit username')}</DialogTitle>
+              <DialogDescription>{tt('Choose the username associated with this hosted account.')}</DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
-              <Field label="Username">
+              <Field label={tt('Username')}>
                 <TextInput
                   autoComplete="username"
                   onChange={(event) => setUsername(event.target.value)}
@@ -603,10 +647,12 @@ function ProfileSections({
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button type="submit" variant="secondary">
-                Save identifiers
+                {' '}
+                {tt('Save identifiers')}{' '}
               </Button>
             </DialogFooter>
           </form>
@@ -616,16 +662,16 @@ function ProfileSections({
         <DialogContent>
           <form onSubmit={changeEmail}>
             <DialogHeader>
-              <DialogTitle>Change email</DialogTitle>
+              <DialogTitle>{tt('Change email')}</DialogTitle>
               <DialogDescription>
                 {emailStep === 'request'
-                  ? 'A verification code will be sent to the new email address.'
-                  : `Enter the verification code sent to ${email}.`}
+                  ? tt('A verification code will be sent to the new email address.')
+                  : tt('Enter the verification code sent to {{email}}.', { email })}
               </DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
               {emailStep === 'request' ? (
-                <Field label="Email">
+                <Field label={tt('Email')}>
                   <TextInput
                     autoComplete="email"
                     onChange={(event) => setEmail(event.target.value)}
@@ -635,7 +681,7 @@ function ProfileSections({
                   />
                 </Field>
               ) : (
-                <Field label="Verification code">
+                <Field label={tt('Verification code')}>
                   <TextInput
                     autoComplete="one-time-code"
                     inputMode="numeric"
@@ -656,7 +702,8 @@ function ProfileSections({
                 type="button"
                 variant="secondary"
               >
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               {emailStep === 'confirm' ? (
                 <Button
@@ -667,12 +714,13 @@ function ProfileSections({
                   type="button"
                   variant="secondary"
                 >
-                  Back
+                  {' '}
+                  {tt('Back')}{' '}
                 </Button>
               ) : null}
               <Button type="submit" variant="secondary">
                 <Mail size={18} />
-                {emailStep === 'request' ? 'Send code' : 'Verify code'}
+                {emailStep === 'request' ? tt('Send code') : tt('Verify code')}
               </Button>
             </DialogFooter>
           </form>
@@ -682,13 +730,15 @@ function ProfileSections({
         <DialogContent>
           <form onSubmit={changePassword}>
             <DialogHeader>
-              <DialogTitle>Change password</DialogTitle>
-              <DialogDescription>Rotates the hosted sign-in password and revokes other sessions.</DialogDescription>
+              <DialogTitle>{tt('Change password')}</DialogTitle>
+              <DialogDescription>
+                {tt('Rotates the hosted sign-in password and revokes other sessions.')}
+              </DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
               {passwordError ? <Status tone="error">{passwordError}</Status> : null}
               <input autoComplete="username" hidden readOnly type="text" value={profile.email} />
-              <Field label="Current password">
+              <Field label={tt('Current password')}>
                 <TextInput
                   autoComplete="current-password"
                   onChange={(event) => setCurrentPassword(event.target.value)}
@@ -697,7 +747,7 @@ function ProfileSections({
                   value={currentPassword}
                 />
               </Field>
-              <Field label="New password">
+              <Field label={tt('New password')}>
                 <TextInput
                   autoComplete="new-password"
                   minLength={8}
@@ -710,11 +760,11 @@ function ProfileSections({
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button type="submit" variant="secondary">
-                <KeyRound size={18} />
-                Change password
+                <KeyRound size={18} /> {tt('Change password')}{' '}
               </Button>
             </DialogFooter>
           </form>
@@ -723,7 +773,6 @@ function ProfileSections({
     </>
   )
 }
-
 function SecuritySections({
   confirm,
   data,
@@ -742,7 +791,6 @@ function SecuritySections({
   const [totpEnrollment, setTotpEnrollment] = useState<TotpEnrollmentDisplay | null>(null)
   const mfaRequired = data.security?.policy.mfa.mode === 'required'
   const mfaEnabled = Boolean(data.security?.mfa.enabled)
-
   return (
     <>
       <section className="settingsPanel">
@@ -752,7 +800,8 @@ function SecuritySections({
               {mfaEnabled ? (
                 <>
                   <Button onClick={() => setDialog('mfa-verify')} type="button" variant="secondary">
-                    Verify code
+                    {' '}
+                    {tt('Verify code')}{' '}
                   </Button>
                   <Button
                     disabled={mfaRequired}
@@ -760,19 +809,23 @@ function SecuritySections({
                     type="button"
                     variant="danger"
                   >
-                    Disable MFA
+                    {' '}
+                    {tt('Disable MFA')}{' '}
                   </Button>
                 </>
               ) : (
                 <Button onClick={() => setDialog('mfa-enroll')} type="button" variant="secondary">
-                  Enroll authenticator app
+                  {' '}
+                  {tt('Enroll authenticator app')}{' '}
                 </Button>
               )}
             </div>
           }
           icon={<ShieldCheck size={18} />}
-          meta={data.security?.mfa.enabled ? 'Authenticator app is enabled.' : 'No authenticator factor enrolled.'}
-          title="Multi-factor authentication"
+          meta={
+            data.security?.mfa.enabled ? tt('Authenticator app is enabled.') : tt('No authenticator factor enrolled.')
+          }
+          title={tt('Multi-factor authentication')}
         />
       </section>
       <section className="settingsPanel">
@@ -784,41 +837,39 @@ function SecuritySections({
               type="button"
               variant="secondary"
             >
-              <Fingerprint size={18} />
-              Add passkey
+              <Fingerprint size={18} /> {tt('Add passkey')}{' '}
             </Button>
           }
           icon={<Fingerprint size={18} />}
           meta={
             data.passkeys.length === 1
-              ? '1 passkey added for passwordless sign-in.'
-              : `${data.passkeys.length} passkeys added for passwordless sign-in.`
+              ? tt('1 passkey added for passwordless sign-in.')
+              : tt('{{count}} passkeys added for passwordless sign-in.', { count: data.passkeys.length })
           }
-          title="Passkeys"
+          title={tt('Passkeys')}
         />
         <ItemList
-          empty="No passkeys have been added yet."
+          empty={tt('No passkeys have been added yet.')}
           items={data.passkeys.map((passkey) => ({
             id: passkey.id,
             icon: <Fingerprint size={16} />,
-            title: passkey.name ?? 'Unnamed passkey',
-            meta: `${passkey.deviceType}${passkey.backedUp ? ' / backed up' : ' / not backed up'}${
-              passkey.createdAt ? ` / added ${formatDate(passkey.createdAt)}` : ''
-            }`,
+            title: passkey.name ?? tt('Unnamed passkey'),
+            meta: `${passkey.deviceType}${passkey.backedUp ? tt(' / backed up') : tt(' / not backed up')}${passkey.createdAt ? tt(' / added {{date}}', { date: formatDate(passkey.createdAt) }) : ''}`,
             action: (
               <Button
                 onClick={() =>
                   confirm({
-                    title: 'Remove passkey',
-                    description: 'This passkey will no longer sign in to your account.',
-                    actionLabel: 'Remove passkey',
+                    title: tt('Remove passkey'),
+                    description: tt('This passkey will no longer sign in to your account.'),
+                    actionLabel: tt('Remove passkey'),
                     onConfirm: () => mutate('Passkey removed.', () => deletePasskey(passkey.id)),
                   })
                 }
                 type="button"
                 variant="ghost"
               >
-                Remove
+                {' '}
+                {tt('Remove')}{' '}
               </Button>
             ),
           }))}
@@ -830,7 +881,12 @@ function SecuritySections({
             onSubmit={async (event) => {
               event.preventDefault()
               if (totpEnrollment) {
-                const result = await mutate('MFA enabled.', () => verifyTotp({ code, trustDevice: true }))
+                const result = await mutate('MFA enabled.', () =>
+                  verifyTotp({
+                    code,
+                    trustDevice: true,
+                  }),
+                )
                 if (result) {
                   setCode('')
                   setPassword('')
@@ -839,25 +895,28 @@ function SecuritySections({
                 }
                 return
               }
-
               await mutate(
                 'TOTP enrollment started.',
                 async () => {
-                  const enrollment = await startTotpEnrollment({ password })
+                  const enrollment = await startTotpEnrollment({
+                    password,
+                  })
                   setTotpEnrollment(readTotpEnrollment(enrollment))
                   return enrollment
                 },
-                { reload: false },
+                {
+                  reload: false,
+                },
               )
             }}
           >
             <DialogHeader>
-              <DialogTitle>Enroll authenticator app</DialogTitle>
-              <DialogDescription>Confirm your password, then scan the generated setup code.</DialogDescription>
+              <DialogTitle>{tt('Enroll authenticator app')}</DialogTitle>
+              <DialogDescription>{tt('Confirm your password, then scan the generated setup code.')}</DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
               <input autoComplete="username" hidden readOnly type="text" value={profileEmail} />
-              <Field label="Password">
+              <Field label={tt('Password')}>
                 <TextInput
                   autoComplete="current-password"
                   onChange={(event) => setPassword(event.target.value)}
@@ -868,7 +927,7 @@ function SecuritySections({
               {totpEnrollment ? (
                 <>
                   <TotpEnrollmentDetails enrollment={totpEnrollment} />
-                  <Field label="Authenticator code">
+                  <Field label={tt('Authenticator code')}>
                     <TextInput inputMode="numeric" onChange={(event) => setCode(event.target.value)} value={code} />
                   </Field>
                 </>
@@ -883,7 +942,8 @@ function SecuritySections({
                 type="button"
                 variant="secondary"
               >
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button type="submit" variant="secondary">
                 {totpEnrollment ? 'Verify code' : 'Enroll authenticator app'}
@@ -897,25 +957,32 @@ function SecuritySections({
           <form
             onSubmit={async (event) => {
               event.preventDefault()
-              const result = await mutate('MFA challenge verified.', () => verifyTotp({ code, trustDevice: true }))
+              const result = await mutate('MFA challenge verified.', () =>
+                verifyTotp({
+                  code,
+                  trustDevice: true,
+                }),
+              )
               if (result) setDialog(null)
             }}
           >
             <DialogHeader>
-              <DialogTitle>Verify authenticator code</DialogTitle>
-              <DialogDescription>Enter the current code from your authenticator app.</DialogDescription>
+              <DialogTitle>{tt('Verify authenticator code')}</DialogTitle>
+              <DialogDescription>{tt('Enter the current code from your authenticator app.')}</DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
-              <Field label="Authenticator code">
+              <Field label={tt('Authenticator code')}>
                 <TextInput inputMode="numeric" onChange={(event) => setCode(event.target.value)} value={code} />
               </Field>
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button type="submit" variant="secondary">
-                Verify code
+                {' '}
+                {tt('Verify code')}{' '}
               </Button>
             </DialogFooter>
           </form>
@@ -926,7 +993,11 @@ function SecuritySections({
           <form
             onSubmit={async (event) => {
               event.preventDefault()
-              const result = await mutate('MFA disabled.', () => disableTotp({ password }))
+              const result = await mutate('MFA disabled.', () =>
+                disableTotp({
+                  password,
+                }),
+              )
               if (result) {
                 setPassword('')
                 setDialog(null)
@@ -934,12 +1005,14 @@ function SecuritySections({
             }}
           >
             <DialogHeader>
-              <DialogTitle>Disable MFA</DialogTitle>
-              <DialogDescription>Confirm your password to remove authenticator app protection.</DialogDescription>
+              <DialogTitle>{tt('Disable MFA')}</DialogTitle>
+              <DialogDescription>
+                {tt('Confirm your password to remove authenticator app protection.')}
+              </DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
               <input autoComplete="username" hidden readOnly type="text" value={profileEmail} />
-              <Field label="Password">
+              <Field label={tt('Password')}>
                 <TextInput
                   autoComplete="current-password"
                   onChange={(event) => setPassword(event.target.value)}
@@ -950,10 +1023,12 @@ function SecuritySections({
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button disabled={mfaRequired} type="submit" variant="danger">
-                Disable authenticator app
+                {' '}
+                {tt('Disable authenticator app')}{' '}
               </Button>
             </DialogFooter>
           </form>
@@ -972,21 +1047,21 @@ function SecuritySections({
             }}
           >
             <DialogHeader>
-              <DialogTitle>Add passkey</DialogTitle>
-              <DialogDescription>Create a hardware-backed passkey for this account.</DialogDescription>
+              <DialogTitle>{tt('Add passkey')}</DialogTitle>
+              <DialogDescription>{tt('Create a hardware-backed passkey for this account.')}</DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
-              <Field label="Passkey name">
+              <Field label={tt('Passkey name')}>
                 <TextInput onChange={(event) => setPasskeyName(event.target.value)} value={passkeyName} />
               </Field>
             </div>
             <DialogFooter>
               <Button onClick={() => setDialog(null)} type="button" variant="secondary">
-                Cancel
+                {' '}
+                {tt('Cancel')}{' '}
               </Button>
               <Button disabled={!data.security?.policy.passkeys.enabled} type="submit" variant="secondary">
-                <Fingerprint size={18} />
-                Add passkey
+                <Fingerprint size={18} /> {tt('Add passkey')}{' '}
               </Button>
             </DialogFooter>
           </form>
@@ -995,7 +1070,6 @@ function SecuritySections({
     </>
   )
 }
-
 function ConnectionsSection({
   accounts,
   confirm,
@@ -1007,16 +1081,19 @@ function ConnectionsSection({
   confirm: ConfirmDestructiveHandler
   mutate: MutationHandler
   providers: IdentityProvider[]
-  walletProvider?: { enabled: boolean; allowSignUp?: boolean; chains: number[] }
+  walletProvider?: {
+    enabled: boolean
+    allowSignUp?: boolean
+    chains: number[]
+  }
 }) {
   const externalAccounts = accounts.filter((account) => account.providerId !== 'credential')
   const accountByProvider = new Map(externalAccounts.map((account) => [account.providerId, account]))
   const walletAccounts = externalAccounts.filter((account) => account.providerId === 'siwe')
   const walletEnabled = Boolean(walletProvider?.enabled)
-
   async function connectProvider(provider: IdentityProvider) {
     const result = await mutate(
-      `Redirecting to ${provider.displayName}.`,
+      tt('Redirecting to {{providerName}}.', { providerName: provider.displayName }),
       () =>
         linkAccount({
           providerType: provider.providerType === 'generic_oauth' ? 'generic_oauth' : 'social',
@@ -1024,22 +1101,25 @@ function ConnectionsSection({
           callbackURL: `${window.location.origin}/profile/linked-accounts`,
           errorCallbackURL: `${window.location.origin}/profile`,
         }),
-      { reload: false },
+      {
+        reload: false,
+      },
     )
     const redirectUrl = readRedirectUrl(result)
     if (redirectUrl) window.location.assign(redirectUrl)
   }
-
   async function connectWallet() {
     await mutate('Wallet linked.', () => enrollWallet(walletProvider?.chains ?? [1]))
   }
-
   return (
     <section className="settingsPanel">
-      <SubsectionTitle title="Linked accounts" description="External sign-in identities connected to this account." />
+      <SubsectionTitle
+        title={tt('Linked accounts')}
+        description={tt('External sign-in identities connected to this account.')}
+      />
       <ItemList
-        empty="No sign-in connectors are available."
-        emptyDescription="Enable a social or OAuth connector before users can link one here."
+        empty={tt('No sign-in connectors are available.')}
+        emptyDescription={tt('Enable a social or OAuth connector before users can link one here.')}
         items={[
           ...providers.map((provider) => {
             const account = accountByProvider.get(provider.providerId)
@@ -1047,15 +1127,19 @@ function ConnectionsSection({
               id: provider.slug,
               icon: <ProviderIcon className="providerIcon providerIconLarge" provider={provider} />,
               title: provider.displayName,
-              meta: account ? `Linked ${formatDate(account.createdAt)}` : 'Not linked to this account.',
-              status: account ? 'Linked' : 'Available',
+              meta: account
+                ? tt('Linked {{date}}', { date: formatDate(account.createdAt) })
+                : tt('Not linked to this account.'),
+              status: account ? tt('Linked') : tt('Available'),
               action: account ? (
                 <Button
                   onClick={() =>
                     confirm({
-                      title: 'Unlink account',
-                      description: `${provider.displayName} will no longer be connected to your account.`,
-                      actionLabel: 'Unlink account',
+                      title: tt('Unlink account'),
+                      description: tt('{{providerName}} will no longer be connected to your account.', {
+                        providerName: provider.displayName,
+                      }),
+                      actionLabel: tt('Unlink account'),
                       onConfirm: () =>
                         mutate('Linked account removed.', () => unlinkAccount(provider.providerId, account.accountId)),
                     })
@@ -1063,11 +1147,13 @@ function ConnectionsSection({
                   type="button"
                   variant="ghost"
                 >
-                  Unlink
+                  {' '}
+                  {tt('Unlink')}{' '}
                 </Button>
               ) : (
                 <Button onClick={() => void connectProvider(provider)} type="button" variant="secondary">
-                  Connect
+                  {' '}
+                  {tt('Connect')}{' '}
                 </Button>
               ),
             }
@@ -1077,30 +1163,32 @@ function ConnectionsSection({
                 {
                   id: 'web3-wallet',
                   icon: <Wallet size={16} />,
-                  title: 'Web3 wallet',
+                  title: tt('Web3 wallet'),
                   meta: walletAccounts.length
-                    ? `${walletAccounts.length} wallet${walletAccounts.length === 1 ? '' : 's'} linked.`
-                    : 'Link a wallet after signing in with an email-based account.',
-                  status: walletAccounts.length ? 'Linked' : 'Available',
+                    ? tt('{{count}} wallet linked.', { count: walletAccounts.length })
+                    : tt('Link a wallet after signing in with an email-based account.'),
+                  status: walletAccounts.length ? tt('Linked') : tt('Available'),
                   action: walletAccounts.length ? (
                     <Button
                       onClick={() => {
                         const account = walletAccounts[0]
                         confirm({
-                          title: 'Unlink wallet',
-                          description: 'This wallet will no longer sign in to your account.',
-                          actionLabel: 'Unlink wallet',
+                          title: tt('Unlink wallet'),
+                          description: tt('This wallet will no longer sign in to your account.'),
+                          actionLabel: tt('Unlink wallet'),
                           onConfirm: () => mutate('Wallet removed.', () => unlinkWalletAddress(account.accountId)),
                         })
                       }}
                       type="button"
                       variant="ghost"
                     >
-                      Unlink
+                      {' '}
+                      {tt('Unlink')}{' '}
                     </Button>
                   ) : (
                     <Button onClick={() => void connectWallet()} type="button" variant="secondary">
-                      Connect
+                      {' '}
+                      {tt('Connect')}{' '}
                     </Button>
                   ),
                 },
@@ -1111,7 +1199,6 @@ function ConnectionsSection({
     </section>
   )
 }
-
 function SessionsSection({
   confirm,
   sessions,
@@ -1125,19 +1212,19 @@ function SessionsSection({
     <section className="settingsPanel">
       <div className="settingsBody">
         <ItemList
-          empty="No active sessions."
+          empty={tt('No active sessions.')}
           items={sessions.map((session) => ({
             id: session.id,
             icon: <Laptop size={16} />,
             title: formatSessionDevice(session.userAgent),
-            meta: `${session.ipAddress ?? 'No IP'} / expires ${formatDate(session.expiresAt)}`,
+            meta: `${session.ipAddress ?? tt('No IP')} ${tt('/ expires {{date}}', { date: formatDate(session.expiresAt) })}`,
             action: (
               <Button
                 onClick={() =>
                   confirm({
-                    title: 'Revoke session',
-                    description: 'This device session will be signed out.',
-                    actionLabel: 'Revoke session',
+                    title: tt('Revoke session'),
+                    description: tt('This device session will be signed out.'),
+                    actionLabel: tt('Revoke session'),
                     onConfirm: async () => {
                       const result = await mutate('Session revoked.', () => revokeSession(session.id), {
                         reload: !session.current,
@@ -1155,7 +1242,8 @@ function SessionsSection({
                 type="button"
                 variant="ghost"
               >
-                Revoke
+                {' '}
+                {tt('Revoke')}{' '}
               </Button>
             ),
           }))}
@@ -1164,7 +1252,6 @@ function SessionsSection({
     </section>
   )
 }
-
 function ApplicationsSection({
   applications,
   confirm,
@@ -1176,21 +1263,26 @@ function ApplicationsSection({
 }) {
   return (
     <section className="settingsPanel">
-      <SubsectionTitle title="Authorized apps" description="Applications with consent to access this account." />
+      <SubsectionTitle
+        title={tt('Authorized apps')}
+        description={tt('Applications with consent to access this account.')}
+      />
       <ItemList
-        empty="No authorized applications yet."
+        empty={tt('No authorized applications yet.')}
         items={applications.map((application) => ({
           id: application.id,
           icon: <Link2 size={16} />,
           title: application.applicationName,
-          meta: `Scopes: ${application.scopes.join(', ')} / Granted ${formatDate(application.grantedAt)}`,
+          meta: `${tt('Scopes:')} ${application.scopes.join(', ')} ${tt('/ Granted {{date}}', { date: formatDate(application.grantedAt) })}`,
           action: (
             <Button
               onClick={() =>
                 confirm({
-                  title: 'Revoke application access',
-                  description: `${application.applicationName} will lose access to this account until you approve it again.`,
-                  actionLabel: 'Revoke access',
+                  title: tt('Revoke application access'),
+                  description: tt('{{applicationName}} will lose access to this account until you approve it again.', {
+                    applicationName: application.applicationName,
+                  }),
+                  actionLabel: tt('Revoke access'),
                   onConfirm: () =>
                     mutate('Application access revoked.', () => revokeApplicationConsent(application.id)),
                 })
@@ -1198,7 +1290,8 @@ function ApplicationsSection({
               type="button"
               variant="ghost"
             >
-              Revoke
+              {' '}
+              {tt('Revoke')}{' '}
             </Button>
           ),
         }))}
@@ -1206,7 +1299,6 @@ function ApplicationsSection({
     </section>
   )
 }
-
 function SubsectionTitle({ title, description }: { title: string; description: string }) {
   return (
     <div className="subsectionTitle">
@@ -1215,7 +1307,6 @@ function SubsectionTitle({ title, description }: { title: string; description: s
     </div>
   )
 }
-
 function PanelTitle({
   action,
   title,
@@ -1242,7 +1333,6 @@ function PanelTitle({
     </div>
   )
 }
-
 function StatusPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="statusPill">
@@ -1251,7 +1341,6 @@ function StatusPill({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-
 function SettingsAction({
   action,
   icon,
@@ -1281,22 +1370,21 @@ function SettingsAction({
     </article>
   )
 }
-
 type MutationHandler = <T>(
   label: string,
   operation: () => Promise<T>,
-  options?: { onError?: (message: string) => void; reload?: boolean },
+  options?: {
+    onError?: (message: string) => void
+    reload?: boolean
+  },
 ) => Promise<T | undefined>
-
 type DestructiveConfirmation = {
   title: string
   description: string
   actionLabel: string
   onConfirm: () => unknown
 }
-
 type ConfirmDestructiveHandler = (confirmation: DestructiveConfirmation) => void
-
 function DestructiveConfirmationDialog({
   confirmation,
   onClose,
@@ -1305,7 +1393,6 @@ function DestructiveConfirmationDialog({
   onClose: () => void
 }) {
   if (!confirmation) return null
-
   return (
     <Dialog open={true}>
       <DialogContent>
@@ -1315,7 +1402,8 @@ function DestructiveConfirmationDialog({
         </DialogHeader>
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button
             onClick={() => {
@@ -1333,7 +1421,6 @@ function DestructiveConfirmationDialog({
     </Dialog>
   )
 }
-
 type ListItem = {
   id: string
   icon?: ReactNode
@@ -1342,10 +1429,9 @@ type ListItem = {
   action?: ReactNode
   status?: string
 }
-
 function ItemList({
   empty,
-  emptyDescription = 'Nothing needs attention here.',
+  emptyDescription = tt('Nothing needs attention here.'),
   items,
 }: {
   empty: string
@@ -1385,29 +1471,28 @@ function ItemList({
     </div>
   )
 }
-
 function TotpEnrollmentDetails({ enrollment }: { enrollment: TotpEnrollmentDisplay }) {
   return (
     <div className="setupPanel">
-      <h3>Authenticator setup</h3>
+      <h3>{tt('Authenticator setup')}</h3>
       {enrollment.qrCode ? (
         <img className="setupQr" src={enrollment.qrCode} alt="Authenticator app QR code" width="168" height="168" />
       ) : null}
       {enrollment.otpAuthUri ? (
         <p>
-          <strong>Enrollment URI</strong>
+          <strong>{tt('Enrollment URI')}</strong>
           <code>{enrollment.otpAuthUri}</code>
         </p>
       ) : null}
       {enrollment.secret ? (
         <p>
-          <strong>Secret</strong>
+          <strong>{tt('Secret')}</strong>
           <code>{enrollment.secret}</code>
         </p>
       ) : null}
       {enrollment.backupCodes.length ? (
         <div>
-          <strong>Backup codes</strong>
+          <strong>{tt('Backup codes')}</strong>
           <div className="backupCodeGrid">
             {enrollment.backupCodes.map((code) => (
               <code key={code}>{code}</code>
@@ -1418,7 +1503,6 @@ function TotpEnrollmentDetails({ enrollment }: { enrollment: TotpEnrollmentDispl
     </div>
   )
 }
-
 function readTotpEnrollment(value: unknown): TotpEnrollmentDisplay {
   const record = asRecord(value)
   return {
@@ -1433,32 +1517,38 @@ function readTotpEnrollment(value: unknown): TotpEnrollmentDisplay {
     backupCodes: readStringArray(record.backupCodes),
   }
 }
-
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []
 }
-
 async function enrollPasskey(name: string) {
-  const options = await createPasskeyRegistrationOptions({ name: name || undefined })
+  const options = await createPasskeyRegistrationOptions({
+    name: name || undefined,
+  })
   const credential = await createPasskeyCredential(options)
-  return verifyPasskeyRegistration({ response: credential, name: name || undefined })
+  return verifyPasskeyRegistration({
+    response: credential,
+    name: name || undefined,
+  })
 }
-
 async function enrollWallet(enabledChains: number[]) {
   const ethereum = window.ethereum
   if (!ethereum) throw new Error('No wallet provider was found in this browser.')
-
-  const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
+  const accounts = await ethereum.request({
+    method: 'eth_requestAccounts',
+  })
   const walletAddress = readFirstString(accounts)
   if (!walletAddress) throw new Error('No wallet account was selected.')
-
-  const chainValue = await ethereum.request({ method: 'eth_chainId' })
+  const chainValue = await ethereum.request({
+    method: 'eth_chainId',
+  })
   const chainId = readChainId(chainValue)
   if (!enabledChains.includes(chainId)) {
     throw new Error(`This wallet network is not enabled. Switch to chain ${enabledChains[0]}.`)
   }
-
-  const { nonce } = await requestWalletNonce({ walletAddress, chainId })
+  const { nonce } = await requestWalletNonce({
+    walletAddress,
+    chainId,
+  })
   const message = createSiweMessage({
     address: walletAddress as `0x${string}`,
     chainId,
@@ -1475,33 +1565,31 @@ async function enrollWallet(enabledChains: number[]) {
     }),
   )
   if (!signature) throw new Error('Wallet did not return a signature.')
-
-  return linkWalletAddress({ message, signature, walletAddress, chainId })
+  return linkWalletAddress({
+    message,
+    signature,
+    walletAddress,
+    chainId,
+  })
 }
-
 async function createPasskeyCredential(optionsResponse: unknown) {
   if (!navigator.credentials?.create) {
     throw new Error('Passkey registration is not supported by this browser.')
   }
-
   const credential = await navigator.credentials.create({
     publicKey: passkeyCreationOptions(optionsResponse),
   })
-
   if (!credential) {
     throw new Error('Passkey registration was cancelled.')
   }
-
   return serializePasskeyCredential(credential)
 }
-
 function passkeyCreationOptions(optionsResponse: unknown): PublicKeyCredentialCreationOptions {
   const response = asRecord(optionsResponse)
   const options = asRecord(
     response.publicKey ?? asRecord(response.options).publicKey ?? response.options ?? optionsResponse,
   )
   const user = asRecord(options.user)
-
   return {
     ...options,
     challenge: base64UrlToBuffer(readRequiredString(options.challenge, 'challenge')),
@@ -1522,7 +1610,6 @@ function passkeyCreationOptions(optionsResponse: unknown): PublicKeyCredentialCr
       : undefined,
   } as PublicKeyCredentialCreationOptions
 }
-
 function serializePasskeyCredential(credential: Credential) {
   const publicKeyCredential = credential as PublicKeyCredential
   const response = publicKeyCredential.response as AuthenticatorAttestationResponse
@@ -1538,7 +1625,6 @@ function serializePasskeyCredential(credential: Credential) {
     clientExtensionResults: publicKeyCredential.getClientExtensionResults?.() ?? {},
   }
 }
-
 export function base64UrlToBuffer(value: string): ArrayBuffer {
   const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
@@ -1549,7 +1635,6 @@ export function base64UrlToBuffer(value: string): ArrayBuffer {
   }
   return bytes.buffer
 }
-
 export function bufferToBase64Url(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer)
   let binary = ''
@@ -1558,37 +1643,32 @@ export function bufferToBase64Url(buffer: ArrayBuffer) {
   }
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
-
 export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 }
-
 export function readString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
-
 export function readFirstString(value: unknown) {
   return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : null
 }
-
 export function readChainId(value: unknown) {
   if (typeof value === 'number') return value
   if (typeof value === 'string' && value.startsWith('0x')) return Number.parseInt(value, 16)
   if (typeof value === 'string') return Number(value)
   throw new Error('Wallet did not return a chain ID.')
 }
-
 export function readRequiredString(value: unknown, field: string) {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`Passkey registration option ${field} is required.`)
   }
   return value
 }
-
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+  }).format(new Date(value))
 }
-
 export function readRedirectUrl(response: unknown) {
   if (typeof response !== 'object' || response === null) return null
   if ('url' in response && typeof response.url === 'string') return response.url
@@ -1596,11 +1676,9 @@ export function readRedirectUrl(response: unknown) {
   if ('callbackURL' in response && typeof response.callbackURL === 'string') return response.callbackURL
   return null
 }
-
 export function formatSessionDevice(userAgent: string | null) {
   if (!userAgent) return 'Unknown device'
   if (!userAgent.includes('/')) return userAgent
-
   const browser = userAgent.includes('Edg/')
     ? 'Edge'
     : userAgent.includes('Chrome/')
@@ -1619,6 +1697,5 @@ export function formatSessionDevice(userAgent: string | null) {
         : userAgent.includes('iPhone') || userAgent.includes('iPad')
           ? 'iOS'
           : null
-
   return platform ? `${browser} on ${platform}` : `${browser} session`
 }

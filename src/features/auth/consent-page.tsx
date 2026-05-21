@@ -5,8 +5,8 @@ import { AuthLayout } from '@/components/layout/auth-layout'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Status } from '@/components/ui/status'
 import { createConsent, getConsentRequest } from '@/lib/api'
+import { tt } from '@/lib/i18n'
 import { useConfigz } from './hooks'
-
 export function ConsentPage() {
   const { data: config } = useConfigz()
   const [consent, setConsent] = useState<ConsentRequestResponse | null>(null)
@@ -14,7 +14,6 @@ export function ConsentPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const search = window.location.search
-
   useEffect(() => {
     let active = true
     getConsentRequest(search)
@@ -26,7 +25,7 @@ export function ConsentPage() {
       })
       .catch((loadError: unknown) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load consent request.')
+          setError(loadError instanceof Error ? tt(loadError.message) : tt('Unable to load consent request.'))
           setLoading(false)
         }
       })
@@ -34,7 +33,6 @@ export function ConsentPage() {
       active = false
     }
   }, [search])
-
   async function approve() {
     if (!consent) return
     setSubmitting(true)
@@ -46,29 +44,28 @@ export function ConsentPage() {
       })
       window.location.assign(consent.redirects.approveUrl)
     } catch (approveError) {
-      setError(approveError instanceof Error ? approveError.message : 'Unable to approve consent.')
+      setError(approveError instanceof Error ? tt(approveError.message) : tt('Unable to approve consent.'))
       setSubmitting(false)
     }
   }
-
   const messageState = error !== null || (!loading && !consent)
   const signInHref = `/sign-in${search}`
-
   return (
     <AuthLayout
       backHref={messageState ? signInHref : undefined}
       config={config}
       eyebrow="OAuth consent"
       icon={messageState ? <CircleAlert aria-hidden="true" size={28} /> : undefined}
-      title="Review application access."
-      description="Approve only the scopes this application should use with your account."
+      title={tt('Review application access.')}
+      description={tt('Approve only the scopes this application should use with your account.')}
       variant={messageState ? 'message' : 'form'}
     >
-      {loading ? <Status>Loading consent request</Status> : null}
+      {loading ? <Status>{tt('Loading consent request')}</Status> : null}
       {error ? <Status tone="error">{error}</Status> : null}
       {!loading && !error && !consent ? (
         <Status tone="warning">
-          This consent request is no longer available. Start sign-in again from the application.
+          {' '}
+          {tt('This consent request is no longer available. Start sign-in again from the application.')}{' '}
         </Status>
       ) : null}
       {consent ? (
@@ -81,7 +78,9 @@ export function ConsentPage() {
             )}
             <div>
               <h2>{consent.application.name}</h2>
-              <p>{consent.application.description ?? consent.application.homepageUrl ?? 'OAuth client application'}</p>
+              <p>
+                {consent.application.description ?? consent.application.homepageUrl ?? tt('OAuth client application')}
+              </p>
             </div>
           </div>
           <div className="consentAccount">
@@ -91,14 +90,14 @@ export function ConsentPage() {
               <UserRound size={20} />
             )}
             <div>
-              <span>Signed in as</span>
-              <strong>{consent.user.displayName ?? consent.user.email ?? 'Current account'}</strong>
+              <span>{tt('Signed in as')}</span>
+              <strong>{consent.user.displayName ?? consent.user.email ?? tt('Current account')}</strong>
               {consent.user.email && consent.user.email !== consent.user.displayName ? (
                 <small>{consent.user.email}</small>
               ) : null}
             </div>
           </div>
-          <ul className="scopeList" aria-label="Requested scopes">
+          <ul className="scopeList" aria-label={tt('Requested scopes')}>
             {consent.requestedScopes.map((scope) => (
               <li className="scopeItem" key={scope}>
                 <strong>{scope}</strong>
@@ -107,15 +106,17 @@ export function ConsentPage() {
             ))}
           </ul>
           {consent.existingConsent ? (
-            <Status tone="info">Previously approved on {formatDate(consent.existingConsent.grantedAt)}.</Status>
+            <Status tone="info">
+              {tt('Previously approved on')} {formatDate(consent.existingConsent.grantedAt)}.
+            </Status>
           ) : null}
           <div className="buttonRow">
             <Button disabled={submitting} onClick={approve} type="button">
-              <ArrowRight size={18} />
-              Approve access
+              <ArrowRight size={18} /> {tt('Approve access')}{' '}
             </Button>
             <LinkButton href={consent.redirects.denyUrl} variant="secondary">
-              Deny
+              {' '}
+              {tt('Deny')}{' '}
             </LinkButton>
           </div>
         </div>
@@ -123,15 +124,15 @@ export function ConsentPage() {
     </AuthLayout>
   )
 }
-
 function scopeDescription(scope: string) {
-  if (scope === 'openid') return 'Confirm your identity with this provider.'
-  if (scope === 'profile') return 'Share basic profile details such as name and avatar.'
-  if (scope === 'email') return 'Share your email address and verification state.'
-  if (scope === 'offline_access') return 'Allow refresh tokens for continued access.'
-  return 'Allow this application to request this scope.'
+  if (scope === 'openid') return tt('Confirm your identity with this provider.')
+  if (scope === 'profile') return tt('Share basic profile details such as name and avatar.')
+  if (scope === 'email') return tt('Share your email address and verification state.')
+  if (scope === 'offline_access') return tt('Allow refresh tokens for continued access.')
+  return tt('Allow this application to request this scope.')
 }
-
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+  }).format(new Date(value))
 }

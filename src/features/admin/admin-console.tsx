@@ -184,15 +184,20 @@ import {
   uploadBrandingLogo,
   uploadOrganizationLogo,
 } from '@/lib/api/management'
+import { tt } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { ConsoleActionBar, ConsoleDetailStack, ConsoleToolbar } from './console-primitives'
 
 type FormState = Record<string, string>
-
 const emptyForm: FormState = {}
 const emptyConnectorsResponse: ListManagementConnectorsResponse = {
   connectors: [],
-  pagination: { limit: 50, offset: 0, total: 0, nextOffset: null },
+  pagination: {
+    limit: 50,
+    offset: 0,
+    total: 0,
+    nextOffset: null,
+  },
 }
 const tokenClaimsObjectSchema = tokenClaimsSchema.optional()
 const optionalAuthorizationFieldNames = new Set([
@@ -203,8 +208,10 @@ const optionalAuthorizationFieldNames = new Set([
   'tokenClaimValue',
   'tokenClaimsNamespace',
 ])
-
-type DetailTab = { value: string; label: string }
+type DetailTab = {
+  value: string
+  label: string
+}
 type ApplicationDetailSection = 'settings' | 'branding'
 type UserDetailSection = 'profile' | 'security' | 'sessions' | 'linked-accounts' | 'applications' | 'operations'
 type OrganizationDetailSection = 'settings' | 'authorization'
@@ -232,21 +239,35 @@ type HostedAuthPreviewState = {
   oneTapEnabled?: boolean
   signupEnabled?: boolean
   socialLoginEnabled?: boolean
-  socialProviders?: Array<{ displayName: string; icon: string; providerId: string; slug: string }>
+  socialProviders?: Array<{
+    displayName: string
+    icon: string
+    providerId: string
+    slug: string
+  }>
   supportEmail?: string
   termsUri?: string
   usernameEnabled?: boolean
   web3WalletEnabled?: boolean
 }
-
 type SmsProviderId = ManagementSignInSettingsResponse['builtInProviders']['phone']['smsProvider']
-
-const smsProviderOptions: Array<{ value: SmsProviderId; label: string }> = [
-  { value: 'twilio', label: 'Twilio' },
-  { value: 'vonage', label: 'Vonage' },
-  { value: 'messagebird', label: 'MessageBird' },
+const smsProviderOptions: Array<{
+  value: SmsProviderId
+  label: string
+}> = [
+  {
+    value: 'twilio',
+    label: 'Twilio',
+  },
+  {
+    value: 'vonage',
+    label: 'Vonage',
+  },
+  {
+    value: 'messagebird',
+    label: 'MessageBird',
+  },
 ]
-
 const applicationTypeOptions = [
   {
     value: 'public_spa',
@@ -267,35 +288,49 @@ const applicationTypeOptions = [
     icon: Smartphone,
   },
 ] as const
-
 export function AdminDashboardPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.dashboard, queryFn: getAdminDashboard })
-
-  if (query.isLoading) return <LoadingState label="Loading Console dashboard" />
+  const query = useQuery({
+    queryKey: adminQueryKeys.dashboard,
+    queryFn: getAdminDashboard,
+  })
+  if (query.isLoading) return <LoadingState label={tt('Loading Console dashboard')} />
   if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />
-
   const dashboard = query.data
   if (!dashboard) return null
-
   return (
     <>
-      <PageHeader title="Dashboard" description="Get an overview about your identity service performance." />
+      <PageHeader
+        title={tt('Dashboard')}
+        description={tt('Get an overview about your identity service performance.')}
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          detail="Tenant identities available to hosted auth."
-          label="Total users"
+          detail={tt('Tenant identities available to hosted auth.')}
+          label={tt('Total users')}
           value={dashboard.users.pagination.total}
         />
-        <MetricCard detail="Users created in the last 24 hours." label="New users today" pending value="--" />
-        <MetricCard detail="Users created in the past seven days." label="New users past 7 days" pending value="--" />
+        <MetricCard
+          detail={tt('Users created in the last 24 hours.')}
+          label={tt('New users today')}
+          pending
+          value="--"
+        />
+        <MetricCard
+          detail={tt('Users created in the past seven days.')}
+          label={tt('New users past 7 days')}
+          pending
+          value="--"
+        />
       </div>
       <DashboardChartPanel dashboard={dashboard} />
     </>
   )
 }
-
 export function ApplicationsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.applications, queryFn: listApplications })
+  const query = useQuery({
+    queryKey: adminQueryKeys.applications,
+    queryFn: listApplications,
+  })
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedTab, setSelectedTab] = useState<'my-apps' | 'third-party'>('my-apps')
@@ -304,8 +339,12 @@ export function ApplicationsPage() {
     mutationFn: createApplication,
     onSuccess: () => {
       return Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.readiness }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.applications,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.readiness,
+        }),
       ])
     },
   })
@@ -319,15 +358,13 @@ export function ApplicationsPage() {
       )
     return matchesTab && matchesSearch
   })
-
   return (
     <ResourcePage
-      title="Applications"
-      description="Manage OIDC clients, redirect URIs, grant types, and client security posture."
+      title={tt('Applications')}
+      description={tt('Manage OIDC clients, redirect URIs, grant types, and client security posture.')}
       action={
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New application
+          <Plus data-icon="inline-start" /> {tt('New application')}{' '}
         </Button>
       }
       auxiliary={
@@ -352,14 +389,14 @@ export function ApplicationsPage() {
     >
       <Tabs setValue={(value) => setSelectedTab(value as 'my-apps' | 'third-party')} value={selectedTab}>
         <ListToolbar>
-          <TabsList aria-label="Application lists">
-            <TabsTrigger value="my-apps">My apps</TabsTrigger>
-            <TabsTrigger value="third-party">Third-party apps</TabsTrigger>
+          <TabsList aria-label={tt('Application lists')}>
+            <TabsTrigger value="my-apps">{tt('My apps')}</TabsTrigger>
+            <TabsTrigger value="third-party">{tt('Third-party apps')}</TabsTrigger>
           </TabsList>
           <TextInput
-            aria-label="Search applications"
+            aria-label={tt('Search applications')}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search applications"
+            placeholder={tt('Search applications')}
             value={search}
           />
         </ListToolbar>
@@ -374,8 +411,12 @@ export function ApplicationsPage() {
             emptyTitle={search ? 'No applications found' : 'No applications in this tab'}
             hasApplications={applications.length > 0}
             onToggleDisabled={(application) =>
-              updateApplication(application.id, { disabled: !application.disabled }).then(() =>
-                queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
+              updateApplication(application.id, {
+                disabled: !application.disabled,
+              }).then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: adminQueryKeys.applications,
+                }),
               )
             }
           />
@@ -391,8 +432,12 @@ export function ApplicationsPage() {
             emptyTitle={search ? 'No applications found' : 'No applications in this tab'}
             hasApplications={applications.length > 0}
             onToggleDisabled={(application) =>
-              updateApplication(application.id, { disabled: !application.disabled }).then(() =>
-                queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
+              updateApplication(application.id, {
+                disabled: !application.disabled,
+              }).then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: adminQueryKeys.applications,
+                }),
               )
             }
           />
@@ -401,7 +446,6 @@ export function ApplicationsPage() {
     </ResourcePage>
   )
 }
-
 export function ApplicationDetailPage({
   applicationId,
   section = 'settings',
@@ -430,7 +474,9 @@ export function ApplicationDetailPage({
     mutationFn: (input: z.infer<typeof updateApplicationRequestSchema>) => updateApplication(applicationId, input),
     onSuccess: (application) => {
       queryClient.setQueryData([...adminQueryKeys.applications, applicationId], application)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.applications,
+      })
     },
   })
   const rotateMutation = useMutation({
@@ -438,8 +484,12 @@ export function ApplicationDetailPage({
     onSuccess: (result) => {
       setRotatedSecret(result.clientSecret)
       return Promise.all([
-        queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.applications, applicationId] }),
-        queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.applications, applicationId, 'client-secrets'] }),
+        queryClient.invalidateQueries({
+          queryKey: [...adminQueryKeys.applications, applicationId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...adminQueryKeys.applications, applicationId, 'client-secrets'],
+        }),
       ])
     },
   })
@@ -447,30 +497,40 @@ export function ApplicationDetailPage({
     mutationFn: () => deleteApplication(applicationId),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.readiness }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.applications,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.readiness,
+        }),
       ])
-      await navigate({ to: '/console/applications' })
+      await navigate({
+        to: '/console/applications',
+      })
     },
   })
   const logoMutation = useAdminMutation({
     mutationFn: (file: File) => uploadApplicationLogo(applicationId, file),
     onSuccess: () =>
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.applications, applicationId] }),
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
+        queryClient.invalidateQueries({
+          queryKey: [...adminQueryKeys.applications, applicationId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.applications,
+        }),
       ]),
   })
-
   const application = query.data
   const redirectUris = listValue(application?.redirectUris, '\n')
   const postLogoutRedirectUris = listValue(application?.postLogoutRedirectUris, '\n')
   const corsOrigins = listValue(application?.corsOrigins, '\n')
-
   return (
     <ResourcePage
-      title={application?.name ?? 'Application'}
-      description="Review client configuration, manage redirect URIs, rotate confidential secrets, and copy standard OIDC integration details."
+      title={application?.name ?? tt('Application')}
+      description={tt(
+        'Review client configuration, manage redirect URIs, rotate confidential secrets, and copy standard OIDC integration details.',
+      )}
       framed={false}
       error={query.error}
       loading={query.isLoading}
@@ -479,8 +539,7 @@ export function ApplicationDetailPage({
       {application ? (
         <ConsoleDetailStack>
           <a className="consoleBackLink" href="/console/applications">
-            <Undo2 data-icon="inline-start" />
-            Back to applications
+            <Undo2 data-icon="inline-start" /> {tt('Back to applications')}{' '}
           </a>
           <ObjectHeader
             badge={clientTypeLabel(application.clientType)}
@@ -495,16 +554,16 @@ export function ApplicationDetailPage({
             }}
             value={selectedTab}
           >
-            <TabsList aria-label="Application detail sections">
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-              <TabsTrigger value="branding">Branding</TabsTrigger>
+            <TabsList aria-label={tt('Application detail sections')}>
+              <TabsTrigger value="settings">{tt('Settings')}</TabsTrigger>
+              <TabsTrigger value="branding">{tt('Branding')}</TabsTrigger>
             </TabsList>
             <TabsContent className="mt-4" value="settings">
               <div className="applicationSettingsStack">
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>General settings</CardTitle>
-                    <CardDescription>Required display metadata and client classification.</CardDescription>
+                    <CardTitle>{tt('General settings')}</CardTitle>
+                    <CardDescription>{tt('Required display metadata and client classification.')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form
@@ -521,22 +580,22 @@ export function ApplicationDetailPage({
                         )
                       }}
                     >
-                      <Field label="Application name">
+                      <Field label={tt('Application name')}>
                         <TextInput defaultValue={application.name} name="name" required />
                       </Field>
-                      <Field label="Description">
+                      <Field label={tt('Description')}>
                         <TextArea defaultValue={application.description ?? ''} name="description" rows={3} />
                       </Field>
-                      <SettingRow label="App ID" value={application.clientId} />
-                      <SettingRow label="Type" value={clientTypeLabel(application.clientType)} />
-                      <SettingRow label="Status" value={application.disabled ? 'Disabled' : 'Enabled'} />
+                      <SettingRow label={tt('App ID')} value={application.clientId} />
+                      <SettingRow label={tt('Type')} value={clientTypeLabel(application.clientType)} />
+                      <SettingRow label={tt('Status')} value={application.disabled ? 'Disabled' : 'Enabled'} />
                       <ConsoleActionBar>
                         <Button disabled={updateMutation.isPending} type="submit">
-                          <Save data-icon="inline-start" />
-                          Save changes
+                          <Save data-icon="inline-start" /> {tt('Save changes')}{' '}
                         </Button>
                         <Button disabled={updateMutation.isPending} type="reset" variant="secondary">
-                          Discard
+                          {' '}
+                          {tt('Discard')}{' '}
                         </Button>
                       </ConsoleActionBar>
                       <MutationError error={updateMutation.error} />
@@ -546,8 +605,8 @@ export function ApplicationDetailPage({
 
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>Redirects and origins</CardTitle>
-                    <CardDescription>Callbacks and browser origins accepted by this client.</CardDescription>
+                    <CardTitle>{tt('Redirects and origins')}</CardTitle>
+                    <CardDescription>{tt('Callbacks and browser origins accepted by this client.')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form
@@ -571,10 +630,10 @@ export function ApplicationDetailPage({
                         }
                       }}
                     >
-                      <Field label="Redirect URIs" help="One URI per line.">
+                      <Field label={tt('Redirect URIs')} help={tt('One URI per line.')}>
                         <TextArea defaultValue={redirectUris} name="redirectUris" required rows={5} />
                       </Field>
-                      <Field label="Post sign-out redirect URIs" help="One URI per line.">
+                      <Field label={tt('Post sign-out redirect URIs')} help={tt('One URI per line.')}>
                         <TextArea
                           defaultValue={postLogoutRedirectUris}
                           name="postLogoutRedirectUris"
@@ -582,7 +641,10 @@ export function ApplicationDetailPage({
                           rows={3}
                         />
                       </Field>
-                      <Field label="CORS origins" help="One origin per line. Include scheme, host, and optional port.">
+                      <Field
+                        label={tt('CORS origins')}
+                        help={tt('One origin per line. Include scheme, host, and optional port.')}
+                      >
                         <TextArea
                           defaultValue={corsOrigins}
                           name="corsOrigins"
@@ -592,10 +654,12 @@ export function ApplicationDetailPage({
                       </Field>
                       <ConsoleActionBar>
                         <Button disabled={updateMutation.isPending} type="submit">
-                          Save redirects and origins
+                          {' '}
+                          {tt('Save redirects and origins')}{' '}
                         </Button>
                         <Button disabled={updateMutation.isPending} type="reset" variant="secondary">
-                          Discard
+                          {' '}
+                          {tt('Discard')}{' '}
                         </Button>
                       </ConsoleActionBar>
                       {redirectFormError ? <p className="text-sm text-destructive">{redirectFormError}</p> : null}
@@ -606,44 +670,48 @@ export function ApplicationDetailPage({
 
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>Endpoints and credentials</CardTitle>
-                    <CardDescription>Use these values with any standards-compliant OIDC SDK.</CardDescription>
+                    <CardTitle>{tt('Endpoints and credentials')}</CardTitle>
+                    <CardDescription>{tt('Use these values with any standards-compliant OIDC SDK.')}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3">
-                    <SettingRow label="Auth method" value={application.tokenEndpointAuthMethod} />
-                    <SettingRow label="PKCE" value={application.requirePkce ? 'Required' : 'Optional'} />
-                    <SettingRow label="Issuer" value={application.oidc.issuer} />
+                    <SettingRow label={tt('Auth method')} value={application.tokenEndpointAuthMethod} />
+                    <SettingRow label={tt('PKCE')} value={application.requirePkce ? 'Required' : 'Optional'} />
+                    <SettingRow label={tt('Issuer')} value={application.oidc.issuer} />
                     <SettingRow
-                      label="Discovery"
+                      label={tt('Discovery')}
                       value={`${application.oidc.issuer}/.well-known/openid-configuration`}
                     />
-                    <SettingRow label="Authorization endpoint" value={application.oidc.authorizationEndpoint} />
-                    <SettingRow label="Token endpoint" value={application.oidc.tokenEndpoint} />
-                    <SettingRow label="UserInfo endpoint" value={application.oidc.userInfoEndpoint} />
-                    <SettingRow label="JWKS URI" value={application.oidc.jwksUri} />
-                    <CopyButton label="Copy client config" value={clientConfig(application, rotatedSecret)} />
+                    <SettingRow label={tt('Authorization endpoint')} value={application.oidc.authorizationEndpoint} />
+                    <SettingRow label={tt('Token endpoint')} value={application.oidc.tokenEndpoint} />
+                    <SettingRow label={tt('UserInfo endpoint')} value={application.oidc.userInfoEndpoint} />
+                    <SettingRow label={tt('JWKS URI')} value={application.oidc.jwksUri} />
+                    <CopyButton label={tt('Copy client config')} value={clientConfig(application, rotatedSecret)} />
                   </CardContent>
                 </Card>
 
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>Client secrets</CardTitle>
+                    <CardTitle>{tt('Client secrets')}</CardTitle>
                     <CardDescription>
-                      Raw secrets are only shown once immediately after creation or rotation.
+                      {' '}
+                      {tt('Raw secrets are only shown once immediately after creation or rotation.')}{' '}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3">
                     {application.public ? (
-                      <SettingRow label="Secret behavior" value="No client secret is issued for public clients." />
+                      <SettingRow
+                        label={tt('Secret behavior')}
+                        value="No client secret is issued for public clients."
+                      />
                     ) : (
                       <>
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Version</TableHead>
-                              <TableHead>Prefix</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Created</TableHead>
+                              <TableHead>{tt('Version')}</TableHead>
+                              <TableHead>{tt('Prefix')}</TableHead>
+                              <TableHead>{tt('Status')}</TableHead>
+                              <TableHead>{tt('Created')}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -662,7 +730,8 @@ export function ApplicationDetailPage({
                           onClick={() => rotateMutation.mutate()}
                           type="button"
                         >
-                          Rotate client secret
+                          {' '}
+                          {tt('Rotate client secret')}{' '}
                         </Button>
                         <MutationError error={secretsQuery.error ?? rotateMutation.error} />
                       </>
@@ -672,14 +741,16 @@ export function ApplicationDetailPage({
 
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>Advanced options</CardTitle>
-                    <CardDescription>Grant, scope, and custom metadata included with this client.</CardDescription>
+                    <CardTitle>{tt('Advanced options')}</CardTitle>
+                    <CardDescription>
+                      {tt('Grant, scope, and custom metadata included with this client.')}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="formStack">
-                    <SettingRow label="Grant types" value={application.allowedGrantTypes.join(', ')} />
-                    <SettingRow label="Scopes" value={application.allowedScopes.join(' ')} />
+                    <SettingRow label={tt('Grant types')} value={application.allowedGrantTypes.join(', ')} />
+                    <SettingRow label={tt('Scopes')} value={application.allowedScopes.join(' ')} />
                     <SettingRow
-                      label="Refresh tokens"
+                      label={tt('Refresh tokens')}
                       value={application.allowedScopes.includes('offline_access') ? 'Allowed by scope' : 'Not enabled'}
                     />
                     <form
@@ -700,7 +771,7 @@ export function ApplicationDetailPage({
                         }
                       }}
                     >
-                      <Field label="Custom data JSON" help="JSON object stored with this application.">
+                      <Field label={tt('Custom data JSON')} help={tt('JSON object stored with this application.')}>
                         <TextArea
                           defaultValue={JSON.stringify(application.customData, null, 2)}
                           name="customData"
@@ -709,10 +780,12 @@ export function ApplicationDetailPage({
                       </Field>
                       <ConsoleActionBar>
                         <Button disabled={updateMutation.isPending} type="submit">
-                          Save custom data
+                          {' '}
+                          {tt('Save custom data')}{' '}
                         </Button>
                         <Button disabled={updateMutation.isPending} type="reset" variant="secondary">
-                          Discard
+                          {' '}
+                          {tt('Discard')}{' '}
                         </Button>
                       </ConsoleActionBar>
                       {customDataFormError ? <p className="text-sm text-destructive">{customDataFormError}</p> : null}
@@ -723,13 +796,14 @@ export function ApplicationDetailPage({
 
                 <Card className="applicationSettingsPanel">
                   <CardHeader>
-                    <CardTitle>Lifecycle</CardTitle>
+                    <CardTitle>{tt('Lifecycle')}</CardTitle>
                     <CardDescription>
-                      Disable clients before deleting them when integrations are still active.
+                      {' '}
+                      {tt('Disable clients before deleting them when integrations are still active.')}{' '}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3">
-                    <SettingRow label="Reason" value={application.disabledReason ?? 'Not set'} />
+                    <SettingRow label={tt('Reason')} value={application.disabledReason ?? 'Not set'} />
                     <div className="flex flex-wrap gap-2">
                       <Button
                         disabled={updateMutation.isPending}
@@ -750,8 +824,7 @@ export function ApplicationDetailPage({
                         type="button"
                         variant="danger"
                       >
-                        <Trash2 data-icon="inline-start" />
-                        Delete application
+                        <Trash2 data-icon="inline-start" /> {tt('Delete application')}{' '}
                       </Button>
                     </div>
                     <MutationError error={updateMutation.error ?? deleteMutation.error} />
@@ -762,8 +835,10 @@ export function ApplicationDetailPage({
             <TabsContent className="mt-4" value="branding">
               <Card className="applicationSettingsPanel">
                 <CardHeader>
-                  <CardTitle>Application branding</CardTitle>
-                  <CardDescription>Logo and display values shown in application and consent surfaces.</CardDescription>
+                  <CardTitle>{tt('Application branding')}</CardTitle>
+                  <CardDescription>
+                    {tt('Logo and display values shown in application and consent surfaces.')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
                   <AssetUploadControl
@@ -772,8 +847,8 @@ export function ApplicationDetailPage({
                     onFile={(file) => logoMutation.mutate(file)}
                     previewUrl={application.iconUrl}
                   />
-                  <SettingRow label="Display name" value={application.name} />
-                  <SettingRow label="Homepage URL" value={application.homepageUrl ?? 'Not set'} />
+                  <SettingRow label={tt('Display name')} value={application.name} />
+                  <SettingRow label={tt('Homepage URL')} value={application.homepageUrl ?? 'Not set'} />
                   <MutationError error={logoMutation.error} />
                   {logoMutation.errorMessage ? (
                     <p className="text-sm text-destructive">{logoMutation.errorMessage}</p>
@@ -801,7 +876,6 @@ export function ApplicationDetailPage({
     </ResourcePage>
   )
 }
-
 function ApplicationsTableContent({
   applications,
   emptyDescription,
@@ -820,11 +894,11 @@ function ApplicationsTableContent({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Application name</TableHead>
-            <TableHead>Ownership</TableHead>
-            <TableHead>Client ID</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>{tt('Application name')}</TableHead>
+            <TableHead>{tt('Ownership')}</TableHead>
+            <TableHead>{tt('Client ID')}</TableHead>
+            <TableHead>{tt('Type')}</TableHead>
+            <TableHead>{tt('Status')}</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -834,16 +908,15 @@ function ApplicationsTableContent({
       </Table>
     )
   }
-
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Application name</TableHead>
-          <TableHead>Ownership</TableHead>
-          <TableHead>Client ID</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead>{tt('Application name')}</TableHead>
+          <TableHead>{tt('Ownership')}</TableHead>
+          <TableHead>{tt('Client ID')}</TableHead>
+          <TableHead>{tt('Type')}</TableHead>
+          <TableHead>{tt('Status')}</TableHead>
           <TableHead />
         </TableRow>
       </TableHeader>
@@ -892,19 +965,21 @@ function ApplicationsTableContent({
             description={
               hasApplications
                 ? emptyDescription
-                : 'Create your first OIDC client to connect an application to hosted authentication.'
+                : tt('Create your first OIDC client to connect an application to hosted authentication.')
             }
-            title={hasApplications ? emptyTitle : 'No applications yet'}
+            title={hasApplications ? emptyTitle : tt('No applications yet')}
           />
         )}
       </TableBody>
     </Table>
   )
 }
-
 export function AdminOnboardingPage() {
   const queryClient = useQueryClient()
-  const readinessQuery = useQuery({ queryKey: adminQueryKeys.readiness, queryFn: getAdminReadiness })
+  const readinessQuery = useQuery({
+    queryKey: adminQueryKeys.readiness,
+    queryFn: getAdminReadiness,
+  })
   const [form, setForm] = useState({
     name: 'Customer portal',
     slug: 'customer-portal',
@@ -915,16 +990,21 @@ export function AdminOnboardingPage() {
     mutationFn: createApplication,
     onSuccess: () =>
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.applications }),
-        queryClient.invalidateQueries({ queryKey: adminQueryKeys.readiness }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.applications,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.readiness,
+        }),
       ]),
   })
   const application = createMutation.data
-
   return (
     <ResourcePage
-      title="Console setup"
-      description="Complete required setup gates, then review production recommendations without blocking the Console."
+      title={tt('Console setup')}
+      description={tt(
+        'Complete required setup gates, then review production recommendations without blocking the Console.',
+      )}
       error={readinessQuery.error ?? createMutation.error}
       framed={false}
       loading={readinessQuery.isLoading}
@@ -935,9 +1015,10 @@ export function AdminOnboardingPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle>Setup checklist</CardTitle>
+                <CardTitle>{tt('Setup checklist')}</CardTitle>
                 <CardDescription>
-                  Required items unlock Console routes. Recommended items prepare production.
+                  {' '}
+                  {tt('Required items unlock Console routes. Recommended items prepare production.')}{' '}
                 </CardDescription>
               </div>
               <Badge variant={readinessQuery.data?.admin?.setupRequired ? 'outline' : 'secondary'}>
@@ -946,14 +1027,16 @@ export function AdminOnboardingPage() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-5">
-            <SetupChecklist items={readinessQuery.data?.required ?? []} title="Required" />
-            <SetupChecklist items={readinessQuery.data?.recommended ?? []} title="Recommended" />
+            <SetupChecklist items={readinessQuery.data?.required ?? []} title={tt('Required')} />
+            <SetupChecklist items={readinessQuery.data?.recommended ?? []} title={tt('Recommended')} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>First OIDC application</CardTitle>
-            <CardDescription>Use a localhost or review-environment callback while validating the flow.</CardDescription>
+            <CardTitle>{tt('First OIDC application')}</CardTitle>
+            <CardDescription>
+              {tt('Use a localhost or review-environment callback while validating the flow.')}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -972,54 +1055,73 @@ export function AdminOnboardingPage() {
               }}
             >
               <ApplicationTypeCards
-                onChange={(clientType) => setForm((value) => ({ ...value, clientType }))}
+                onChange={(clientType) =>
+                  setForm((value) => ({
+                    ...value,
+                    clientType,
+                  }))
+                }
                 value={form.clientType}
               />
-              <Field label="Application name">
+              <Field label={tt('Application name')}>
                 <TextInput
-                  onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((value) => ({
+                      ...value,
+                      name: event.target.value,
+                    }))
+                  }
                   required
                   value={form.name}
                 />
               </Field>
-              <Field label="Slug">
+              <Field label={tt('Slug')}>
                 <TextInput
-                  onChange={(event) => setForm((value) => ({ ...value, slug: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((value) => ({
+                      ...value,
+                      slug: event.target.value,
+                    }))
+                  }
                   required
                   value={form.slug}
                 />
               </Field>
-              <Field label="Redirect URIs">
+              <Field label={tt('Redirect URIs')}>
                 <TextArea
-                  onChange={(event) => setForm((value) => ({ ...value, redirectUris: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((value) => ({
+                      ...value,
+                      redirectUris: event.target.value,
+                    }))
+                  }
                   required
                   value={form.redirectUris}
                 />
               </Field>
               <Button disabled={createMutation.isPending} type="submit">
-                <Plus data-icon="inline-start" />
-                Create OIDC client
+                <Plus data-icon="inline-start" /> {tt('Create OIDC client')}{' '}
               </Button>
             </form>
           </CardContent>
         </Card>
         <Card className="xl:col-span-2">
           <CardHeader>
-            <CardTitle>Client integration</CardTitle>
-            <CardDescription>Use OIDC discovery with authorization code and PKCE.</CardDescription>
+            <CardTitle>{tt('Client integration')}</CardTitle>
+            <CardDescription>{tt('Use OIDC discovery with authorization code and PKCE.')}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
             <SettingRow
-              label="Discovery"
+              label={tt('Discovery')}
               value={`${window.location.origin}/api/auth/.well-known/openid-configuration`}
             />
-            <SettingRow label="Issuer" value={`${window.location.origin}/api/auth`} />
-            <SettingRow label="Callback" value={form.redirectUris.split('\n')[0] ?? ''} />
+            <SettingRow label={tt('Issuer')} value={`${window.location.origin}/api/auth`} />
+            <SettingRow label={tt('Callback')} value={form.redirectUris.split('\n')[0] ?? ''} />
             {application ? (
               <>
-                <SettingRow label="Client ID" value={application.clientId} />
-                <SettingRow label="Auth method" value={application.tokenEndpointAuthMethod} />
-                <SettingRow label="Scopes" value={application.allowedScopes.join(' ')} />
+                <SettingRow label={tt('Client ID')} value={application.clientId} />
+                <SettingRow label={tt('Auth method')} value={application.tokenEndpointAuthMethod} />
+                <SettingRow label={tt('Scopes')} value={application.allowedScopes.join(' ')} />
               </>
             ) : null}
             <Button
@@ -1041,8 +1143,7 @@ export function AdminOnboardingPage() {
               type="button"
               variant="secondary"
             >
-              <Copy data-icon="inline-start" />
-              Copy details
+              <Copy data-icon="inline-start" /> {tt('Copy details')}{' '}
             </Button>
           </CardContent>
         </Card>
@@ -1050,19 +1151,38 @@ export function AdminOnboardingPage() {
     </ResourcePage>
   )
 }
-
 export function UsersPage() {
   const [search, setSearch] = useState('')
   const [role, setRole] = useState('')
   const [banned, setBanned] = useState('')
   const [offset, setOffset] = useState(0)
   const query = useQuery({
-    queryKey: [...adminQueryKeys.users, { search, role, banned, offset }],
+    queryKey: [
+      ...adminQueryKeys.users,
+      {
+        search,
+        role,
+        banned,
+        offset,
+      },
+    ],
     queryFn: () =>
       listUsers({
-        ...(search ? { search } : {}),
-        ...(role ? { role } : {}),
-        ...(banned ? { banned: banned === 'true' } : {}),
+        ...(search
+          ? {
+              search,
+            }
+          : {}),
+        ...(role
+          ? {
+              role,
+            }
+          : {}),
+        ...(banned
+          ? {
+              banned: banned === 'true',
+            }
+          : {}),
         limit: 10,
         offset,
       }),
@@ -1073,18 +1193,18 @@ export function UsersPage() {
     mutationFn: createUser,
     onSuccess: () => {
       setDialogOpen(false)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.users })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.users,
+      })
     },
   })
-
   return (
     <ResourcePage
-      title="Users"
-      description="Create users, inspect profile state, reset passwords, and adjust administrative flags."
+      title={tt('Users')}
+      description={tt('Create users, inspect profile state, reset passwords, and adjust administrative flags.')}
       action={
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New user
+          <Plus data-icon="inline-start" /> {tt('New user')}{' '}
         </Button>
       }
       auxiliary={
@@ -1107,37 +1227,37 @@ export function UsersPage() {
       toolbar={
         <ListToolbar>
           <TextInput
-            aria-label="Search users"
+            aria-label={tt('Search users')}
             onChange={(event) => {
               setSearch(event.target.value)
               setOffset(0)
             }}
-            placeholder="Search users"
+            placeholder={tt('Search users')}
             value={search}
           />
           <SelectInput
-            aria-label="Filter role"
+            aria-label={tt('Filter role')}
             onChange={(event) => {
               setRole(event.target.value)
               setOffset(0)
             }}
             value={role}
           >
-            <option value="">Any role</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
+            <option value="">{tt('Any role')}</option>
+            <option value="admin">{tt('Admin')}</option>
+            <option value="user">{tt('User')}</option>
           </SelectInput>
           <SelectInput
-            aria-label="Filter status"
+            aria-label={tt('Filter status')}
             onChange={(event) => {
               setBanned(event.target.value)
               setOffset(0)
             }}
             value={banned}
           >
-            <option value="">Any status</option>
-            <option value="false">Active</option>
-            <option value="true">Banned</option>
+            <option value="">{tt('Any status')}</option>
+            <option value="false">{tt('Active')}</option>
+            <option value="true">{tt('Banned')}</option>
           </SelectInput>
         </ListToolbar>
       }
@@ -1146,11 +1266,11 @@ export function UsersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{tt('User')}</TableHead>
+              <TableHead>{tt('Role')}</TableHead>
+              <TableHead>{tt('Email')}</TableHead>
+              <TableHead>{tt('Created')}</TableHead>
+              <TableHead>{tt('Status')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -1184,17 +1304,23 @@ export function UsersPage() {
                         <DropdownMenuGroup>
                           {user.email ? (
                             <DropdownMenuItem onClick={() => requestPasswordReset(user.email ?? '')}>
-                              Send password reset
+                              {' '}
+                              {tt('Send password reset')}{' '}
                             </DropdownMenuItem>
                           ) : null}
                           <DropdownMenuItem
                             onClick={() =>
-                              updateUser(user.id, { role: user.role === 'admin' ? 'user' : 'admin' }).then(() =>
-                                queryClient.invalidateQueries({ queryKey: adminQueryKeys.users }),
+                              updateUser(user.id, {
+                                role: user.role === 'admin' ? 'user' : 'admin',
+                              }).then(() =>
+                                queryClient.invalidateQueries({
+                                  queryKey: adminQueryKeys.users,
+                                }),
                               )
                             }
                           >
-                            Toggle admin role
+                            {' '}
+                            {tt('Toggle admin role')}{' '}
                           </DropdownMenuItem>
                         </DropdownMenuGroup>
                       </DropdownMenuContent>
@@ -1207,10 +1333,10 @@ export function UsersPage() {
                 colSpan={6}
                 description={
                   search
-                    ? 'No users match the current search.'
-                    : 'Create a user to verify sign-in and account-center behavior.'
+                    ? tt('No users match the current search.')
+                    : tt('Create a user to verify sign-in and account-center behavior.')
                 }
-                title={search ? 'No users found' : 'No users yet'}
+                title={search ? tt('No users found') : tt('No users yet')}
               />
             )}
           </TableBody>
@@ -1218,7 +1344,8 @@ export function UsersPage() {
         {query.data && query.data.users.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-4 text-sm text-muted-foreground">
             <span>
-              Showing {query.data.pagination.offset + 1}-
+              {' '}
+              {tt('Showing')} {query.data.pagination.offset + 1}-
               {Math.min(query.data.pagination.offset + query.data.pagination.limit, query.data.pagination.total)} of{' '}
               {query.data.pagination.total}
             </span>
@@ -1229,7 +1356,8 @@ export function UsersPage() {
                 type="button"
                 variant="secondary"
               >
-                Previous
+                {' '}
+                {tt('Previous')}{' '}
               </Button>
               <Button
                 disabled={!query.data.pagination.hasMore || query.data.pagination.nextOffset === null}
@@ -1237,7 +1365,8 @@ export function UsersPage() {
                 type="button"
                 variant="secondary"
               >
-                Next
+                {' '}
+                {tt('Next')}{' '}
               </Button>
             </div>
           </div>
@@ -1246,7 +1375,6 @@ export function UsersPage() {
     </ResourcePage>
   )
 }
-
 export function UserDetailPage({ userId, section = 'profile' }: { userId: string; section?: UserDetailSection }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -1256,7 +1384,10 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
   const [revokeAllDialogOpen, setRevokeAllDialogOpen] = useState(false)
   const [sessionToRevoke, setSessionToRevoke] = useState<string | null>(null)
   const [passkeyToDelete, setPasskeyToDelete] = useState<string | null>(null)
-  const userQuery = useQuery({ queryKey: [...adminQueryKeys.users, userId], queryFn: () => getUser(userId) })
+  const userQuery = useQuery({
+    queryKey: [...adminQueryKeys.users, userId],
+    queryFn: () => getUser(userId),
+  })
   const sessionsQuery = useQuery({
     queryKey: [...adminQueryKeys.users, userId, 'sessions'],
     queryFn: () => listUserSessions(userId),
@@ -1281,30 +1412,46 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
     mutationFn: (input: z.infer<typeof managementUpdateUserRequestSchema>) => updateUser(userId, input),
     onSuccess: async (response) => {
       queryClient.setQueryData([...adminQueryKeys.users, userId], response)
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.users,
+      })
     },
   })
-  const resetMutation = useMutation({ mutationFn: () => requestUserPasswordReset(userId) })
+  const resetMutation = useMutation({
+    mutationFn: () => requestUserPasswordReset(userId),
+  })
   const banMutation = useMutation({
     mutationFn: (input: { reason?: string }) => banUser(userId, input),
     onSuccess: async () => {
       setBanDialogOpen(false)
-      await queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.users, userId] })
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users })
+      await queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.users, userId],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.users,
+      })
     },
   })
   const unbanMutation = useMutation({
     mutationFn: () => unbanUser(userId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.users, userId] })
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users })
+      await queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.users, userId],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.users,
+      })
     },
   })
   const deleteMutation = useMutation({
     mutationFn: () => deleteUser(userId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.users })
-      await navigate({ to: '/console/users' })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.users,
+      })
+      await navigate({
+        to: '/console/users',
+      })
     },
   })
   const revokeAllMutation = useMutation({
@@ -1322,15 +1469,14 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
     mutationFn: (passkeyId: string) => deleteUserPasskey(userId, passkeyId),
     onSuccess: () => Promise.all([passkeysQuery.refetch(), securityQuery.refetch()]),
   })
-
   useEffect(() => setSelectedTab(section), [section])
-
   const user = userQuery.data?.user
-
   return (
     <ResourcePage
-      title={user ? userDisplayName(user) : 'User'}
-      description="Inspect profile, access state, linked accounts, MFA, passkeys, sessions, and account operations."
+      title={user ? userDisplayName(user) : tt('User')}
+      description={tt(
+        'Inspect profile, access state, linked accounts, MFA, passkeys, sessions, and account operations.',
+      )}
       framed={false}
       error={userQuery.error}
       loading={userQuery.isLoading}
@@ -1339,8 +1485,7 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
       {user ? (
         <div className="consoleDetailStack">
           <a className="consoleBackLink" href="/console/users">
-            <Undo2 data-icon="inline-start" />
-            Back to users
+            <Undo2 data-icon="inline-start" /> {tt('Back to users')}{' '}
           </a>
           <ObjectHeader
             badge={user.banned ? 'Banned' : 'Active'}
@@ -1348,7 +1493,7 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             title={userDisplayName(user)}
           />
           <DetailTabs
-            label="User detail sections"
+            label={tt('User detail sections')}
             onChange={(value) => {
               const next = value as UserDetailSection
               setSelectedTab(next)
@@ -1369,13 +1514,15 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             {selectedTab === 'operations' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Account operations</CardTitle>
-                  <CardDescription>Use confirmations for destructive or security-sensitive actions.</CardDescription>
+                  <CardTitle>{tt('Account operations')}</CardTitle>
+                  <CardDescription>
+                    {tt('Use confirmations for destructive or security-sensitive actions.')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <SettingRow label="Status" value={user.banned ? 'Banned' : 'Active'} />
-                  <SettingRow label="Ban reason" value={user.banReason ?? 'Not set'} />
-                  <SettingRow label="Ban expires" value={formatDate(user.banExpires ?? undefined)} />
+                  <SettingRow label={tt('Status')} value={user.banned ? 'Banned' : 'Active'} />
+                  <SettingRow label={tt('Ban reason')} value={user.banReason ?? 'Not set'} />
+                  <SettingRow label={tt('Ban expires')} value={formatDate(user.banExpires ?? undefined)} />
                   <div className="flex flex-wrap gap-2">
                     <Button
                       disabled={resetMutation.isPending}
@@ -1383,7 +1530,8 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
                       type="button"
                       variant="secondary"
                     >
-                      Send password reset
+                      {' '}
+                      {tt('Send password reset')}{' '}
                     </Button>
                     {user.banned ? (
                       <Button
@@ -1392,23 +1540,24 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
                         type="button"
                         variant="secondary"
                       >
-                        Unban user
+                        {' '}
+                        {tt('Unban user')}{' '}
                       </Button>
                     ) : (
                       <Button onClick={() => setBanDialogOpen(true)} type="button" variant="danger">
-                        Ban user
+                        {' '}
+                        {tt('Ban user')}{' '}
                       </Button>
                     )}
                     <Button onClick={() => setDeleteDialogOpen(true)} type="button" variant="danger">
-                      <Trash2 data-icon="inline-start" />
-                      Delete user
+                      <Trash2 data-icon="inline-start" /> {tt('Delete user')}{' '}
                     </Button>
                   </div>
                   <MutationError
                     error={resetMutation.error ?? banMutation.error ?? unbanMutation.error ?? deleteMutation.error}
                   />
                   {resetMutation.isSuccess ? (
-                    <p className="text-sm text-muted-foreground">Password reset requested.</p>
+                    <p className="text-sm text-muted-foreground">{tt('Password reset requested.')}</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -1452,7 +1601,15 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
           <BanUserDialog
             error={banMutation.error}
             onClose={() => setBanDialogOpen(false)}
-            onConfirm={(reason) => banMutation.mutate(reason ? { reason } : {})}
+            onConfirm={(reason) =>
+              banMutation.mutate(
+                reason
+                  ? {
+                      reason,
+                    }
+                  : {},
+              )
+            }
             open={banDialogOpen}
             pending={banMutation.isPending}
             userName={userDisplayName(user)}
@@ -1465,7 +1622,7 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             onConfirm={() => deleteMutation.mutate()}
             open={deleteDialogOpen}
             pending={deleteMutation.isPending}
-            title="Delete user"
+            title={tt('Delete user')}
           />
           <DangerConfirmDialog
             actionLabel="Revoke sessions"
@@ -1475,7 +1632,7 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             onConfirm={() => revokeAllMutation.mutate()}
             open={revokeAllDialogOpen}
             pending={revokeAllMutation.isPending}
-            title="Revoke all sessions"
+            title={tt('Revoke all sessions')}
           />
           <DangerConfirmDialog
             actionLabel="Revoke session"
@@ -1488,7 +1645,7 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             }}
             open={sessionToRevoke !== null}
             pending={revokeSessionMutation.isPending}
-            title="Revoke session"
+            title={tt('Revoke session')}
           />
           <DangerConfirmDialog
             actionLabel="Delete passkey"
@@ -1501,14 +1658,13 @@ export function UserDetailPage({ userId, section = 'profile' }: { userId: string
             }}
             open={passkeyToDelete !== null}
             pending={deletePasskeyMutation.isPending}
-            title="Delete passkey"
+            title={tt('Delete passkey')}
           />
         </div>
       ) : null}
     </ResourcePage>
   )
 }
-
 function UserProfileCard({
   error,
   onSubmit,
@@ -1528,12 +1684,11 @@ function UserProfileCard({
     emailVerified: user.emailVerified ? 'true' : 'false',
   })
   const [validationError, setValidationError] = useState<string | null>(null)
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile and access</CardTitle>
-        <CardDescription>Edit safe account fields and administrative access state.</CardDescription>
+        <CardTitle>{tt('Profile and access')}</CardTitle>
+        <CardDescription>{tt('Edit safe account fields and administrative access state.')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -1550,57 +1705,64 @@ function UserProfileCard({
                   email: submittedForm.get('email'),
                   displayName: submittedForm.get('displayName'),
                   username: nullableString(submittedForm.get('username') as string),
-                  ...(submittedRole ? { role: submittedRole } : {}),
+                  ...(submittedRole
+                    ? {
+                        role: submittedRole,
+                      }
+                    : {}),
                   emailVerified: submittedForm.get('emailVerified') === 'true',
                 }),
               )
             } catch (submitError) {
-              setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+              setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
             }
           }}
         >
-          <Field label="Email">
+          <Field label={tt('Email')}>
             <TextInput defaultValue={form.email} name="email" type="email" />
           </Field>
-          <Field label="Display name">
+          <Field label={tt('Display name')}>
             <TextInput defaultValue={form.displayName} name="displayName" />
           </Field>
-          <Field label="Username">
+          <Field label={tt('Username')}>
             <TextInput defaultValue={form.username} name="username" />
           </Field>
-          <Field label="Role">
+          <Field label={tt('Role')}>
             <SelectInput
               disabled={Array.isArray(user.role)}
               name="role"
               onChange={(event) => setValue(setForm, 'role', event.target.value)}
               value={form.role}
             >
-              {Array.isArray(user.role) ? <option value="">Multiple roles: {user.role.join(', ')}</option> : null}
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              {Array.isArray(user.role) ? (
+                <option value="">
+                  {tt('Multiple roles:')} {user.role.join(', ')}
+                </option>
+              ) : null}
+              <option value="user">{tt('User')}</option>
+              <option value="admin">{tt('Admin')}</option>
             </SelectInput>
           </Field>
-          <Field label="Email verification">
+          <Field label={tt('Email verification')}>
             <SelectInput
               name="emailVerified"
               onChange={(event) => setValue(setForm, 'emailVerified', event.target.value)}
               value={form.emailVerified}
             >
-              <option value="true">Verified</option>
-              <option value="false">Unverified</option>
+              <option value="true">{tt('Verified')}</option>
+              <option value="false">{tt('Unverified')}</option>
             </SelectInput>
           </Field>
           {validationError ? <MutationError error={validationError} /> : null}
           <MutationError error={error} />
           <Button disabled={pending} type="submit">
-            {pending ? 'Saving...' : 'Save profile'}
+            {pending ? tt('Saving...') : tt('Save profile')}
           </Button>
         </form>
       </CardContent>
     </Card>
   )
 }
-
 function UserSecurityCard({
   error,
   onDeletePasskey,
@@ -1617,22 +1779,40 @@ function UserSecurityCard({
     createdAt: string | Date | null
   }>
   security?: {
-    mfa: { enabled: boolean; factors: Array<{ id: string; type: string; verified: boolean | null }> }
-    passkeys: { enabled: boolean; count: number }
-    policy: { mfa: { mode: string }; passkeys: { enabled: boolean; rpName: string } }
+    mfa: {
+      enabled: boolean
+      factors: Array<{
+        id: string
+        type: string
+        verified: boolean | null
+      }>
+    }
+    passkeys: {
+      enabled: boolean
+      count: number
+    }
+    policy: {
+      mfa: {
+        mode: string
+      }
+      passkeys: {
+        enabled: boolean
+        rpName: string
+      }
+    }
   }
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>MFA and passkeys</CardTitle>
-        <CardDescription>Overview only; no secret material is exposed.</CardDescription>
+        <CardTitle>{tt('MFA and passkeys')}</CardTitle>
+        <CardDescription>{tt('Overview only; no secret material is exposed.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <SettingRow label="MFA state" value={security?.mfa.enabled ? 'Enabled' : 'Disabled'} />
-        <SettingRow label="MFA policy" value={security?.policy.mfa.mode ?? 'Unknown'} />
-        <SettingRow label="Passkey policy" value={security?.policy.passkeys.enabled ? 'Enabled' : 'Disabled'} />
-        <SettingRow label="Passkey count" value={String(security?.passkeys.count ?? passkeys.length)} />
+        <SettingRow label={tt('MFA state')} value={security?.mfa.enabled ? 'Enabled' : 'Disabled'} />
+        <SettingRow label={tt('MFA policy')} value={security?.policy.mfa.mode ?? 'Unknown'} />
+        <SettingRow label={tt('Passkey policy')} value={security?.policy.passkeys.enabled ? 'Enabled' : 'Disabled'} />
+        <SettingRow label={tt('Passkey count')} value={String(security?.passkeys.count ?? passkeys.length)} />
         {security?.mfa.factors.length ? (
           <div className="grid gap-2">
             {security.mfa.factors.map((factor) => (
@@ -1660,13 +1840,15 @@ function UserSecurityCard({
                   </p>
                 </div>
                 <Button onClick={() => onDeletePasskey(passkey.id)} type="button" variant="danger">
-                  Delete
+                  {' '}
+                  {tt('Delete')}{' '}
                 </Button>
               </div>
             ))
           ) : (
             <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-              No passkeys registered.
+              {' '}
+              {tt('No passkeys registered.')}{' '}
             </p>
           )}
         </div>
@@ -1675,7 +1857,6 @@ function UserSecurityCard({
     </Card>
   )
 }
-
 function UserSessionsCard({
   error,
   onRevokeAll,
@@ -1700,11 +1881,12 @@ function UserSessionsCard({
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle>Sessions</CardTitle>
-            <CardDescription>Revoke one session or require every device to sign in again.</CardDescription>
+            <CardTitle>{tt('Sessions')}</CardTitle>
+            <CardDescription>{tt('Revoke one session or require every device to sign in again.')}</CardDescription>
           </div>
           <Button disabled={pending || sessions.length === 0} onClick={onRevokeAll} type="button" variant="danger">
-            Revoke all
+            {' '}
+            {tt('Revoke all')}{' '}
           </Button>
         </div>
       </CardHeader>
@@ -1718,17 +1900,20 @@ function UserSessionsCard({
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{session.userAgent ?? session.id}</p>
                 <p className="text-xs text-muted-foreground">
-                  {session.ipAddress ?? 'Unknown IP'}; expires {formatDate(session.expiresAt)}
+                  {session.ipAddress ?? 'Unknown IP'}
+                  {tt('; expires')} {formatDate(session.expiresAt)}
                 </p>
               </div>
               <Button disabled={pending} onClick={() => onRevokeSession(session.id)} type="button" variant="danger">
-                Revoke
+                {' '}
+                {tt('Revoke')}{' '}
               </Button>
             </div>
           ))
         ) : (
           <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-            No active sessions.
+            {' '}
+            {tt('No active sessions.')}{' '}
           </p>
         )}
         <MutationError error={error} />
@@ -1736,19 +1921,23 @@ function UserSessionsCard({
     </Card>
   )
 }
-
 function UserLinkedAccountsCard({
   accounts,
   error,
 }: {
-  accounts: Array<{ id: string; accountId: string; providerId: string; createdAt: string | Date }>
+  accounts: Array<{
+    id: string
+    accountId: string
+    providerId: string
+    createdAt: string | Date
+  }>
   error: unknown
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Linked accounts</CardTitle>
-        <CardDescription>External identity accounts connected to this user.</CardDescription>
+        <CardTitle>{tt('Linked accounts')}</CardTitle>
+        <CardDescription>{tt('External identity accounts connected to this user.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
         {accounts.length ? (
@@ -1762,7 +1951,8 @@ function UserLinkedAccountsCard({
           ))
         ) : (
           <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-            No linked accounts.
+            {' '}
+            {tt('No linked accounts.')}{' '}
           </p>
         )}
         <MutationError error={error} />
@@ -1770,7 +1960,6 @@ function UserLinkedAccountsCard({
     </Card>
   )
 }
-
 function UserApplicationsCard({
   applications,
   error,
@@ -1787,8 +1976,8 @@ function UserApplicationsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Authorized applications</CardTitle>
-        <CardDescription>OIDC clients with active user consent.</CardDescription>
+        <CardTitle>{tt('Authorized applications')}</CardTitle>
+        <CardDescription>{tt('OIDC clients with active user consent.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
         {applications.length ? (
@@ -1802,7 +1991,8 @@ function UserApplicationsCard({
           ))
         ) : (
           <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-            No authorized applications.
+            {' '}
+            {tt('No authorized applications.')}{' '}
           </p>
         )}
         <MutationError error={error} />
@@ -1810,7 +2000,6 @@ function UserApplicationsCard({
     </Card>
   )
 }
-
 function UserIdentitySummaryCard({
   applicationsCount,
   linkedAccountsCount,
@@ -1825,30 +2014,38 @@ function UserIdentitySummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Identity summary</CardTitle>
-        <CardDescription>Read-only context for the selected user tab.</CardDescription>
+        <CardTitle>{tt('Identity summary')}</CardTitle>
+        <CardDescription>{tt('Read-only context for the selected user tab.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <SettingRow label="User ID" value={user.id} />
-        <SettingRow label="Email" value={user.email ?? 'Not set'} />
-        <SettingRow label="Role" value={formatRole(user.role)} />
-        <SettingRow label="Account status" value={user.banned ? 'Banned' : 'Active'} />
-        <SettingRow label="Sessions" value={String(sessionsCount)} />
-        <SettingRow label="Linked accounts" value={String(linkedAccountsCount)} />
-        <SettingRow label="Authorized apps" value={String(applicationsCount)} />
+        <SettingRow label={tt('User ID')} value={user.id} />
+        <SettingRow label={tt('Email')} value={user.email ?? 'Not set'} />
+        <SettingRow label={tt('Role')} value={formatRole(user.role)} />
+        <SettingRow label={tt('Account status')} value={user.banned ? 'Banned' : 'Active'} />
+        <SettingRow label={tt('Sessions')} value={String(sessionsCount)} />
+        <SettingRow label={tt('Linked accounts')} value={String(linkedAccountsCount)} />
+        <SettingRow label={tt('Authorized apps')} value={String(applicationsCount)} />
       </CardContent>
     </Card>
   )
 }
-
 export function ConnectorsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.connectors, queryFn: listConnectors })
+  const query = useQuery({
+    queryKey: adminQueryKeys.connectors,
+    queryFn: listConnectors,
+  })
   const templatesQuery = useQuery({
     queryKey: [...adminQueryKeys.connectors, 'templates'],
     queryFn: listConnectorTemplates,
   })
-  const signInQuery = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const signInQuery = useQuery({
+    queryKey: adminQueryKeys.signIn,
+    queryFn: getSignInSettings,
+  })
+  const securityQuery = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const queryClient = useQueryClient()
   const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ConnectorResponse | null>(null)
@@ -1856,7 +2053,9 @@ export function ConnectorsPage() {
     mutationFn: createConnector,
     onSuccess: () => {
       setSelectedProviderKey(null)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.connectors,
+      })
     },
   })
   const connectors = query.data?.connectors ?? []
@@ -1875,7 +2074,9 @@ export function ConnectorsPage() {
     onSuccess: (connector) => {
       setSelectedProviderKey(null)
       queryClient.setQueryData([...adminQueryKeys.connectors, connector.id], connector)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.connectors,
+      })
     },
   })
   const deleteMutation = useAdminMutation({
@@ -1883,22 +2084,29 @@ export function ConnectorsPage() {
     onSuccess: () => {
       setDeleteTarget(null)
       setSelectedProviderKey(null)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.connectors })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.connectors,
+      })
     },
   })
   const updateBuiltInSignInMutation = useAdminMutation({
     mutationFn: updateSignInSettings,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.signIn }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.signIn,
+      }),
   })
   const updateBuiltInSecurityMutation = useAdminMutation({
     mutationFn: updateSecurityPolicy,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.security }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.security,
+      }),
   })
-
   return (
     <ResourcePage
-      title="Connectors"
-      description="Configure built-in and social identity providers used by the hosted sign-in experience."
+      title={tt('Connectors')}
+      description={tt('Configure built-in and social identity providers used by the hosted sign-in experience.')}
       error={query.error ?? templatesQuery.error ?? signInQuery.error ?? securityQuery.error}
       loading={query.isLoading || templatesQuery.isLoading || signInQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
@@ -1911,11 +2119,11 @@ export function ConnectorsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Provider</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Configuration</TableHead>
-            <TableHead>Provider</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>{tt('Provider')}</TableHead>
+            <TableHead>{tt('Type')}</TableHead>
+            <TableHead>{tt('Configuration')}</TableHead>
+            <TableHead>{tt('Provider')}</TableHead>
+            <TableHead>{tt('Status')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1963,11 +2171,18 @@ export function ConnectorsPage() {
           setSelectedProviderKey(null)
           setDeleteTarget(connector)
         }}
-        onUpdate={(connector, input) => updateMutation.mutate({ id: connector.id, input })}
+        onUpdate={(connector, input) =>
+          updateMutation.mutate({
+            id: connector.id,
+            input,
+          })
+        }
         onUpdateBuiltInPasskey={(enabled) =>
           updateBuiltInSecurityMutation.mutate({
             policy: {
-              passkeys: { enabled },
+              passkeys: {
+                enabled,
+              },
             },
           })
         }
@@ -1991,12 +2206,11 @@ export function ConnectorsPage() {
         }}
         open={deleteTarget !== null}
         pending={deleteMutation.isPending}
-        title="Delete connector"
+        title={tt('Delete connector')}
       />
     </ResourcePage>
   )
 }
-
 type ConnectorProviderRow = {
   key: string
   displayName: string
@@ -2010,7 +2224,6 @@ type ConnectorProviderRow = {
   connector: ConnectorResponse | null
   template: ConnectorTemplate | null
 }
-
 function connectorProviderRows(
   templates: ConnectorTemplate[],
   connectors: ConnectorResponse[],
@@ -2037,7 +2250,6 @@ function connectorProviderRows(
         template,
       }
     })
-
   return [
     {
       key: 'builtin:email',
@@ -2107,7 +2319,6 @@ function connectorProviderRows(
     ...socialRows,
   ]
 }
-
 function ConnectorProviderDrawer({
   builtInProviders,
   connector,
@@ -2153,7 +2364,6 @@ function ConnectorProviderDrawer({
   const isExisting = activeConnector !== null
   const pending = createPending || updatePending || loading
   const error = validationError ?? detailError ?? createError
-
   useEffect(() => {
     setValidationError(null)
     if (!provider) {
@@ -2172,9 +2382,7 @@ function ConnectorProviderDrawer({
       providerMetadata: '',
     })
   }, [provider, activeConnector])
-
   if (!provider) return null
-
   return (
     <Sheet
       open={open}
@@ -2237,7 +2445,7 @@ function ConnectorProviderDrawer({
                   }),
                 )
               } catch (submitError) {
-                setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+                setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
               }
             }}
           >
@@ -2250,11 +2458,11 @@ function ConnectorProviderDrawer({
                 ) : null}
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium">Enabled</p>
-                    <p className="text-xs text-muted-foreground">Show this provider on hosted sign-in.</p>
+                    <p className="text-sm font-medium">{tt('Enabled')}</p>
+                    <p className="text-xs text-muted-foreground">{tt('Show this provider on hosted sign-in.')}</p>
                   </div>
                   <Switch
-                    aria-label="Enabled"
+                    aria-label={tt('Enabled')}
                     checked={form.enabled === 'true'}
                     onCheckedChange={(enabled) => setValue(setForm, 'enabled', String(enabled))}
                     type="button"
@@ -2262,14 +2470,16 @@ function ConnectorProviderDrawer({
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium">Allow users without an email</p>
+                    <p className="text-sm font-medium">{tt('Allow users without an email')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Allow this provider to enter the registration path. If it returns no email for a new user, the
-                      hosted flow shows an account-binding error.
+                      {' '}
+                      {tt(
+                        'Allow this provider to enter the registration path. If it returns no email for a new user, the hosted flow shows an account-binding error.',
+                      )}{' '}
                     </p>
                   </div>
                   <Switch
-                    aria-label="Allow users without an email"
+                    aria-label={tt('Allow users without an email')}
                     checked={form['metadata.allowUsersWithoutEmail'] === 'true'}
                     onCheckedChange={(allowUsersWithoutEmail) =>
                       setValue(setForm, 'metadata.allowUsersWithoutEmail', String(allowUsersWithoutEmail))
@@ -2289,17 +2499,17 @@ function ConnectorProviderDrawer({
             <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
               {isExisting ? (
                 <Button onClick={() => onDelete(activeConnector)} type="button" variant="secondary">
-                  <Trash2 data-icon="inline-start" />
-                  Delete
+                  <Trash2 data-icon="inline-start" /> {tt('Delete')}{' '}
                 </Button>
               ) : null}
               <SheetClose asChild>
                 <Button type="button" variant="secondary">
-                  Close
+                  {' '}
+                  {tt('Close')}{' '}
                 </Button>
               </SheetClose>
               <Button disabled={pending} type="submit">
-                {pending ? 'Saving...' : 'Save'}
+                {pending ? tt('Saving...') : tt('Save')}
               </Button>
             </SheetFooter>
           </form>
@@ -2308,7 +2518,6 @@ function ConnectorProviderDrawer({
     </Sheet>
   )
 }
-
 function BuiltinProviderForm({
   children,
   error,
@@ -2333,17 +2542,17 @@ function BuiltinProviderForm({
       <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
         <SheetClose asChild>
           <Button type="button" variant="secondary">
-            Close
+            {' '}
+            {tt('Close')}{' '}
           </Button>
         </SheetClose>
         <Button disabled={!hasChanges || pending} type="submit">
-          {pending ? 'Saving...' : 'Save'}
+          {pending ? tt('Saving...') : tt('Save')}
         </Button>
       </SheetFooter>
     </form>
   )
 }
-
 function BuiltinProviderPanel({
   builtInProviders,
   error,
@@ -2367,50 +2576,78 @@ function BuiltinProviderPanel({
   const [phoneForm, setPhoneForm] = useState(defaultPhoneProviderSettings())
   const [web3Form, setWeb3Form] = useState(defaultWeb3ProviderSettings())
   const [oneTapForm, setOneTapForm] = useState(defaultOneTapProviderSettings())
-
   useEffect(() => {
     setPasskeyEnabled(security?.passkeys.enabled ?? false)
   }, [security])
-
   useEffect(() => {
-    setEmailForm({ ...defaultEmailProviderSettings(), ...(builtInProviders?.email ?? {}) })
-    setPhoneForm({ ...defaultPhoneProviderSettings(), ...(builtInProviders?.phone ?? {}) })
-    setWeb3Form({ ...defaultWeb3ProviderSettings(), ...(builtInProviders?.web3Wallet ?? {}) })
+    setEmailForm({
+      ...defaultEmailProviderSettings(),
+      ...(builtInProviders?.email ?? {}),
+    })
+    setPhoneForm({
+      ...defaultPhoneProviderSettings(),
+      ...(builtInProviders?.phone ?? {}),
+    })
+    setWeb3Form({
+      ...defaultWeb3ProviderSettings(),
+      ...(builtInProviders?.web3Wallet ?? {}),
+    })
     setPasskeyAllowSignUp(builtInProviders?.passkey.allowSignUp ?? true)
-    setOneTapForm({ ...defaultOneTapProviderSettings(), ...(builtInProviders?.oneTap ?? {}) })
+    setOneTapForm({
+      ...defaultOneTapProviderSettings(),
+      ...(builtInProviders?.oneTap ?? {}),
+    })
   }, [builtInProviders])
-
   if (provider.providerId === 'email') {
-    const loaded = { ...defaultEmailProviderSettings(), ...(builtInProviders?.email ?? {}) }
+    const loaded = {
+      ...defaultEmailProviderSettings(),
+      ...(builtInProviders?.email ?? {}),
+    }
     const hasChanges = !shallowEqual(emailForm, loaded)
-
     return (
       <BuiltinProviderForm
         error={error}
         hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdateSignIn({ builtInProviders: { email: emailForm } })
+          onUpdateSignIn({
+            builtInProviders: {
+              email: emailForm,
+            },
+          })
         }}
         pending={pending}
       >
         <BuiltInProviderSwitch
           checked={emailForm.enabled}
-          description="Allow users to receive a one-time sign-in code by email."
-          label="Enabled"
-          onCheckedChange={(enabled) => setEmailForm((current) => ({ ...current, enabled }))}
+          description={tt('Allow users to receive a one-time sign-in code by email.')}
+          label={tt('Enabled')}
+          onCheckedChange={(enabled) =>
+            setEmailForm((current) => ({
+              ...current,
+              enabled,
+            }))
+          }
         />
-        <Field label="OTP length">
+        <Field label={tt('OTP length')}>
           <TextInput
-            onChange={(event) => setEmailForm((current) => ({ ...current, otpLength: Number(event.target.value) }))}
+            onChange={(event) =>
+              setEmailForm((current) => ({
+                ...current,
+                otpLength: Number(event.target.value),
+              }))
+            }
             type="number"
             value={String(emailForm.otpLength)}
           />
         </Field>
-        <Field label="Code expiry seconds">
+        <Field label={tt('Code expiry seconds')}>
           <TextInput
             onChange={(event) =>
-              setEmailForm((current) => ({ ...current, expiresInSeconds: Number(event.target.value) }))
+              setEmailForm((current) => ({
+                ...current,
+                expiresInSeconds: Number(event.target.value),
+              }))
             }
             type="number"
             value={String(emailForm.expiresInSeconds)}
@@ -2419,12 +2656,10 @@ function BuiltinProviderPanel({
       </BuiltinProviderForm>
     )
   }
-
   if (provider.providerId === 'passkey') {
     const loadedAllowSignUp = builtInProviders?.passkey.allowSignUp ?? true
     const hasPasskeyEnabledChanges = passkeyEnabled !== Boolean(security?.passkeys.enabled)
     const hasChanges = hasPasskeyEnabledChanges || passkeyAllowSignUp !== loadedAllowSignUp
-
     return (
       <BuiltinProviderForm
         error={error}
@@ -2433,7 +2668,13 @@ function BuiltinProviderPanel({
           event.preventDefault()
           if (hasPasskeyEnabledChanges) onUpdatePasskey(passkeyEnabled)
           if (passkeyAllowSignUp !== loadedAllowSignUp) {
-            onUpdateSignIn({ builtInProviders: { passkey: { allowSignUp: passkeyAllowSignUp } } })
+            onUpdateSignIn({
+              builtInProviders: {
+                passkey: {
+                  allowSignUp: passkeyAllowSignUp,
+                },
+              },
+            })
           }
         }}
         pending={pending}
@@ -2441,44 +2682,59 @@ function BuiltinProviderPanel({
         <BuiltInProviderSwitch
           checked={passkeyEnabled}
           description={`Use WebAuthn passkeys for this tenant (${security?.passkeys.rpName ?? 'tenant'}).`}
-          label="Enabled"
+          label={tt('Enabled')}
           onCheckedChange={setPasskeyEnabled}
         />
         <BuiltInProviderSwitch
           checked={passkeyAllowSignUp}
-          description="Allow passkeys to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a passkey."
-          label="Allow for sign-up"
+          description={tt(
+            'Allow passkeys to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a passkey.',
+          )}
+          label={tt('Allow for sign-up')}
           onCheckedChange={setPasskeyAllowSignUp}
         />
-        <SettingRow label="Relying party" value={security?.passkeys.rpName ?? 'Not loaded'} />
+        <SettingRow label={tt('Relying party')} value={security?.passkeys.rpName ?? 'Not loaded'} />
       </BuiltinProviderForm>
     )
   }
-
   if (provider.providerId === 'phone') {
-    const loaded = { ...defaultPhoneProviderSettings(), ...(builtInProviders?.phone ?? {}) }
+    const loaded = {
+      ...defaultPhoneProviderSettings(),
+      ...(builtInProviders?.phone ?? {}),
+    }
     const hasChanges = !shallowEqual(phoneForm, loaded)
-
     return (
       <BuiltinProviderForm
         error={error}
         hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdateSignIn({ builtInProviders: { phone: phoneForm } })
+          onUpdateSignIn({
+            builtInProviders: {
+              phone: phoneForm,
+            },
+          })
         }}
         pending={pending}
       >
         <BuiltInProviderSwitch
           checked={phoneForm.enabled}
-          description="Show phone number sign-in and verification flows."
-          label="Enabled"
-          onCheckedChange={(enabled) => setPhoneForm((current) => ({ ...current, enabled }))}
+          description={tt('Show phone number sign-in and verification flows.')}
+          label={tt('Enabled')}
+          onCheckedChange={(enabled) =>
+            setPhoneForm((current) => ({
+              ...current,
+              enabled,
+            }))
+          }
         />
-        <Field label="SMS provider">
+        <Field label={tt('SMS provider')}>
           <SelectInput
             onChange={(event) =>
-              setPhoneForm((current) => ({ ...current, smsProvider: event.target.value as SmsProviderId }))
+              setPhoneForm((current) => ({
+                ...current,
+                smsProvider: event.target.value as SmsProviderId,
+              }))
             }
             value={phoneForm.smsProvider}
           >
@@ -2491,22 +2747,37 @@ function BuiltinProviderPanel({
         </Field>
         {phoneForm.smsProvider === 'twilio' ? (
           <>
-            <Field label="Twilio Account SID">
+            <Field label={tt('Twilio Account SID')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioAccountSid: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    twilioAccountSid: event.target.value,
+                  }))
+                }
                 value={phoneForm.twilioAccountSid}
               />
             </Field>
-            <Field label="Twilio Auth Token">
+            <Field label={tt('Twilio Auth Token')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioAuthToken: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    twilioAuthToken: event.target.value,
+                  }))
+                }
                 type="password"
                 value={phoneForm.twilioAuthToken}
               />
             </Field>
-            <Field label="From number">
+            <Field label={tt('From number')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, twilioFromNumber: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    twilioFromNumber: event.target.value,
+                  }))
+                }
                 placeholder="+15551234567"
                 value={phoneForm.twilioFromNumber}
               />
@@ -2515,22 +2786,37 @@ function BuiltinProviderPanel({
         ) : null}
         {phoneForm.smsProvider === 'vonage' ? (
           <>
-            <Field label="Vonage API key">
+            <Field label={tt('Vonage API key')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageApiKey: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    vonageApiKey: event.target.value,
+                  }))
+                }
                 value={phoneForm.vonageApiKey}
               />
             </Field>
-            <Field label="Vonage API secret">
+            <Field label={tt('Vonage API secret')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageApiSecret: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    vonageApiSecret: event.target.value,
+                  }))
+                }
                 type="password"
                 value={phoneForm.vonageApiSecret}
               />
             </Field>
-            <Field label="From name or number">
+            <Field label={tt('From name or number')}>
               <TextInput
-                onChange={(event) => setPhoneForm((current) => ({ ...current, vonageFrom: event.target.value }))}
+                onChange={(event) =>
+                  setPhoneForm((current) => ({
+                    ...current,
+                    vonageFrom: event.target.value,
+                  }))
+                }
                 value={phoneForm.vonageFrom}
               />
             </Field>
@@ -2538,36 +2824,50 @@ function BuiltinProviderPanel({
         ) : null}
         {phoneForm.smsProvider === 'messagebird' ? (
           <>
-            <Field label="MessageBird access key">
+            <Field label={tt('MessageBird access key')}>
               <TextInput
                 onChange={(event) =>
-                  setPhoneForm((current) => ({ ...current, messageBirdAccessKey: event.target.value }))
+                  setPhoneForm((current) => ({
+                    ...current,
+                    messageBirdAccessKey: event.target.value,
+                  }))
                 }
                 type="password"
                 value={phoneForm.messageBirdAccessKey}
               />
             </Field>
-            <Field label="Originator">
+            <Field label={tt('Originator')}>
               <TextInput
                 onChange={(event) =>
-                  setPhoneForm((current) => ({ ...current, messageBirdOriginator: event.target.value }))
+                  setPhoneForm((current) => ({
+                    ...current,
+                    messageBirdOriginator: event.target.value,
+                  }))
                 }
                 value={phoneForm.messageBirdOriginator}
               />
             </Field>
           </>
         ) : null}
-        <Field label="OTP length">
+        <Field label={tt('OTP length')}>
           <TextInput
-            onChange={(event) => setPhoneForm((current) => ({ ...current, otpLength: Number(event.target.value) }))}
+            onChange={(event) =>
+              setPhoneForm((current) => ({
+                ...current,
+                otpLength: Number(event.target.value),
+              }))
+            }
             type="number"
             value={String(phoneForm.otpLength)}
           />
         </Field>
-        <Field label="Code expiry seconds">
+        <Field label={tt('Code expiry seconds')}>
           <TextInput
             onChange={(event) =>
-              setPhoneForm((current) => ({ ...current, expiresInSeconds: Number(event.target.value) }))
+              setPhoneForm((current) => ({
+                ...current,
+                expiresInSeconds: Number(event.target.value),
+              }))
             }
             type="number"
             value={String(phoneForm.expiresInSeconds)}
@@ -2575,35 +2875,50 @@ function BuiltinProviderPanel({
         </Field>
         <BuiltInProviderSwitch
           checked={phoneForm.requireVerification}
-          description="Require phone verification before phone sign-in."
-          label="Require verification"
-          onCheckedChange={(requireVerification) => setPhoneForm((current) => ({ ...current, requireVerification }))}
+          description={tt('Require phone verification before phone sign-in.')}
+          label={tt('Require verification')}
+          onCheckedChange={(requireVerification) =>
+            setPhoneForm((current) => ({
+              ...current,
+              requireVerification,
+            }))
+          }
         />
       </BuiltinProviderForm>
     )
   }
-
   if (provider.providerId === 'web3-wallet') {
-    const loaded = { ...defaultWeb3ProviderSettings(), ...(builtInProviders?.web3Wallet ?? {}) }
+    const loaded = {
+      ...defaultWeb3ProviderSettings(),
+      ...(builtInProviders?.web3Wallet ?? {}),
+    }
     const hasChanges = !shallowEqual(web3Form, loaded)
-
     return (
       <BuiltinProviderForm
         error={error}
         hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdateSignIn({ builtInProviders: { web3Wallet: web3Form } })
+          onUpdateSignIn({
+            builtInProviders: {
+              web3Wallet: web3Form,
+            },
+          })
         }}
         pending={pending}
       >
         <BuiltInProviderSwitch
           checked={web3Form.enabled}
-          description="Enable Sign In With Ethereum wallet authentication."
-          label="Enabled"
-          onCheckedChange={(enabled) => setWeb3Form((current) => ({ ...current, enabled }))}
+          description={tt('Enable Sign In With Ethereum wallet authentication.')}
+          label={tt('Enabled')}
+          onCheckedChange={(enabled) =>
+            setWeb3Form((current) => ({
+              ...current,
+              enabled,
+            }))
+          }
         />
-        <Field label="Enabled chains">
+        <Field label={tt('Enabled chains')}>
           <div className="grid gap-3">
             {web3ChainOptions.map((chain) => (
               <div
@@ -2629,90 +2944,143 @@ function BuiltinProviderPanel({
         </Field>
         <BuiltInProviderSwitch
           checked={web3Form.allowSignUp}
-          description="Allow wallets to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a wallet."
-          label="Allow for sign-up"
-          onCheckedChange={(allowSignUp) => setWeb3Form((current) => ({ ...current, allowSignUp }))}
+          description={tt(
+            'Allow wallets to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a wallet.',
+          )}
+          label={tt('Allow for sign-up')}
+          onCheckedChange={(allowSignUp) =>
+            setWeb3Form((current) => ({
+              ...current,
+              allowSignUp,
+            }))
+          }
         />
         <BuiltInProviderSwitch
           checked={web3Form.ensLookupEnabled}
-          description="Use ENS lookup for wallet display names and avatars when available."
-          label="ENS lookup"
-          onCheckedChange={(ensLookupEnabled) => setWeb3Form((current) => ({ ...current, ensLookupEnabled }))}
+          description={tt('Use ENS lookup for wallet display names and avatars when available.')}
+          label={tt('ENS lookup')}
+          onCheckedChange={(ensLookupEnabled) =>
+            setWeb3Form((current) => ({
+              ...current,
+              ensLookupEnabled,
+            }))
+          }
         />
       </BuiltinProviderForm>
     )
   }
-
   if (provider.providerId === 'onetap') {
-    const loaded = { ...defaultOneTapProviderSettings(), ...(builtInProviders?.oneTap ?? {}) }
+    const loaded = {
+      ...defaultOneTapProviderSettings(),
+      ...(builtInProviders?.oneTap ?? {}),
+    }
     const hasChanges = !shallowEqual(oneTapForm, loaded)
-
     return (
       <BuiltinProviderForm
         error={error}
         hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdateSignIn({ builtInProviders: { oneTap: oneTapForm } })
+          onUpdateSignIn({
+            builtInProviders: {
+              oneTap: oneTapForm,
+            },
+          })
         }}
         pending={pending}
       >
         <BuiltInProviderSwitch
           checked={oneTapForm.enabled}
-          description="Enable Google One Tap on hosted sign-in."
-          label="Enabled"
-          onCheckedChange={(enabled) => setOneTapForm((current) => ({ ...current, enabled }))}
+          description={tt('Enable Google One Tap on hosted sign-in.')}
+          label={tt('Enabled')}
+          onCheckedChange={(enabled) =>
+            setOneTapForm((current) => ({
+              ...current,
+              enabled,
+            }))
+          }
         />
-        <Field label="Client ID">
+        <Field label={tt('Client ID')}>
           <TextInput
-            onChange={(event) => setOneTapForm((current) => ({ ...current, clientId: event.target.value }))}
+            onChange={(event) =>
+              setOneTapForm((current) => ({
+                ...current,
+                clientId: event.target.value,
+              }))
+            }
             value={oneTapForm.clientId}
           />
         </Field>
-        <Field label="UX mode">
+        <Field label={tt('UX mode')}>
           <SelectInput
-            onChange={(event) => setOneTapForm((current) => ({ ...current, uxMode: event.target.value as never }))}
+            onChange={(event) =>
+              setOneTapForm((current) => ({
+                ...current,
+                uxMode: event.target.value as never,
+              }))
+            }
             value={oneTapForm.uxMode}
           >
-            <option value="popup">Popup</option>
-            <option value="redirect">Redirect</option>
+            <option value="popup">{tt('Popup')}</option>
+            <option value="redirect">{tt('Redirect')}</option>
           </SelectInput>
         </Field>
-        <Field label="Context">
+        <Field label={tt('Context')}>
           <SelectInput
-            onChange={(event) => setOneTapForm((current) => ({ ...current, context: event.target.value as never }))}
+            onChange={(event) =>
+              setOneTapForm((current) => ({
+                ...current,
+                context: event.target.value as never,
+              }))
+            }
             value={oneTapForm.context}
           >
-            <option value="signin">Sign in</option>
-            <option value="signup">Sign up</option>
-            <option value="use">Use</option>
+            <option value="signin">{tt('Sign in')}</option>
+            <option value="signup">{tt('Sign up')}</option>
+            <option value="use">{tt('Use')}</option>
           </SelectInput>
         </Field>
         <BuiltInProviderSwitch
           checked={oneTapForm.autoSelect}
-          description="Automatically select the Google account when possible."
-          label="Auto select"
-          onCheckedChange={(autoSelect) => setOneTapForm((current) => ({ ...current, autoSelect }))}
+          description={tt('Automatically select the Google account when possible.')}
+          label={tt('Auto select')}
+          onCheckedChange={(autoSelect) =>
+            setOneTapForm((current) => ({
+              ...current,
+              autoSelect,
+            }))
+          }
         />
         <BuiltInProviderSwitch
           checked={oneTapForm.cancelOnTapOutside}
-          description="Allow the prompt to close when users tap outside it."
-          label="Cancel on outside tap"
-          onCheckedChange={(cancelOnTapOutside) => setOneTapForm((current) => ({ ...current, cancelOnTapOutside }))}
+          description={tt('Allow the prompt to close when users tap outside it.')}
+          label={tt('Cancel on outside tap')}
+          onCheckedChange={(cancelOnTapOutside) =>
+            setOneTapForm((current) => ({
+              ...current,
+              cancelOnTapOutside,
+            }))
+          }
         />
-        <Field label="Prompt base delay">
+        <Field label={tt('Prompt base delay')}>
           <TextInput
             onChange={(event) =>
-              setOneTapForm((current) => ({ ...current, promptBaseDelayMs: Number(event.target.value) }))
+              setOneTapForm((current) => ({
+                ...current,
+                promptBaseDelayMs: Number(event.target.value),
+              }))
             }
             type="number"
             value={String(oneTapForm.promptBaseDelayMs)}
           />
         </Field>
-        <Field label="Prompt max attempts">
+        <Field label={tt('Prompt max attempts')}>
           <TextInput
             onChange={(event) =>
-              setOneTapForm((current) => ({ ...current, promptMaxAttempts: Number(event.target.value) }))
+              setOneTapForm((current) => ({
+                ...current,
+                promptMaxAttempts: Number(event.target.value),
+              }))
             }
             type="number"
             value={String(oneTapForm.promptMaxAttempts)}
@@ -2721,10 +3089,8 @@ function BuiltinProviderPanel({
       </BuiltinProviderForm>
     )
   }
-
   const runtimeTitle = builtinProviderRuntimeTitle(provider.providerId)
   const runtimeDescription = builtinProviderRuntimeDescription(provider.providerId)
-
   return (
     <div className="grid gap-3">
       <p className="text-sm font-semibold">{runtimeTitle}</p>
@@ -2734,7 +3100,6 @@ function BuiltinProviderPanel({
     </div>
   )
 }
-
 function BuiltInProviderSwitch({
   checked,
   description,
@@ -2756,15 +3121,28 @@ function BuiltInProviderSwitch({
     </div>
   )
 }
-
 const web3ChainOptions = [
-  { id: 1, label: 'Ethereum Mainnet' },
-  { id: 137, label: 'Polygon' },
-  { id: 8453, label: 'Base' },
-  { id: 42161, label: 'Arbitrum One' },
-  { id: 10, label: 'Optimism' },
+  {
+    id: 1,
+    label: 'Ethereum Mainnet',
+  },
+  {
+    id: 137,
+    label: 'Polygon',
+  },
+  {
+    id: 8453,
+    label: 'Base',
+  },
+  {
+    id: 42161,
+    label: 'Arbitrum One',
+  },
+  {
+    id: 10,
+    label: 'Optimism',
+  },
 ]
-
 function defaultPhoneProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['phone'] {
   return {
     enabled: false,
@@ -2783,7 +3161,6 @@ function defaultPhoneProviderSettings(): ManagementSignInSettingsResponse['built
     messageBirdOriginator: '',
   }
 }
-
 function defaultEmailProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['email'] {
   return {
     enabled: true,
@@ -2791,7 +3168,6 @@ function defaultEmailProviderSettings(): ManagementSignInSettingsResponse['built
     expiresInSeconds: 300,
   }
 }
-
 function defaultWeb3ProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['web3Wallet'] {
   return {
     enabled: false,
@@ -2802,7 +3178,6 @@ function defaultWeb3ProviderSettings(): ManagementSignInSettingsResponse['builtI
     ensLookupEnabled: false,
   }
 }
-
 function defaultOneTapProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['oneTap'] {
   return {
     enabled: false,
@@ -2816,7 +3191,6 @@ function defaultOneTapProviderSettings(): ManagementSignInSettingsResponse['buil
     disableSignUp: false,
   }
 }
-
 function builtinProviderRuntimeTitle(providerId: string) {
   if (providerId === 'phone') return 'SMS runtime'
   if (providerId === 'web3-wallet') return 'Web3 wallet runtime'
@@ -2824,7 +3198,6 @@ function builtinProviderRuntimeTitle(providerId: string) {
   if (providerId === 'onetap') return 'OneTap runtime'
   return 'Provider runtime'
 }
-
 function builtinProviderRuntimeDescription(providerId: string) {
   if (providerId === 'phone') return 'SMS provider is not configured in this runtime.'
   if (providerId === 'web3-wallet') return 'Wallet sign-in is not configured in this runtime.'
@@ -2832,23 +3205,20 @@ function builtinProviderRuntimeDescription(providerId: string) {
   if (providerId === 'onetap') return 'OneTap sign-in is not configured in this runtime.'
   return 'This provider is not configured in this runtime.'
 }
-
 function CallbackUrlField({ value }: { value: string }) {
   const id = useId()
   return (
     <div className="field">
-      <label htmlFor={id}>Callback URL</label>
+      <label htmlFor={id}>{tt('Callback URL')}</label>
       <div className="flex gap-2">
         <TextInput className="font-mono" id={id} readOnly value={value} />
         <Button onClick={() => navigator.clipboard.writeText(value)} type="button" variant="secondary">
-          <Copy data-icon="inline-start" />
-          Copy
+          <Copy data-icon="inline-start" /> {tt('Copy')}{' '}
         </Button>
       </div>
     </div>
   )
 }
-
 function ConnectorDynamicFields({
   form,
   isExisting,
@@ -2862,7 +3232,6 @@ function ConnectorDynamicFields({
 }) {
   const fields = connectorTemplateFields(template)
   if (!fields.length) return null
-
   return (
     <div className="grid gap-4">
       {fields.map((field) => {
@@ -2870,11 +3239,11 @@ function ConnectorDynamicFields({
         return (
           <Field
             help={
-              field.key === 'clientSecret' && isExisting
-                ? 'Leave blank to keep the current secret.'
+              field.key === tt('clientSecret') && isExisting
+                ? tt('Leave blank to keep the current secret.')
                 : field.required
-                  ? 'Required by this Better Auth provider.'
-                  : 'Optional provider parameter.'
+                  ? tt('Required by this Better Auth provider.')
+                  : tt('Optional provider parameter.')
             }
             key={field.formKey}
             label={field.label}
@@ -2891,7 +3260,6 @@ function ConnectorDynamicFields({
     </div>
   )
 }
-
 type ConnectorTemplateField = {
   formKey: string
   key: string
@@ -2899,7 +3267,6 @@ type ConnectorTemplateField = {
   required: boolean
   secret: boolean
 }
-
 function connectorTemplateFields(template: ConnectorTemplate | null): ConnectorTemplateField[] {
   if (!template) return []
   const fields = new Map<string, ConnectorTemplateField>()
@@ -2907,7 +3274,6 @@ function connectorTemplateFields(template: ConnectorTemplate | null): ConnectorT
   for (const field of template.optionalFields) addConnectorTemplateField(fields, field, false)
   return Array.from(fields.values())
 }
-
 function addConnectorTemplateField(fields: Map<string, ConnectorTemplateField>, field: string, required: boolean) {
   if (!isConnectorProductField(field)) return
   const metadataPrefix = 'providerMetadata.'
@@ -2922,7 +3288,6 @@ function addConnectorTemplateField(fields: Map<string, ConnectorTemplateField>, 
     secret: key.toLowerCase().includes('secret'),
   })
 }
-
 const connectorProductFields = new Set([
   'clientId',
   'clientSecret',
@@ -2930,19 +3295,25 @@ const connectorProductFields = new Set([
   'providerMetadata.region',
   'providerMetadata.userPoolId',
 ])
-
 function isConnectorProductField(field: string) {
   return connectorProductFields.has(field)
 }
-
 function connectorCallbackUrl(providerId: string) {
   return `${window.location.origin}/api/auth/callback/${providerId}`
 }
-
 export function SignInSettingsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-  const brandingQuery = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
-  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.signIn,
+    queryFn: getSignInSettings,
+  })
+  const brandingQuery = useQuery({
+    queryKey: adminQueryKeys.branding,
+    queryFn: getBrandingSettings,
+  })
+  const securityQuery = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -2962,7 +3333,9 @@ export function SignInSettingsPage() {
   const updateMutation = useAdminMutation({
     mutationFn: updateSignInSettings,
     onSuccess: () => {
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.signIn })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.signIn,
+      })
     },
   })
   const securityMutation = useMutation({
@@ -2983,10 +3356,11 @@ export function SignInSettingsPage() {
         },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.security,
+      })
     },
   })
-
   useEffect(() => {
     if (!query.data?.signIn || !query.data.builtInProviders) return
     setForm({
@@ -2998,7 +3372,6 @@ export function SignInSettingsPage() {
       web3WalletLoginEnabled: query.data.builtInProviders.web3Wallet.enabled,
     })
   }, [query.data, securityQuery.data])
-
   useEffect(() => {
     if (!securityQuery.data?.policy?.password) return
     const policy = securityQuery.data.policy.password
@@ -3009,7 +3382,6 @@ export function SignInSettingsPage() {
     setRejectSequential(policy.rejectSequential)
     setRejectCustomWords(policy.rejectCustomWords)
   }, [securityQuery.data])
-
   const loadedForm =
     query.data?.signIn && query.data.builtInProviders
       ? {
@@ -3053,11 +3425,17 @@ export function SignInSettingsPage() {
     : null
   const passwordPolicyHasChanges = loadedPasswordPolicy
     ? !shallowEqual(
-        { minLength, requiredCharacterTypes, customWords, rejectUserInfo, rejectSequential, rejectCustomWords },
+        {
+          minLength,
+          requiredCharacterTypes,
+          customWords,
+          rejectUserInfo,
+          rejectSequential,
+          rejectCustomWords,
+        },
         loadedPasswordPolicy,
       )
     : false
-
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     if (signInHasChanges && query.data) {
@@ -3082,7 +3460,6 @@ export function SignInSettingsPage() {
     }
     if (passwordPolicyHasChanges || passkeyHasChanges) securityMutation.mutate()
   }
-
   const preview: HostedAuthPreviewState = {
     productName: query.data?.copy?.productName ?? '',
     headline: query.data?.copy?.headline ?? '',
@@ -3106,11 +3483,10 @@ export function SignInSettingsPage() {
     privacyUri: query.data?.links?.privacyUri ?? '',
     supportEmail: query.data?.links?.supportEmail ?? '',
   }
-
   return (
     <SignInExperiencePage
       activeTab="sign-up-and-sign-in"
-      description="Configure self-service registration and hosted sign-in method visibility."
+      description={tt('Configure self-service registration and hosted sign-in method visibility.')}
       error={query.error ?? brandingQuery.error ?? securityQuery.error ?? connectorsQuery.error}
       loading={query.isLoading || brandingQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
@@ -3119,7 +3495,7 @@ export function SignInSettingsPage() {
         void securityQuery.refetch()
         void connectorsQuery.refetch()
       }}
-      title="Sign-up and sign-in"
+      title={tt('Sign-up and sign-in')}
     >
       {query.data && securityQuery.data ? (
         <form onSubmit={onSubmit}>
@@ -3127,66 +3503,97 @@ export function SignInSettingsPage() {
             preview={<HostedAuthPreview preview={preview} />}
             settings={
               <SettingsSections>
-                <SettingsSection title="Sign-up" description="Control whether new users can create accounts.">
-                  <div className="grid gap-3">
-                    <SwitchRow
-                      checked={form.signupEnabled}
-                      label="Allow sign up"
-                      onCheckedChange={(signupEnabled) => setForm((value) => ({ ...value, signupEnabled }))}
-                    />
-                  </div>
-                </SettingsSection>
                 <SettingsSection
-                  title="Sign-in"
-                  description="Control which non-password sign-in methods are available."
+                  title={tt('Sign-up')}
+                  description={tt('Control whether new users can create accounts.')}
                 >
                   <div className="grid gap-3">
                     <SwitchRow
-                      checked={form.socialLoginEnabled}
-                      label="Social login"
-                      onCheckedChange={(socialLoginEnabled) => setForm((value) => ({ ...value, socialLoginEnabled }))}
-                    />
-                    <SwitchRow
-                      checked={form.phoneLoginEnabled}
-                      label="Phone login"
-                      onCheckedChange={(phoneLoginEnabled) => setForm((value) => ({ ...value, phoneLoginEnabled }))}
-                    />
-                    <SwitchRow
-                      checked={form.passkeyLoginEnabled}
-                      label="Passkey login"
-                      onCheckedChange={(passkeyLoginEnabled) => setForm((value) => ({ ...value, passkeyLoginEnabled }))}
-                    />
-                    <SwitchRow
-                      checked={form.web3WalletLoginEnabled}
-                      label="Web3 wallet login"
-                      onCheckedChange={(web3WalletLoginEnabled) =>
-                        setForm((value) => ({ ...value, web3WalletLoginEnabled }))
+                      checked={form.signupEnabled}
+                      label={tt('Allow sign up')}
+                      onCheckedChange={(signupEnabled) =>
+                        setForm((value) => ({
+                          ...value,
+                          signupEnabled,
+                        }))
                       }
                     />
                   </div>
                 </SettingsSection>
                 <SettingsSection
-                  title="Passwordless"
-                  description="Turn off password-based hosted auth. Password requirements stay visible but only apply when passwords are used."
+                  title={tt('Sign-in')}
+                  description={tt('Control which non-password sign-in methods are available.')}
+                >
+                  <div className="grid gap-3">
+                    <SwitchRow
+                      checked={form.socialLoginEnabled}
+                      label={tt('Social login')}
+                      onCheckedChange={(socialLoginEnabled) =>
+                        setForm((value) => ({
+                          ...value,
+                          socialLoginEnabled,
+                        }))
+                      }
+                    />
+                    <SwitchRow
+                      checked={form.phoneLoginEnabled}
+                      label={tt('Phone login')}
+                      onCheckedChange={(phoneLoginEnabled) =>
+                        setForm((value) => ({
+                          ...value,
+                          phoneLoginEnabled,
+                        }))
+                      }
+                    />
+                    <SwitchRow
+                      checked={form.passkeyLoginEnabled}
+                      label={tt('Passkey login')}
+                      onCheckedChange={(passkeyLoginEnabled) =>
+                        setForm((value) => ({
+                          ...value,
+                          passkeyLoginEnabled,
+                        }))
+                      }
+                    />
+                    <SwitchRow
+                      checked={form.web3WalletLoginEnabled}
+                      label={tt('Web3 wallet login')}
+                      onCheckedChange={(web3WalletLoginEnabled) =>
+                        setForm((value) => ({
+                          ...value,
+                          web3WalletLoginEnabled,
+                        }))
+                      }
+                    />
+                  </div>
+                </SettingsSection>
+                <SettingsSection
+                  title={tt('Passwordless')}
+                  description={tt(
+                    'Turn off password-based hosted auth. Password requirements stay visible but only apply when passwords are used.',
+                  )}
                 >
                   <div className="grid gap-4">
-                    <Field label="Passwordless">
+                    <Field label={tt('Passwordless')}>
                       <div className="flex min-h-10 items-center justify-between gap-4 rounded-md border border-border px-3 py-2">
                         <span className="text-sm text-muted-foreground">
                           {form.passwordlessEnabled ? 'Enabled' : 'Disabled'}
                         </span>
                         <Switch
-                          aria-label="Passwordless"
+                          aria-label={tt('Passwordless')}
                           checked={form.passwordlessEnabled}
                           onCheckedChange={(passwordlessEnabled) =>
-                            setForm((value) => ({ ...value, passwordlessEnabled }))
+                            setForm((value) => ({
+                              ...value,
+                              passwordlessEnabled,
+                            }))
                           }
                         />
                       </div>
                     </Field>
-                    <Field label="Minimum length">
+                    <Field label={tt('Minimum length')}>
                       <TextInput
-                        aria-label="Minimum length"
+                        aria-label={tt('Minimum length')}
                         disabled={form.passwordlessEnabled}
                         min={8}
                         max={128}
@@ -3195,43 +3602,43 @@ export function SignInSettingsPage() {
                         value={String(minLength)}
                       />
                     </Field>
-                    <Field label="Required character types">
+                    <Field label={tt('Required character types')}>
                       <SelectInput
-                        aria-label="Required character types"
+                        aria-label={tt('Required character types')}
                         disabled={form.passwordlessEnabled}
                         onChange={(event) => setRequiredCharacterTypes(Number(event.target.value))}
                         value={String(requiredCharacterTypes)}
                       >
-                        <option value="1">1 required character type</option>
-                        <option value="2">2 required character types</option>
-                        <option value="3">3 required character types</option>
-                        <option value="4">4 required character types</option>
+                        <option value="1">{tt('1 required character type')}</option>
+                        <option value="2">{tt('2 required character types')}</option>
+                        <option value="3">{tt('3 required character types')}</option>
+                        <option value="4">{tt('4 required character types')}</option>
                       </SelectInput>
                     </Field>
                     <SwitchRow
                       checked={rejectSequential}
                       disabled={form.passwordlessEnabled}
-                      label="Reject repetitive or sequential characters"
+                      label={tt('Reject repetitive or sequential characters')}
                       onCheckedChange={setRejectSequential}
                     />
                     <SwitchRow
                       checked={rejectUserInfo}
                       disabled={form.passwordlessEnabled}
-                      label="Reject user information"
+                      label={tt('Reject user information')}
                       onCheckedChange={setRejectUserInfo}
                     />
                     <SwitchRow
                       checked={rejectCustomWords}
                       disabled={form.passwordlessEnabled}
-                      label="Reject custom words"
+                      label={tt('Reject custom words')}
                       onCheckedChange={setRejectCustomWords}
                     />
                     {rejectCustomWords && !form.passwordlessEnabled ? (
-                      <Field label="Custom words">
+                      <Field label={tt('Custom words')}>
                         <TextArea
-                          aria-label="Custom words"
+                          aria-label={tt('Custom words')}
                           onChange={(event) => setCustomWords(event.target.value)}
-                          placeholder={'company\nproduct'}
+                          placeholder={tt('company\nproduct')}
                           value={customWords}
                         />
                       </Field>
@@ -3239,14 +3646,14 @@ export function SignInSettingsPage() {
                   </div>
                 </SettingsSection>
                 <ChangesSection
-                  description="Save updates through the management boundary or restore the loaded values."
+                  description={tt('Save updates through the management boundary or restore the loaded values.')}
                   error={
                     updateMutation.errorMessage || securityMutation.error ? (
                       <div className="text-sm text-destructive">
                         {updateMutation.errorMessage ??
                           (securityMutation.error instanceof Error
-                            ? securityMutation.error.message
-                            : 'Request failed.')}
+                            ? tt(securityMutation.error.message)
+                            : tt('Request failed.'))}
                       </div>
                     ) : null
                   }
@@ -3273,9 +3680,11 @@ export function SignInSettingsPage() {
     </SignInExperiencePage>
   )
 }
-
 export function MfaPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const queryClient = useQueryClient()
   const [mode, setMode] = useState<'optional' | 'required'>('optional')
   const [passkeysEnabled, setPasskeysEnabled] = useState(true)
@@ -3298,10 +3707,11 @@ export function MfaPage() {
         },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.security,
+      })
     },
   })
-
   useEffect(() => {
     if (!query.data) return
     setMode(query.data.policy.mfa.mode)
@@ -3310,7 +3720,6 @@ export function MfaPage() {
     setEmailOtpEnabled(query.data.policy.mfa.emailOtpEnabled ?? false)
     setBackupCodesEnabled(query.data.policy.mfa.backupCodesEnabled ?? true)
   }, [query.data])
-
   const loadedPolicy = query.data
     ? {
         mode: query.data.policy.mfa.mode,
@@ -3322,15 +3731,20 @@ export function MfaPage() {
     : null
   const hasChanges = loadedPolicy
     ? !shallowEqual(
-        { mode, passkeysEnabled, authenticatorAppEnabled, emailOtpEnabled, backupCodesEnabled },
+        {
+          mode,
+          passkeysEnabled,
+          authenticatorAppEnabled,
+          emailOtpEnabled,
+          backupCodesEnabled,
+        },
         loadedPolicy,
       )
     : false
-
   return (
     <ResourcePage
-      title="Multi-factor authentication"
-      description="Review tenant MFA factors and deployment policy for hosted account protection."
+      title={tt('Multi-factor authentication')}
+      description={tt('Review tenant MFA factors and deployment policy for hosted account protection.')}
       error={query.error}
       framed={false}
       loading={query.isLoading}
@@ -3346,60 +3760,62 @@ export function MfaPage() {
         >
           <SettingsSections>
             <SettingsSection
-              title="Factors"
-              description="Available second factors surfaced by account and deployment support."
+              title={tt('Factors')}
+              description={tt('Available second factors surfaced by account and deployment support.')}
             >
               <div className="grid gap-3">
                 <MfaFactorSwitch
                   checked={passkeysEnabled}
                   description={`Use WebAuthn passkeys for this tenant (${query.data.policy.passkeys.rpName}).`}
                   icon={<KeyRound size={18} />}
-                  label="Passkeys"
+                  label={tt('Passkeys')}
                   onCheckedChange={setPasskeysEnabled}
                 />
                 <MfaFactorSwitch
                   checked={authenticatorAppEnabled}
-                  description="Allow users to enroll an authenticator app and verify time-based codes."
+                  description={tt('Allow users to enroll an authenticator app and verify time-based codes.')}
                   icon={<Smartphone size={18} />}
-                  label="Authenticator app"
+                  label={tt('Authenticator app')}
                   onCheckedChange={setAuthenticatorAppEnabled}
                 />
                 <MfaFactorSwitch
                   checked={emailOtpEnabled}
-                  description="Allow email verification codes as a second factor when email delivery is configured."
+                  description={tt(
+                    'Allow email verification codes as a second factor when email delivery is configured.',
+                  )}
                   icon={<Mail size={18} />}
-                  label="Email verification code"
+                  label={tt('Email verification code')}
                   onCheckedChange={setEmailOtpEnabled}
                 />
                 <MfaFactorSwitch
                   checked={backupCodesEnabled}
-                  description="Allow recovery backup codes generated during authenticator enrollment."
+                  description={tt('Allow recovery backup codes generated during authenticator enrollment.')}
                   icon={<LifeBuoy size={18} />}
-                  label="Backup codes"
+                  label={tt('Backup codes')}
                   onCheckedChange={setBackupCodesEnabled}
                 />
               </div>
             </SettingsSection>
             <SettingsSection
-              title="Policy controls"
-              description="Prompt policy is persisted for hosted account access."
+              title={tt('Policy controls')}
+              description={tt('Prompt policy is persisted for hosted account access.')}
             >
               <div className="grid gap-4">
-                <Field label="Prompt policy">
+                <Field label={tt('Prompt policy')}>
                   <SelectInput
-                    aria-label="Prompt policy"
+                    aria-label={tt('Prompt policy')}
                     onChange={(event) => setMode(event.target.value as 'optional' | 'required')}
                     value={mode}
                   >
-                    <option value="required">Required</option>
-                    <option value="optional">Optional</option>
+                    <option value="required">{tt('Required')}</option>
+                    <option value="optional">{tt('Optional')}</option>
                   </SelectInput>
                 </Field>
-                <SettingRow label="Persisted mode" value={query.data.policy.mfa.mode} />
+                <SettingRow label={tt('Persisted mode')} value={query.data.policy.mfa.mode} />
               </div>
             </SettingsSection>
             <ChangesSection
-              description="Save or reset tenant MFA policy changes."
+              description={tt('Save or reset tenant MFA policy changes.')}
               error={<MutationError error={updateMutation.error} />}
               onDiscard={() => {
                 if (!loadedPolicy) return
@@ -3419,7 +3835,6 @@ export function MfaPage() {
     </ResourcePage>
   )
 }
-
 function MfaFactorSwitch({
   checked,
   description,
@@ -3449,13 +3864,14 @@ function MfaFactorSwitch({
     </div>
   )
 }
-
 export function SecurityPasswordPolicyPage() {
   return <SignInSettingsPage />
 }
-
 export function SecurityCaptchaPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const queryClient = useQueryClient()
   const [enabled, setEnabled] = useState(false)
   const [siteKey, setSiteKey] = useState('')
@@ -3463,20 +3879,27 @@ export function SecurityCaptchaPage() {
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSecurityPolicy({
-        policy: { captcha: { enabled, provider: 'turnstile', siteKey, secretBinding } },
+        policy: {
+          captcha: {
+            enabled,
+            provider: 'turnstile',
+            siteKey,
+            secretBinding,
+          },
+        },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.security,
+      })
     },
   })
-
   useEffect(() => {
     if (!query.data) return
     setEnabled(query.data.policy.captcha.enabled)
     setSiteKey(query.data.policy.captcha.siteKey)
     setSecretBinding(query.data.policy.captcha.secretBinding)
   }, [query.data])
-
   const loadedPolicy = query.data
     ? {
         enabled: query.data.policy.captcha.enabled,
@@ -3484,12 +3907,20 @@ export function SecurityCaptchaPage() {
         secretBinding: query.data.policy.captcha.secretBinding,
       }
     : null
-  const hasChanges = loadedPolicy ? !shallowEqual({ enabled, siteKey, secretBinding }, loadedPolicy) : false
-
+  const hasChanges = loadedPolicy
+    ? !shallowEqual(
+        {
+          enabled,
+          siteKey,
+          secretBinding,
+        },
+        loadedPolicy,
+      )
+    : false
   return (
     <ResourcePage
-      title="CAPTCHA"
-      description="Review CAPTCHA provider setup for hosted sign-up, sign-in, and password recovery flows."
+      title={tt('CAPTCHA')}
+      description={tt('Review CAPTCHA provider setup for hosted sign-up, sign-in, and password recovery flows.')}
       error={query.error}
       framed={false}
       loading={query.isLoading}
@@ -3504,33 +3935,36 @@ export function SecurityCaptchaPage() {
           }}
         >
           <SettingsSections>
-            <SettingsSection title="Provider setup" description="Configure Turnstile verification for hosted flows.">
+            <SettingsSection
+              title={tt('Provider setup')}
+              description={tt('Configure Turnstile verification for hosted flows.')}
+            >
               <div className="grid gap-4">
-                <SwitchRow checked={enabled} label="Enable CAPTCHA" onCheckedChange={setEnabled} />
-                <Field label="Provider">
-                  <SelectInput aria-label="Provider" onChange={() => undefined} value="turnstile">
-                    <option value="turnstile">Turnstile</option>
+                <SwitchRow checked={enabled} label={tt('Enable CAPTCHA')} onCheckedChange={setEnabled} />
+                <Field label={tt('Provider')}>
+                  <SelectInput aria-label={tt('Provider')} onChange={() => undefined} value="turnstile">
+                    <option value="turnstile">{tt('Turnstile')}</option>
                   </SelectInput>
                 </Field>
-                <Field label="Site key">
+                <Field label={tt('Site key')}>
                   <TextInput
-                    aria-label="Site key"
+                    aria-label={tt('Site key')}
                     onChange={(event) => setSiteKey(event.target.value)}
                     value={siteKey}
                   />
                 </Field>
-                <Field label="Client secret">
+                <Field label={tt('Client secret')}>
                   <TextInput
-                    aria-label="Client secret"
+                    aria-label={tt('Client secret')}
                     onChange={(event) => setSecretBinding(event.target.value)}
-                    placeholder="TURNSTILE_SECRET"
+                    placeholder={tt('TURNSTILE_SECRET')}
                     value={secretBinding}
                   />
                 </Field>
               </div>
             </SettingsSection>
             <ChangesSection
-              description="Save or reset CAPTCHA policy changes."
+              description={tt('Save or reset CAPTCHA policy changes.')}
               error={<MutationError error={updateMutation.error} />}
               onDiscard={() => {
                 if (!loadedPolicy) return
@@ -3548,40 +3982,54 @@ export function SecurityCaptchaPage() {
     </ResourcePage>
   )
 }
-
 export function SecurityBlocklistPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const queryClient = useQueryClient()
   const [blockSubaddressing, setBlockSubaddressing] = useState(false)
   const [entries, setEntries] = useState('')
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSecurityPolicy({
-        policy: { blocklist: { blockSubaddressing, entries: lines(entries) } },
+        policy: {
+          blocklist: {
+            blockSubaddressing,
+            entries: lines(entries),
+          },
+        },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.security })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.security,
+      })
     },
   })
-
   useEffect(() => {
     if (!query.data) return
     setBlockSubaddressing(query.data.policy.blocklist.blockSubaddressing)
     setEntries(query.data.policy.blocklist.entries.join('\n'))
   }, [query.data])
-
   const loadedPolicy = query.data
     ? {
         blockSubaddressing: query.data.policy.blocklist.blockSubaddressing,
         entries: query.data.policy.blocklist.entries.join('\n'),
       }
     : null
-  const hasChanges = loadedPolicy ? !shallowEqual({ blockSubaddressing, entries }, loadedPolicy) : false
-
+  const hasChanges = loadedPolicy
+    ? !shallowEqual(
+        {
+          blockSubaddressing,
+          entries,
+        },
+        loadedPolicy,
+      )
+    : false
   return (
     <ResourcePage
-      title="Blocklist"
-      description="Review sign-up blocklist settings for email aliases, addresses, and domains."
+      title={tt('Blocklist')}
+      description={tt('Review sign-up blocklist settings for email aliases, addresses, and domains.')}
       error={query.error}
       framed={false}
       loading={query.isLoading}
@@ -3596,25 +4044,28 @@ export function SecurityBlocklistPage() {
           }}
         >
           <SettingsSections>
-            <SettingsSection title="Email blocklist" description="Persist blocked email and domain rules.">
+            <SettingsSection title={tt('Email blocklist')} description={tt('Persist blocked email and domain rules.')}>
               <div className="grid gap-4">
                 <SwitchRow
                   checked={blockSubaddressing}
-                  label="Block email subaddressing"
+                  label={tt('Block email subaddressing')}
                   onCheckedChange={setBlockSubaddressing}
                 />
-                <Field label="Custom email and domain blocklist" help="One email address or domain per line.">
+                <Field
+                  label={tt('Custom email and domain blocklist')}
+                  help={tt('One email address or domain per line.')}
+                >
                   <TextArea
-                    aria-label="Custom email and domain blocklist"
+                    aria-label={tt('Custom email and domain blocklist')}
                     onChange={(event) => setEntries(event.target.value)}
-                    placeholder={'blocked@example.com\nexample.org'}
+                    placeholder={tt('blocked@example.com\nexample.org')}
                     value={entries}
                   />
                 </Field>
               </div>
             </SettingsSection>
             <ChangesSection
-              description="Save or reset blocklist changes."
+              description={tt('Save or reset blocklist changes.')}
               error={<MutationError error={updateMutation.error} />}
               onDiscard={() => {
                 if (!loadedPolicy) return
@@ -3631,14 +4082,15 @@ export function SecurityBlocklistPage() {
     </ResourcePage>
   )
 }
-
 export function SecurityGeneralPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
-
+  const query = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   return (
     <ResourcePage
-      title="General security"
-      description="Review general protections tied to current deployment security policy."
+      title={tt('General security')}
+      description={tt('Review general protections tied to current deployment security policy.')}
       error={query.error}
       framed={false}
       loading={query.isLoading}
@@ -3647,28 +4099,40 @@ export function SecurityGeneralPage() {
       <SecuritySectionTabs active="general" />
       {query.data ? (
         <SettingsSections>
-          <SettingsSection title="Protection" description="Tenant sign-in protections from persisted policy.">
+          <SettingsSection
+            title={tt('Protection')}
+            description={tt('Tenant sign-in protections from persisted policy.')}
+          >
             <div className="grid gap-3">
-              <SettingRow label="MFA enforcement" value={query.data.policy.mfa.mode} />
-              <SettingRow label="Passkeys" value={query.data.policy.passkeys.enabled ? 'Enabled' : 'Disabled'} />
+              <SettingRow label={tt('MFA enforcement')} value={query.data.policy.mfa.mode} />
+              <SettingRow label={tt('Passkeys')} value={query.data.policy.passkeys.enabled ? 'Enabled' : 'Disabled'} />
               <SettingRow
-                label="CAPTCHA"
+                label={tt('CAPTCHA')}
                 value={query.data.policy.captcha.enabled ? 'Enabled for hosted flows' : 'Disabled'}
               />
-              <SettingRow label="Email blocklist entries" value={String(query.data.policy.blocklist.entries.length)} />
-              <SettingRow label="Password minimum" value={`${query.data.policy.password.minLength} characters`} />
+              <SettingRow
+                label={tt('Email blocklist entries')}
+                value={String(query.data.policy.blocklist.entries.length)}
+              />
+              <SettingRow label={tt('Password minimum')} value={`${query.data.policy.password.minLength} characters`} />
             </div>
           </SettingsSection>
-          <SettingsSection title="Session policy" description="Session lifetime values currently active in runtime.">
+          <SettingsSection
+            title={tt('Session policy')}
+            description={tt('Session lifetime values currently active in runtime.')}
+          >
             <div className="grid gap-3">
-              <SettingRow label="Session TTL" value={`${query.data.policy.sessions.expiresInSeconds}s`} />
-              <SettingRow label="Fresh age" value={`${query.data.policy.sessions.freshAgeSeconds}s`} />
+              <SettingRow label={tt('Session TTL')} value={`${query.data.policy.sessions.expiresInSeconds}s`} />
+              <SettingRow label={tt('Fresh age')} value={`${query.data.policy.sessions.freshAgeSeconds}s`} />
             </div>
           </SettingsSection>
-          <SettingsSection title="Headers and cookies" description="Runtime-managed browser protection settings.">
+          <SettingsSection
+            title={tt('Headers and cookies')}
+            description={tt('Runtime-managed browser protection settings.')}
+          >
             <div className="grid gap-3">
-              <SettingRow label="Security headers" value="Managed by Worker middleware" />
-              <SettingRow label="Cookie cache" value={`${query.data.policy.sessions.cookieCacheSeconds}s`} />
+              <SettingRow label={tt('Security headers')} value="Managed by Worker middleware" />
+              <SettingRow label={tt('Cookie cache')} value={`${query.data.policy.sessions.cookieCacheSeconds}s`} />
             </div>
           </SettingsSection>
         </SettingsSections>
@@ -3676,9 +4140,11 @@ export function SecurityGeneralPage() {
     </ResourcePage>
   )
 }
-
 export function OrganizationsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.organizations, queryFn: listOrganizations })
+  const query = useQuery({
+    queryKey: adminQueryKeys.organizations,
+    queryFn: listOrganizations,
+  })
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -3686,12 +4152,17 @@ export function OrganizationsPage() {
     mutationFn: createOrganization,
     onSuccess: () => {
       setDialogOpen(false)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.organizations })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.organizations,
+      })
     },
   })
   const logoMutation = useAdminMutation({
     mutationFn: ({ id, file }: { id: string; file: File }) => uploadOrganizationLogo(id, file),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.organizations }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.organizations,
+      }),
   })
   const organizations = query.data?.organizations ?? []
   const visibleOrganizations = organizations.filter((organization) =>
@@ -3699,15 +4170,13 @@ export function OrganizationsPage() {
       value.toLowerCase().includes(search.trim().toLowerCase()),
     ),
   )
-
   return (
     <ResourcePage
-      title="Organizations"
-      description="Manage tenant organizations. Teams are intentionally excluded from this console."
+      title={tt('Organizations')}
+      description={tt('Manage tenant organizations. Teams are intentionally excluded from this console.')}
       action={
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New organization
+          <Plus data-icon="inline-start" /> {tt('New organization')}{' '}
         </Button>
       }
       auxiliary={
@@ -3722,7 +4191,7 @@ export function OrganizationsPage() {
           onSubmit={(form) => createMutation.mutate(parseForm(createOrganizationRequestSchema, form))}
           open={dialogOpen}
           pending={createMutation.isPending}
-          title="Create organization"
+          title={tt('Create organization')}
         />
       }
       error={query.error}
@@ -3734,9 +4203,9 @@ export function OrganizationsPage() {
       toolbar={
         <ListToolbar>
           <TextInput
-            aria-label="Search organizations"
+            aria-label={tt('Search organizations')}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search organizations"
+            placeholder={tt('Search organizations')}
             value={search}
           />
         </ListToolbar>
@@ -3745,10 +4214,10 @@ export function OrganizationsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Organization</TableHead>
-            <TableHead>Display name</TableHead>
-            <TableHead>Logo</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>{tt('Organization')}</TableHead>
+            <TableHead>{tt('Display name')}</TableHead>
+            <TableHead>{tt('Logo')}</TableHead>
+            <TableHead>{tt('Status')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -3766,7 +4235,12 @@ export function OrganizationsPage() {
                   <AssetUploadControl
                     accept="image/png,image/jpeg,image/webp"
                     label={`Upload logo for ${organization.name}`}
-                    onFile={(file) => logoMutation.mutate({ id: organization.id, file })}
+                    onFile={(file) =>
+                      logoMutation.mutate({
+                        id: organization.id,
+                        file,
+                      })
+                    }
                     previewUrl={organization.logo}
                   />
                 </TableCell>
@@ -3780,10 +4254,10 @@ export function OrganizationsPage() {
               colSpan={4}
               description={
                 search
-                  ? 'No organizations match the current search.'
-                  : 'Create organizations when authorization needs tenant-owned groups.'
+                  ? tt('No organizations match the current search.')
+                  : tt('Create organizations when authorization needs tenant-owned groups.')
               }
-              title={search ? 'No organizations found' : 'No organizations yet'}
+              title={search ? tt('No organizations found') : tt('No organizations yet')}
             />
           )}
         </TableBody>
@@ -3792,7 +4266,6 @@ export function OrganizationsPage() {
     </ResourcePage>
   )
 }
-
 export function OrganizationDetailPage({
   organizationId,
   section = 'settings',
@@ -3812,15 +4285,16 @@ export function OrganizationDetailPage({
     mutationFn: (input: z.infer<typeof updateOrganizationRequestSchema>) => updateOrganization(organizationId, input),
     onSuccess: (updated) => {
       queryClient.setQueryData([...adminQueryKeys.organizations, organizationId], updated)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.organizations })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.organizations,
+      })
     },
   })
   useEffect(() => setSelectedTab(section), [section])
-
   return (
     <ResourcePage
-      title={organization?.name ?? 'Organization'}
-      description="Review and update the organization record exposed by the existing authorization model."
+      title={organization?.name ?? tt('Organization')}
+      description={tt('Review and update the organization record exposed by the existing authorization model.')}
       framed={false}
       error={query.error}
       loading={query.isLoading}
@@ -3829,8 +4303,7 @@ export function OrganizationDetailPage({
       {organization ? (
         <div className="consoleDetailStack">
           <a className="consoleBackLink" href="/console/organizations">
-            <Undo2 data-icon="inline-start" />
-            Back to organizations
+            <Undo2 data-icon="inline-start" /> {tt('Back to organizations')}{' '}
           </a>
           <ObjectHeader
             badge={organization.disabled ? 'Disabled' : 'Enabled'}
@@ -3838,7 +4311,7 @@ export function OrganizationDetailPage({
             title={organization.name}
           />
           <DetailTabs
-            label="Organization detail sections"
+            label={tt('Organization detail sections')}
             onChange={(value) => {
               const next = value as OrganizationDetailSection
               setSelectedTab(next)
@@ -3851,9 +4324,10 @@ export function OrganizationDetailPage({
             {selectedTab === 'settings' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>General</CardTitle>
+                  <CardTitle>{tt('General')}</CardTitle>
                   <CardDescription>
-                    Team collaboration and invitation management are outside this console surface.
+                    {' '}
+                    {tt('Team collaboration and invitation management are outside this console surface.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -3892,15 +4366,20 @@ export function OrganizationDetailPage({
             {selectedTab === 'authorization' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Authorization model</CardTitle>
-                  <CardDescription>Only persisted organization identity fields are editable here.</CardDescription>
+                  <CardTitle>{tt('Authorization model')}</CardTitle>
+                  <CardDescription>
+                    {tt('Only persisted organization identity fields are editable here.')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <SettingRow label="Organization ID" value={organization.id} />
-                  <SettingRow label="Role assignment scope" value="Use organization-scoped roles from Console roles." />
-                  <SettingRow label="Members and invitations" value="Not exposed in this product surface." />
-                  <SettingRow label="Created" value={formatDate(organization.createdAt)} />
-                  <SettingRow label="Updated" value={formatDate(organization.updatedAt)} />
+                  <SettingRow label={tt('Organization ID')} value={organization.id} />
+                  <SettingRow
+                    label={tt('Role assignment scope')}
+                    value="Use organization-scoped roles from Console roles."
+                  />
+                  <SettingRow label={tt('Members and invitations')} value="Not exposed in this product surface." />
+                  <SettingRow label={tt('Created')} value={formatDate(organization.createdAt)} />
+                  <SettingRow label={tt('Updated')} value={formatDate(organization.updatedAt)} />
                 </CardContent>
               </Card>
             ) : null}
@@ -3911,7 +4390,6 @@ export function OrganizationDetailPage({
     </ResourcePage>
   )
 }
-
 function OrganizationSummaryCard({
   organization,
 }: {
@@ -3929,25 +4407,30 @@ function OrganizationSummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Organization summary</CardTitle>
-        <CardDescription>Read-only organization identity and lifecycle fields.</CardDescription>
+        <CardTitle>{tt('Organization summary')}</CardTitle>
+        <CardDescription>{tt('Read-only organization identity and lifecycle fields.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <SettingRow label="Organization ID" value={organization.id} />
-        <SettingRow label="Slug" value={organization.slug} />
-        <SettingRow label="Display name" value={organization.displayName ?? organization.name} />
-        <SettingRow label="Status" value={organization.disabled ? 'Disabled' : 'Enabled'} />
-        <SettingRow label="Disabled reason" value={organization.disabledReason ?? 'Not set'} />
-        <SettingRow label="Created" value={formatDate(organization.createdAt)} />
-        <SettingRow label="Updated" value={formatDate(organization.updatedAt)} />
+        <SettingRow label={tt('Organization ID')} value={organization.id} />
+        <SettingRow label={tt('Slug')} value={organization.slug} />
+        <SettingRow label={tt('Display name')} value={organization.displayName ?? organization.name} />
+        <SettingRow label={tt('Status')} value={organization.disabled ? 'Disabled' : 'Enabled'} />
+        <SettingRow label={tt('Disabled reason')} value={organization.disabledReason ?? 'Not set'} />
+        <SettingRow label={tt('Created')} value={formatDate(organization.createdAt)} />
+        <SettingRow label={tt('Updated')} value={formatDate(organization.updatedAt)} />
       </CardContent>
     </Card>
   )
 }
-
 export function RolesPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.roles, queryFn: listRoles })
-  const resourcesQuery = useQuery({ queryKey: adminQueryKeys.apiResources, queryFn: listApiResources })
+  const query = useQuery({
+    queryKey: adminQueryKeys.roles,
+    queryFn: listRoles,
+  })
+  const resourcesQuery = useQuery({
+    queryKey: adminQueryKeys.apiResources,
+    queryFn: listApiResources,
+  })
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -3956,7 +4439,9 @@ export function RolesPage() {
     mutationFn: createRole,
     onSuccess: () => {
       setDialogOpen(false)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.roles })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.roles,
+      })
     },
   })
   const roles = query.data?.roles ?? []
@@ -3975,15 +4460,13 @@ export function RolesPage() {
           : 'global'
     return matchesSearch && (scope.length === 0 || roleScope === scope)
   })
-
   return (
     <ResourcePage
-      title="Roles"
-      description="Define application, organization, resource, and global roles."
+      title={tt('Roles')}
+      description={tt('Define application, organization, resource, and global roles.')}
       action={
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New role
+          <Plus data-icon="inline-start" /> {tt('New role')}{' '}
         </Button>
       }
       auxiliary={
@@ -4005,17 +4488,21 @@ export function RolesPage() {
       toolbar={
         <ListToolbar>
           <TextInput
-            aria-label="Search roles"
+            aria-label={tt('Search roles')}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search roles"
+            placeholder={tt('Search roles')}
             value={search}
           />
-          <SelectInput aria-label="Filter role scope" onChange={(event) => setScope(event.target.value)} value={scope}>
-            <option value="">Any scope</option>
-            <option value="global">Global</option>
-            <option value="application">Application</option>
-            <option value="organization">Organization</option>
-            <option value="resource">API resource</option>
+          <SelectInput
+            aria-label={tt('Filter role scope')}
+            onChange={(event) => setScope(event.target.value)}
+            value={scope}
+          >
+            <option value="">{tt('Any scope')}</option>
+            <option value="global">{tt('Global')}</option>
+            <option value="application">{tt('Application')}</option>
+            <option value="organization">{tt('Organization')}</option>
+            <option value="resource">{tt('API resource')}</option>
           </SelectInput>
         </ListToolbar>
       }
@@ -4023,9 +4510,9 @@ export function RolesPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Role</TableHead>
-            <TableHead>Scope</TableHead>
-            <TableHead>System</TableHead>
+            <TableHead>{tt('Role')}</TableHead>
+            <TableHead>{tt('Scope')}</TableHead>
+            <TableHead>{tt('System')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -4049,10 +4536,10 @@ export function RolesPage() {
               colSpan={3}
               description={
                 search || scope
-                  ? 'No roles match the current search or scope filter.'
-                  : 'Create roles to model tenant, organization, application, or API permissions.'
+                  ? tt('No roles match the current search or scope filter.')
+                  : tt('Create roles to model tenant, organization, application, or API permissions.')
               }
-              title={search || scope ? 'No roles found' : 'No roles yet'}
+              title={search || scope ? tt('No roles found') : tt('No roles yet')}
             />
           )}
         </TableBody>
@@ -4060,17 +4547,26 @@ export function RolesPage() {
     </ResourcePage>
   )
 }
-
 export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: string; section?: RoleDetailSection }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [selectedTab, setSelectedTab] = useState<RoleDetailSection>(section)
-  const [assignment, setAssignment] = useState({ type: 'user', subjectId: '', tokenClaims: '' })
+  const [assignment, setAssignment] = useState({
+    type: 'user',
+    subjectId: '',
+    tokenClaims: '',
+  })
   const [assignmentValidationError, setAssignmentValidationError] = useState<string | null>(null)
   const [selectedResourceId, setSelectedResourceId] = useState('')
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
-  const roleQuery = useQuery({ queryKey: [...adminQueryKeys.roles, roleId], queryFn: () => getRole(roleId) })
-  const resourcesQuery = useQuery({ queryKey: adminQueryKeys.apiResources, queryFn: listApiResources })
+  const roleQuery = useQuery({
+    queryKey: [...adminQueryKeys.roles, roleId],
+    queryFn: () => getRole(roleId),
+  })
+  const resourcesQuery = useQuery({
+    queryKey: adminQueryKeys.apiResources,
+    queryFn: listApiResources,
+  })
   const rolePermissionsQuery = useQuery({
     queryKey: [...adminQueryKeys.roles, roleId, 'permissions'],
     queryFn: () => listRolePermissions(roleId),
@@ -4081,31 +4577,33 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
     enabled: selectedResourceId.length > 0,
   })
   const role = roleQuery.data
-
   useEffect(() => {
     if (role?.resourceId && selectedResourceId !== role.resourceId) setSelectedResourceId(role.resourceId)
   }, [role?.resourceId, selectedResourceId])
-
   useEffect(() => {
     if (rolePermissionsQuery.data) {
       setSelectedPermissionIds(rolePermissionsQuery.data.permissions.map((permission) => permission.id))
     }
   }, [rolePermissionsQuery.data])
-
   useEffect(() => setSelectedTab(section), [section])
-
   const updateMutation = useMutation({
     mutationFn: (input: z.infer<typeof updateRoleRequestSchema>) => updateRole(roleId, input),
     onSuccess: (updated) => {
       queryClient.setQueryData([...adminQueryKeys.roles, roleId], updated)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.roles })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.roles,
+      })
     },
   })
   const deleteMutation = useMutation({
     mutationFn: () => deleteRole(roleId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.roles })
-      await navigate({ to: '/console/roles' })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.roles,
+      })
+      await navigate({
+        to: '/console/roles',
+      })
     },
   })
   const permissionMutation = useMutation({
@@ -4113,20 +4611,28 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
     onSuccess: () => rolePermissionsQuery.refetch(),
   })
   const assignmentMutation = useMutation({
-    mutationFn: (input: z.infer<typeof assignRoleRequestSchema> & { type: string }) => {
-      const payload = { roleId, subjectId: input.subjectId, tokenClaims: input.tokenClaims }
+    mutationFn: (
+      input: z.infer<typeof assignRoleRequestSchema> & {
+        type: string
+      },
+    ) => {
+      const payload = {
+        roleId,
+        subjectId: input.subjectId,
+        tokenClaims: input.tokenClaims,
+      }
       if (input.type === 'application') return assignApplicationRole(payload)
       if (input.type === 'member') return assignMemberRole(payload)
       return assignUserRole(payload)
     },
   })
-
   const selectedPermissionIdSet = new Set(selectedPermissionIds)
-
   return (
     <ResourcePage
-      title={role?.name ?? 'Role'}
-      description="Manage role metadata, API permissions, and user, application, or organization member assignments."
+      title={role?.name ?? tt('Role')}
+      description={tt(
+        'Manage role metadata, API permissions, and user, application, or organization member assignments.',
+      )}
       framed={false}
       error={roleQuery.error}
       loading={roleQuery.isLoading}
@@ -4135,12 +4641,11 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
       {role ? (
         <div className="consoleDetailStack">
           <a className="consoleBackLink" href="/console/roles">
-            <Undo2 data-icon="inline-start" />
-            Back to roles
+            <Undo2 data-icon="inline-start" /> {tt('Back to roles')}{' '}
           </a>
           <ObjectHeader badge={role.system ? 'System role' : 'Custom role'} id={role.key} title={role.name} />
           <DetailTabs
-            label="Role detail sections"
+            label={tt('Role detail sections')}
             onChange={(value) => {
               const next = value as RoleDetailSection
               setSelectedTab(next)
@@ -4153,9 +4658,10 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
             {selectedTab === 'settings' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Role settings</CardTitle>
+                  <CardTitle>{tt('Role settings')}</CardTitle>
                   <CardDescription>
-                    Scope fields are immutable after creation; update display metadata here.
+                    {' '}
+                    {tt('Scope fields are immutable after creation; update display metadata here.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -4187,8 +4693,7 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
                       type="button"
                       variant="danger"
                     >
-                      <Trash2 data-icon="inline-start" />
-                      Delete role
+                      <Trash2 data-icon="inline-start" /> {tt('Delete role')}{' '}
                     </Button>
                   </div>
                   <MutationError error={deleteMutation.error} />
@@ -4199,18 +4704,19 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
             {selectedTab === 'permissions' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Permission assignment</CardTitle>
+                  <CardTitle>{tt('Permission assignment')}</CardTitle>
                   <CardDescription>
-                    Select permissions from one API resource and replace the role permission set.
+                    {' '}
+                    {tt('Select permissions from one API resource and replace the role permission set.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <Field label="API resource">
+                  <Field label={tt('API resource')}>
                     <SelectInput
                       onChange={(event) => setSelectedResourceId(event.target.value)}
                       value={selectedResourceId}
                     >
-                      <option value="">Select resource</option>
+                      <option value="">{tt('Select resource')}</option>
                       {resourcesQuery.data?.resources.map((resource) => (
                         <option key={resource.id} value={resource.id}>
                           {resource.name}
@@ -4249,8 +4755,7 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
                     onClick={() => permissionMutation.mutate(selectedPermissionIds)}
                     type="button"
                   >
-                    <Save data-icon="inline-start" />
-                    Save permissions
+                    <Save data-icon="inline-start" /> {tt('Save permissions')}{' '}
                   </Button>
                   <MutationError error={permissionMutation.error} />
                 </CardContent>
@@ -4260,9 +4765,10 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
             {selectedTab === 'assignments' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Assignments</CardTitle>
+                  <CardTitle>{tt('Assignments')}</CardTitle>
                   <CardDescription>
-                    Assign this role to a user, an application, or an organization member record.
+                    {' '}
+                    {tt('Assign this role to a user, an application, or an organization member record.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -4284,33 +4790,37 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
                       }
                     }}
                   >
-                    <Field label="Subject type">
+                    <Field label={tt('Subject type')}>
                       <SelectInput
                         name="type"
-                        onChange={(event) => setAssignment((value) => ({ ...value, type: event.target.value }))}
+                        onChange={(event) =>
+                          setAssignment((value) => ({
+                            ...value,
+                            type: event.target.value,
+                          }))
+                        }
                         value={assignment.type}
                       >
-                        <option value="user">User</option>
-                        <option value="application">Application</option>
-                        <option value="member">Organization member</option>
+                        <option value="user">{tt('User')}</option>
+                        <option value="application">{tt('Application')}</option>
+                        <option value="member">{tt('Organization member')}</option>
                       </SelectInput>
                     </Field>
-                    <Field label="Subject ID">
+                    <Field label={tt('Subject ID')}>
                       <TextInput defaultValue={assignment.subjectId} name="subjectId" required />
                     </Field>
-                    <Field label="Token claims JSON">
+                    <Field label={tt('Token claims JSON')}>
                       <TextArea
                         defaultValue={assignment.tokenClaims}
                         name="tokenClaims"
-                        placeholder='{"tier":"gold"}'
+                        placeholder={tt('{"tier":"gold"}')}
                       />
                     </Field>
                     <Button disabled={assignmentMutation.isPending} type="submit">
-                      <Save data-icon="inline-start" />
-                      Assign role
+                      <Save data-icon="inline-start" /> {tt('Assign role')}{' '}
                     </Button>
                     {assignmentMutation.isSuccess ? (
-                      <p className="text-sm text-muted-foreground">Assignment saved.</p>
+                      <p className="text-sm text-muted-foreground">{tt('Assignment saved.')}</p>
                     ) : null}
                     {assignmentValidationError ? (
                       <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -4329,7 +4839,6 @@ export function RoleDetailPage({ roleId, section = 'settings' }: { roleId: strin
     </ResourcePage>
   )
 }
-
 function RoleSummaryCard({
   permissionCount,
   role,
@@ -4350,22 +4859,21 @@ function RoleSummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Role summary</CardTitle>
-        <CardDescription>Read-only role scope and token claim context.</CardDescription>
+        <CardTitle>{tt('Role summary')}</CardTitle>
+        <CardDescription>{tt('Read-only role scope and token claim context.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <SettingRow label="Role ID" value={role.id} />
-        <SettingRow label="Key" value={role.key} />
-        <SettingRow label="Type" value={role.system ? 'System role' : 'Custom role'} />
-        <SettingRow label="Scope" value={roleScopeLabel(role)} />
-        <SettingRow label="Permissions" value={String(permissionCount)} />
-        <SettingRow label="Token claim" value={role.tokenClaimName ?? 'Not set'} />
-        <SettingRow label="Token value" value={role.tokenClaimValue ?? 'Not set'} />
+        <SettingRow label={tt('Role ID')} value={role.id} />
+        <SettingRow label={tt('Key')} value={role.key} />
+        <SettingRow label={tt('Type')} value={role.system ? 'System role' : 'Custom role'} />
+        <SettingRow label={tt('Scope')} value={roleScopeLabel(role)} />
+        <SettingRow label={tt('Permissions')} value={String(permissionCount)} />
+        <SettingRow label={tt('Token claim')} value={role.tokenClaimName ?? 'Not set'} />
+        <SettingRow label={tt('Token value')} value={role.tokenClaimValue ?? 'Not set'} />
       </CardContent>
     </Card>
   )
 }
-
 function roleScopeLabel(role: {
   applicationId: string | null
   organizationId: string | null
@@ -4376,9 +4884,11 @@ function roleScopeLabel(role: {
   if (role.applicationId) return `Application ${role.applicationId}`
   return 'Tenant'
 }
-
 export function ApiResourcesPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.apiResources, queryFn: listApiResources })
+  const query = useQuery({
+    queryKey: adminQueryKeys.apiResources,
+    queryFn: listApiResources,
+  })
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -4386,7 +4896,9 @@ export function ApiResourcesPage() {
     mutationFn: createApiResource,
     onSuccess: () => {
       setDialogOpen(false)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.apiResources })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.apiResources,
+      })
     },
   })
   const resources = query.data?.resources ?? []
@@ -4395,15 +4907,13 @@ export function ApiResourcesPage() {
       value.toLowerCase().includes(search.trim().toLowerCase()),
     ),
   )
-
   return (
     <ResourcePage
-      title="API resources"
-      description="Register protected APIs, audiences, scopes, and permission surfaces."
+      title={tt('API resources')}
+      description={tt('Register protected APIs, audiences, scopes, and permission surfaces.')}
       action={
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus data-icon="inline-start" />
-          New resource
+          <Plus data-icon="inline-start" /> {tt('New resource')}{' '}
         </Button>
       }
       auxiliary={
@@ -4419,7 +4929,7 @@ export function ApiResourcesPage() {
           onSubmit={(form) => createMutation.mutate(parseForm(createApiResourceRequestSchema, form))}
           open={dialogOpen}
           pending={createMutation.isPending}
-          title="Create API resource"
+          title={tt('Create API resource')}
         />
       }
       error={query.error}
@@ -4431,9 +4941,9 @@ export function ApiResourcesPage() {
       toolbar={
         <ListToolbar>
           <TextInput
-            aria-label="Search API resources"
+            aria-label={tt('Search API resources')}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search API resources"
+            placeholder={tt('Search API resources')}
             value={search}
           />
         </ListToolbar>
@@ -4442,9 +4952,9 @@ export function ApiResourcesPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Resource</TableHead>
-            <TableHead>Audience</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>{tt('Resource')}</TableHead>
+            <TableHead>{tt('Audience')}</TableHead>
+            <TableHead>{tt('Status')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -4468,10 +4978,10 @@ export function ApiResourcesPage() {
               colSpan={3}
               description={
                 search
-                  ? 'No API resources match the current search.'
-                  : 'Register APIs before issuing access tokens for protected resources.'
+                  ? tt('No API resources match the current search.')
+                  : tt('Register APIs before issuing access tokens for protected resources.')
               }
-              title={search ? 'No API resources found' : 'No API resources yet'}
+              title={search ? tt('No API resources found') : tt('No API resources yet')}
             />
           )}
         </TableBody>
@@ -4479,7 +4989,6 @@ export function ApiResourcesPage() {
     </ResourcePage>
   )
 }
-
 export function ApiResourceDetailPage({
   resourceId,
   section = 'settings',
@@ -4505,21 +5014,31 @@ export function ApiResourceDetailPage({
   const resource = resourceQuery.data
   const refreshChildren = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.apiResources, resourceId, 'scopes'] }),
-      queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'] }),
+      queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.apiResources, resourceId, 'scopes'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'],
+      }),
     ])
   const updateMutation = useMutation({
     mutationFn: (input: z.infer<typeof updateApiResourceRequestSchema>) => updateApiResource(resourceId, input),
     onSuccess: (updated) => {
       queryClient.setQueryData([...adminQueryKeys.apiResources, resourceId], updated)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.apiResources })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.apiResources,
+      })
     },
   })
   const deleteMutation = useMutation({
     mutationFn: () => deleteApiResource(resourceId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.apiResources })
-      await navigate({ to: '/console/api-resources' })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.apiResources,
+      })
+      await navigate({
+        to: '/console/api-resources',
+      })
     },
   })
   const createScopeMutation = useMutation({
@@ -4538,25 +5057,30 @@ export function ApiResourceDetailPage({
   const createPermissionMutation = useMutation({
     mutationFn: (input: z.infer<typeof createApiPermissionRequestSchema>) => createApiPermission(resourceId, input),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'] }),
+      queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'],
+      }),
   })
   const updatePermissionMutation = useMutation({
     mutationFn: ({ id, input }: { id: string; input: z.infer<typeof updateApiPermissionRequestSchema> }) =>
       updateApiPermission(resourceId, id, input),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'] }),
+      queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'],
+      }),
   })
   const deletePermissionMutation = useMutation({
     mutationFn: (id: string) => deleteApiPermission(resourceId, id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'] }),
+      queryClient.invalidateQueries({
+        queryKey: [...adminQueryKeys.apiResources, resourceId, 'permissions'],
+      }),
   })
   useEffect(() => setSelectedTab(section), [section])
-
   return (
     <ResourcePage
-      title={resource?.name ?? 'API resource'}
-      description="Manage the protected API audience, OAuth scopes, and permission keys used by RBAC roles."
+      title={resource?.name ?? tt('API resource')}
+      description={tt('Manage the protected API audience, OAuth scopes, and permission keys used by RBAC roles.')}
       framed={false}
       error={resourceQuery.error}
       loading={resourceQuery.isLoading}
@@ -4565,8 +5089,7 @@ export function ApiResourceDetailPage({
       {resource ? (
         <div className="consoleDetailStack">
           <a className="consoleBackLink" href="/console/api-resources">
-            <Undo2 data-icon="inline-start" />
-            Back to API resources
+            <Undo2 data-icon="inline-start" /> {tt('Back to API resources')}{' '}
           </a>
           <ObjectHeader
             badge={resource.enabled ? 'Enabled' : 'Disabled'}
@@ -4574,7 +5097,7 @@ export function ApiResourceDetailPage({
             title={resource.name}
           />
           <DetailTabs
-            label="API resource detail sections"
+            label={tt('API resource detail sections')}
             onChange={(value) => {
               const next = value as ApiResourceDetailSection
               setSelectedTab(next)
@@ -4587,9 +5110,10 @@ export function ApiResourceDetailPage({
             {selectedTab === 'settings' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Resource settings</CardTitle>
+                  <CardTitle>{tt('Resource settings')}</CardTitle>
                   <CardDescription>
-                    Audience is emitted into authorization claims for matching OAuth resource requests.
+                    {' '}
+                    {tt('Audience is emitted into authorization claims for matching OAuth resource requests.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -4623,7 +5147,11 @@ export function ApiResourceDetailPage({
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button
                       disabled={updateMutation.isPending}
-                      onClick={() => updateMutation.mutate({ enabled: !resource.enabled })}
+                      onClick={() =>
+                        updateMutation.mutate({
+                          enabled: !resource.enabled,
+                        })
+                      }
                       type="button"
                       variant="secondary"
                     >
@@ -4635,8 +5163,7 @@ export function ApiResourceDetailPage({
                       type="button"
                       variant="danger"
                     >
-                      <Trash2 data-icon="inline-start" />
-                      Delete resource
+                      <Trash2 data-icon="inline-start" /> {tt('Delete resource')}{' '}
                     </Button>
                   </div>
                   <MutationError error={deleteMutation.error} />
@@ -4647,15 +5174,20 @@ export function ApiResourceDetailPage({
             {selectedTab === 'scopes' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Scopes</CardTitle>
+                  <CardTitle>{tt('Scopes')}</CardTitle>
                   <CardDescription>
-                    Scopes become OAuth scope strings and can also drive token claim inclusion.
+                    {' '}
+                    {tt('Scopes become OAuth scope strings and can also drive token claim inclusion.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <AuthorizationForm
                     buttonLabel="Create scope"
-                    defaults={{ value: '', description: '', tokenClaimName: '' }}
+                    defaults={{
+                      value: '',
+                      description: '',
+                      tokenClaimName: '',
+                    }}
                     error={createScopeMutation.error}
                     fields={[
                       ['value', 'Value'],
@@ -4666,7 +5198,7 @@ export function ApiResourceDetailPage({
                     pending={createScopeMutation.isPending}
                   />
                   <AuthorizationRows
-                    empty="No scopes yet."
+                    empty={tt('No scopes yet.')}
                     rows={scopesQuery.data?.scopes.map((scope) => ({
                       id: scope.id,
                       title: scope.value,
@@ -4697,15 +5229,21 @@ export function ApiResourceDetailPage({
             {selectedTab === 'permissions' ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Permissions</CardTitle>
+                  <CardTitle>{tt('Permissions')}</CardTitle>
                   <CardDescription>
-                    Permissions are assigned to roles and emitted through authorization claims.
+                    {' '}
+                    {tt('Permissions are assigned to roles and emitted through authorization claims.')}{' '}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <AuthorizationForm
                     buttonLabel="Create permission"
-                    defaults={{ key: '', description: '', tokenClaimValue: '', scopeId: '' }}
+                    defaults={{
+                      key: '',
+                      description: '',
+                      tokenClaimValue: '',
+                      scopeId: '',
+                    }}
                     error={createPermissionMutation.error}
                     fields={[
                       ['key', 'Key'],
@@ -4719,7 +5257,7 @@ export function ApiResourceDetailPage({
                     pending={createPermissionMutation.isPending}
                   />
                   <AuthorizationRows
-                    empty="No permissions yet."
+                    empty={tt('No permissions yet.')}
                     rows={permissionsQuery.data?.permissions.map((permission) => ({
                       id: permission.id,
                       title: permission.key,
@@ -4759,7 +5297,6 @@ export function ApiResourceDetailPage({
     </ResourcePage>
   )
 }
-
 function ApiResourceSummaryCard({
   permissionsCount,
   resource,
@@ -4780,27 +5317,35 @@ function ApiResourceSummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Resource summary</CardTitle>
-        <CardDescription>Read-only API authorization context.</CardDescription>
+        <CardTitle>{tt('Resource summary')}</CardTitle>
+        <CardDescription>{tt('Read-only API authorization context.')}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <SettingRow label="Resource ID" value={resource.id} />
-        <SettingRow label="Identifier" value={resource.identifier} />
-        <SettingRow label="Audience" value={resource.audience} />
-        <SettingRow label="Status" value={resource.enabled ? 'Enabled' : 'Disabled'} />
-        <SettingRow label="Scopes" value={String(scopesCount)} />
-        <SettingRow label="Permissions" value={String(permissionsCount)} />
-        <SettingRow label="Claims namespace" value={resource.tokenClaimsNamespace ?? 'Default'} />
-        <SettingRow label="Updated" value={formatDate(resource.updatedAt)} />
+        <SettingRow label={tt('Resource ID')} value={resource.id} />
+        <SettingRow label={tt('Identifier')} value={resource.identifier} />
+        <SettingRow label={tt('Audience')} value={resource.audience} />
+        <SettingRow label={tt('Status')} value={resource.enabled ? 'Enabled' : 'Disabled'} />
+        <SettingRow label={tt('Scopes')} value={String(scopesCount)} />
+        <SettingRow label={tt('Permissions')} value={String(permissionsCount)} />
+        <SettingRow label={tt('Claims namespace')} value={resource.tokenClaimsNamespace ?? 'Default'} />
+        <SettingRow label={tt('Updated')} value={formatDate(resource.updatedAt)} />
       </CardContent>
     </Card>
   )
 }
-
 export function BrandingPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
-  const signInQuery = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.branding,
+    queryFn: getBrandingSettings,
+  })
+  const signInQuery = useQuery({
+    queryKey: adminQueryKeys.signIn,
+    queryFn: getSignInSettings,
+  })
+  const securityQuery = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -4818,24 +5363,31 @@ export function BrandingPage() {
     mutationFn: updateBrandingSettings,
     onSuccess: () => {
       setValidationError(null)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.branding })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.branding,
+      })
     },
   })
   const logoMutation = useAdminMutation({
     mutationFn: uploadBrandingLogo,
     onSuccess: (response) => {
-      setForm((value) => ({ ...value, logoUrl: response.asset.publicUrl }))
+      setForm((value) => ({
+        ...value,
+        logoUrl: response.asset.publicUrl,
+      }))
       return Promise.resolve()
     },
   })
   const faviconMutation = useAdminMutation({
     mutationFn: uploadBrandingFavicon,
     onSuccess: (response) => {
-      setForm((value) => ({ ...value, faviconUrl: response.asset.publicUrl }))
+      setForm((value) => ({
+        ...value,
+        faviconUrl: response.asset.publicUrl,
+      }))
       return Promise.resolve()
     },
   })
-
   useEffect(() => {
     if (!query.data?.copy) return
     setForm({
@@ -4849,7 +5401,6 @@ export function BrandingPage() {
       description: query.data.copy.description,
     })
   }, [query.data])
-
   const loadedForm = query.data?.copy
     ? {
         logoUrl: query.data.branding.logoUrl ?? '',
@@ -4863,7 +5414,6 @@ export function BrandingPage() {
       }
     : null
   const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
-
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     const payload = updateManagementBrandingSettingsRequestSchema.safeParse(
@@ -4889,7 +5439,6 @@ export function BrandingPage() {
     setValidationError(null)
     updateMutation.mutate(payload.data)
   }
-
   const preview: HostedAuthPreviewState = {
     productName: form.productName,
     headline: form.headline,
@@ -4910,12 +5459,13 @@ export function BrandingPage() {
     usernameEnabled: signInQuery.data?.signIn?.usernameEnabled,
     emailOtpEnabled: signInQuery.data?.signIn?.emailOtpEnabled,
   }
-
   return (
     <SignInExperiencePage
       activeTab="branding"
-      title="Branding"
-      description="Configure hosted sign-in and Account Center brand assets, colors, and constrained theme variables."
+      title={tt('Branding')}
+      description={tt(
+        'Configure hosted sign-in and Account Center brand assets, colors, and constrained theme variables.',
+      )}
       error={query.error ?? signInQuery.error ?? securityQuery.error ?? connectorsQuery.error}
       loading={query.isLoading || signInQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
@@ -4932,61 +5482,91 @@ export function BrandingPage() {
             settings={
               <SettingsSections>
                 <SettingsSection
-                  title="Brand settings"
-                  description="External asset URLs must use HTTPS. Custom CSS accepts --auth-* declarations only."
+                  title={tt('Brand settings')}
+                  description={tt('External asset URLs must use HTTPS. Custom CSS accepts --auth-* declarations only.')}
                 >
                   <div className="formStack">
-                    <Field label="Product name">
+                    <Field label={tt('Product name')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, productName: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            productName: event.target.value,
+                          }))
+                        }
                         required
                         value={form.productName}
                       />
                     </Field>
-                    <Field label="Logo URL">
+                    <Field label={tt('Logo URL')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, logoUrl: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            logoUrl: event.target.value,
+                          }))
+                        }
                         type="url"
                         value={form.logoUrl}
                       />
                     </Field>
                     <AssetUploadControl
                       accept="image/png,image/jpeg,image/webp"
-                      label="Upload branding logo"
+                      label={tt('Upload branding logo')}
                       onFile={(file) => logoMutation.mutate(file)}
                       previewUrl={form.logoUrl || null}
                     />
-                    <Field label="Favicon URL">
+                    <Field label={tt('Favicon URL')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, faviconUrl: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            faviconUrl: event.target.value,
+                          }))
+                        }
                         type="url"
                         value={form.faviconUrl}
                       />
                     </Field>
                     <AssetUploadControl
                       accept="image/png,image/webp,image/x-icon,image/vnd.microsoft.icon"
-                      label="Upload favicon"
+                      label={tt('Upload favicon')}
                       onFile={(file) => faviconMutation.mutate(file)}
                       previewUrl={form.faviconUrl || null}
                     />
-                    <Field label="Primary color">
+                    <Field label={tt('Primary color')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, primaryColor: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            primaryColor: event.target.value,
+                          }))
+                        }
                         type="color"
                         value={form.primaryColor}
                       />
                     </Field>
-                    <Field label="Background color">
+                    <Field label={tt('Background color')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, backgroundColor: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            backgroundColor: event.target.value,
+                          }))
+                        }
                         type="color"
                         value={form.backgroundColor}
                       />
                     </Field>
-                    <Field label="Custom CSS">
+                    <Field label={tt('Custom CSS')}>
                       <TextArea
-                        onChange={(event) => setForm((value) => ({ ...value, customCss: event.target.value }))}
-                        placeholder="--auth-panel-radius: 8px;"
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            customCss: event.target.value,
+                          }))
+                        }
+                        placeholder={tt('--auth-panel-radius: 8px;')}
                         value={form.customCss}
                       />
                     </Field>
@@ -5004,7 +5584,7 @@ export function BrandingPage() {
                   </div>
                 </SettingsSection>
                 <ChangesSection
-                  description="Save brand updates or restore the loaded values."
+                  description={tt('Save brand updates or restore the loaded values.')}
                   onDiscard={() => {
                     if (loadedForm) setForm(loadedForm)
                     setValidationError(null)
@@ -5021,33 +5601,34 @@ export function BrandingPage() {
     </SignInExperiencePage>
   )
 }
-
 export function CollectUserProfilePage() {
   return (
     <SignInExperiencePage
       activeTab="collect-user-profile"
-      description="Custom profile field collection is outside the v1 hosted auth surface."
-      title="Collect user profile"
+      description={tt('Custom profile field collection is outside the v1 hosted auth surface.')}
+      title={tt('Collect user profile')}
     >
       <SettingsSections>
         <SettingsSection
-          title="Supported profile data"
-          description="Current hosted auth collects the built-in user profile fields."
+          title={tt('Supported profile data')}
+          description={tt('Current hosted auth collects the built-in user profile fields.')}
         >
           <div className="grid gap-3">
-            <SettingRow label="Email" value="Built in" />
-            <SettingRow label="Name" value="Built in" />
-            <SettingRow label="Username" value="Available when username sign-in is enabled" />
-            <SettingRow label="Avatar" value="Managed from user profile surfaces" />
+            <SettingRow label={tt('Email')} value="Built in" />
+            <SettingRow label={tt('Name')} value="Built in" />
+            <SettingRow label={tt('Username')} value="Available when username sign-in is enabled" />
+            <SettingRow label={tt('Avatar')} value="Managed from user profile surfaces" />
           </div>
         </SettingsSection>
       </SettingsSections>
     </SignInExperiencePage>
   )
 }
-
 export function AccountCenterSettingsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.accountCenter, queryFn: getAccountCenterSettings })
+  const query = useQuery({
+    queryKey: adminQueryKeys.accountCenter,
+    queryFn: getAccountCenterSettings,
+  })
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
     profileEditingEnabled: true,
@@ -5062,97 +5643,137 @@ export function AccountCenterSettingsPage() {
   })
   const updateMutation = useAdminMutation({
     mutationFn: updateAccountCenterSettings,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.accountCenter }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.accountCenter,
+      }),
   })
-
   useEffect(() => {
     if (query.data) setForm(query.data.accountCenter)
   }, [query.data])
-
   const loadedForm = query.data?.accountCenter ?? null
   const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
-
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    updateMutation.mutate({ accountCenter: form })
+    updateMutation.mutate({
+      accountCenter: form,
+    })
   }
-
   return (
     <SignInExperiencePage
       action={
         <Button onClick={() => window.open('/profile', '_blank', 'noopener')} type="button" variant="secondary">
-          <ExternalLink data-icon="inline-start" />
-          Open account center
+          <ExternalLink data-icon="inline-start" /> {tt('Open account center')}{' '}
         </Button>
       }
       activeTab="account-center"
-      description="Configure the self-service account center exposure and review available account management surfaces."
+      description={tt(
+        'Configure the self-service account center exposure and review available account management surfaces.',
+      )}
       error={query.error}
       loading={query.isLoading}
       onRetry={() => void query.refetch()}
-      title="Account Center"
+      title={tt('Account Center')}
     >
       {query.data ? (
         <form onSubmit={onSubmit}>
           <SettingsSections>
             <SettingsSection
-              title="Visible sections"
-              description="Choose which account center sections are visible to signed-in users."
+              title={tt('Visible sections')}
+              description={tt('Choose which account center sections are visible to signed-in users.')}
             >
               <div className="grid gap-3">
                 <SwitchRow
                   checked={form.profileEditingEnabled}
-                  label="Profile section"
-                  onCheckedChange={(profileEditingEnabled) => setForm((value) => ({ ...value, profileEditingEnabled }))}
+                  label={tt('Profile section')}
+                  onCheckedChange={(profileEditingEnabled) =>
+                    setForm((value) => ({
+                      ...value,
+                      profileEditingEnabled,
+                    }))
+                  }
                 />
                 <SwitchRow
                   checked={form.passwordChangeEnabled}
-                  label="Password section"
-                  onCheckedChange={(passwordChangeEnabled) => setForm((value) => ({ ...value, passwordChangeEnabled }))}
+                  label={tt('Password section')}
+                  onCheckedChange={(passwordChangeEnabled) =>
+                    setForm((value) => ({
+                      ...value,
+                      passwordChangeEnabled,
+                    }))
+                  }
                 />
                 <SwitchRow
                   checked={form.connectedAccountsEnabled}
-                  label="Connected accounts and apps"
+                  label={tt('Connected accounts and apps')}
                   onCheckedChange={(connectedAccountsEnabled) =>
-                    setForm((value) => ({ ...value, connectedAccountsEnabled }))
+                    setForm((value) => ({
+                      ...value,
+                      connectedAccountsEnabled,
+                    }))
                   }
                 />
                 <SwitchRow
                   checked={form.sessionsViewEnabled}
-                  label="Sessions section"
-                  onCheckedChange={(sessionsViewEnabled) => setForm((value) => ({ ...value, sessionsViewEnabled }))}
+                  label={tt('Sessions section')}
+                  onCheckedChange={(sessionsViewEnabled) =>
+                    setForm((value) => ({
+                      ...value,
+                      sessionsViewEnabled,
+                    }))
+                  }
                 />
               </div>
             </SettingsSection>
             <SettingsSection
-              title="Profile field permissions"
-              description="Control which built-in profile fields users can edit from /profile."
+              title={tt('Profile field permissions')}
+              description={tt('Control which built-in profile fields users can edit from /profile.')}
             >
               <div className="grid gap-3">
                 <SwitchRow
                   checked={form.displayNameEditable}
-                  label="Display name"
-                  onCheckedChange={(displayNameEditable) => setForm((value) => ({ ...value, displayNameEditable }))}
+                  label={tt('Display name')}
+                  onCheckedChange={(displayNameEditable) =>
+                    setForm((value) => ({
+                      ...value,
+                      displayNameEditable,
+                    }))
+                  }
                 />
                 <SwitchRow
                   checked={form.usernameEditable}
-                  label="Username"
-                  onCheckedChange={(usernameEditable) => setForm((value) => ({ ...value, usernameEditable }))}
+                  label={tt('Username')}
+                  onCheckedChange={(usernameEditable) =>
+                    setForm((value) => ({
+                      ...value,
+                      usernameEditable,
+                    }))
+                  }
                 />
                 <SwitchRow
                   checked={form.avatarEditable}
-                  label="Avatar"
-                  onCheckedChange={(avatarEditable) => setForm((value) => ({ ...value, avatarEditable }))}
+                  label={tt('Avatar')}
+                  onCheckedChange={(avatarEditable) =>
+                    setForm((value) => ({
+                      ...value,
+                      avatarEditable,
+                    }))
+                  }
                 />
                 <SwitchRow
                   checked={form.emailChangeEnabled}
-                  label="Email changes"
-                  onCheckedChange={(emailChangeEnabled) => setForm((value) => ({ ...value, emailChangeEnabled }))}
+                  label={tt('Email changes')}
+                  onCheckedChange={(emailChangeEnabled) =>
+                    setForm((value) => ({
+                      ...value,
+                      emailChangeEnabled,
+                    }))
+                  }
                 />
               </div>
             </SettingsSection>
             <ChangesSection
-              description="Save account center visibility and field permissions."
+              description={tt('Save account center visibility and field permissions.')}
               error={
                 updateMutation.errorMessage ? (
                   <div className="text-sm text-destructive">{updateMutation.errorMessage}</div>
@@ -5171,11 +5792,19 @@ export function AccountCenterSettingsPage() {
     </SignInExperiencePage>
   )
 }
-
 export function ContentSettingsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.signIn, queryFn: getSignInSettings })
-  const brandingQuery = useQuery({ queryKey: adminQueryKeys.branding, queryFn: getBrandingSettings })
-  const securityQuery = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.signIn,
+    queryFn: getSignInSettings,
+  })
+  const brandingQuery = useQuery({
+    queryKey: adminQueryKeys.branding,
+    queryFn: getBrandingSettings,
+  })
+  const securityQuery = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const connectorsQuery = useConnectorPreviewProviders()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({
@@ -5191,10 +5820,11 @@ export function ContentSettingsPage() {
     mutationFn: updateSignInSettings,
     onSuccess: () => {
       setValidationError(null)
-      return queryClient.invalidateQueries({ queryKey: adminQueryKeys.signIn })
+      return queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.signIn,
+      })
     },
   })
-
   useEffect(() => {
     if (!query.data?.copy) return
     setForm({
@@ -5206,7 +5836,6 @@ export function ContentSettingsPage() {
       supportEmail: query.data.links?.supportEmail ?? '',
     })
   }, [query.data])
-
   const loadedForm = query.data?.copy
     ? {
         productName: query.data.copy.productName,
@@ -5218,7 +5847,6 @@ export function ContentSettingsPage() {
       }
     : null
   const hasChanges = loadedForm ? !shallowEqual(form, loadedForm) : false
-
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     const payload = updateManagementSignInSettingsRequestSchema.safeParse({
@@ -5240,7 +5868,6 @@ export function ContentSettingsPage() {
     setValidationError(null)
     updateMutation.mutate(payload.data)
   }
-
   const preview: HostedAuthPreviewState = {
     productName: form.productName,
     headline: form.headline,
@@ -5264,11 +5891,10 @@ export function ContentSettingsPage() {
     privacyUri: form.privacyUri,
     supportEmail: form.supportEmail,
   }
-
   return (
     <SignInExperiencePage
       activeTab="content"
-      description="Manage hosted authentication language, page messages, and legal links."
+      description={tt('Manage hosted authentication language, page messages, and legal links.')}
       error={query.error ?? brandingQuery.error ?? securityQuery.error ?? connectorsQuery.error}
       loading={query.isLoading || brandingQuery.isLoading || securityQuery.isLoading}
       onRetry={() => {
@@ -5277,7 +5903,7 @@ export function ContentSettingsPage() {
         void securityQuery.refetch()
         void connectorsQuery.refetch()
       }}
-      title="Content"
+      title={tt('Content')}
     >
       {query.data ? (
         <form onSubmit={onSubmit}>
@@ -5286,27 +5912,42 @@ export function ContentSettingsPage() {
             settings={
               <SettingsSections>
                 <SettingsSection
-                  title="Hosted messages"
-                  description="These strings are exposed through public hosted auth config."
+                  title={tt('Hosted messages')}
+                  description={tt('These strings are exposed through public hosted auth config.')}
                 >
                   <div className="formStack">
-                    <Field label="Product name">
+                    <Field label={tt('Product name')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, productName: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            productName: event.target.value,
+                          }))
+                        }
                         required
                         value={form.productName}
                       />
                     </Field>
-                    <Field label="Sign-in message">
+                    <Field label={tt('Sign-in message')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, headline: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            headline: event.target.value,
+                          }))
+                        }
                         required
                         value={form.headline}
                       />
                     </Field>
-                    <Field label="Sign-up message">
+                    <Field label={tt('Sign-up message')}>
                       <TextArea
-                        onChange={(event) => setForm((value) => ({ ...value, description: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            description: event.target.value,
+                          }))
+                        }
                         required
                         value={form.description}
                       />
@@ -5314,27 +5955,44 @@ export function ContentSettingsPage() {
                   </div>
                 </SettingsSection>
                 <SettingsSection
-                  title="Links"
-                  description="Public legal and support links must use safe values accepted by management validation."
+                  title={tt('Links')}
+                  description={tt(
+                    'Public legal and support links must use safe values accepted by management validation.',
+                  )}
                 >
                   <div className="formStack">
-                    <Field label="Terms URL">
+                    <Field label={tt('Terms URL')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, termsUri: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            termsUri: event.target.value,
+                          }))
+                        }
                         type="url"
                         value={form.termsUri}
                       />
                     </Field>
-                    <Field label="Privacy URL">
+                    <Field label={tt('Privacy URL')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, privacyUri: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            privacyUri: event.target.value,
+                          }))
+                        }
                         type="url"
                         value={form.privacyUri}
                       />
                     </Field>
-                    <Field label="Support email">
+                    <Field label={tt('Support email')}>
                       <TextInput
-                        onChange={(event) => setForm((value) => ({ ...value, supportEmail: event.target.value }))}
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            supportEmail: event.target.value,
+                          }))
+                        }
                         type="email"
                         value={form.supportEmail}
                       />
@@ -5349,7 +6007,7 @@ export function ContentSettingsPage() {
                   </div>
                 </SettingsSection>
                 <ChangesSection
-                  description="Save hosted copy updates or restore the loaded values."
+                  description={tt('Save hosted copy updates or restore the loaded values.')}
                   onDiscard={() => {
                     if (loadedForm) setForm(loadedForm)
                     setValidationError(null)
@@ -5366,15 +6024,16 @@ export function ContentSettingsPage() {
     </SignInExperiencePage>
   )
 }
-
 export function DeploymentSettingsPage() {
-  const query = useQuery({ queryKey: adminQueryKeys.security, queryFn: getSecurityPolicy })
+  const query = useQuery({
+    queryKey: adminQueryKeys.security,
+    queryFn: getSecurityPolicy,
+  })
   const [keyTab, setKeyTab] = useState('private')
-
   return (
     <ResourcePage
-      title="Settings"
-      description="Review issuer metadata, session TTL, and signing-key runtime state for this tenant."
+      title={tt('Settings')}
+      description={tt('Review issuer metadata, session TTL, and signing-key runtime state for this tenant.')}
       error={query.error}
       framed={false}
       loading={query.isLoading}
@@ -5388,43 +6047,46 @@ export function DeploymentSettingsPage() {
       {query.data ? (
         <SettingsSections>
           <SettingsSection
-            title="Runtime endpoints"
-            description="Static Console settings tied to the current deployment."
+            title={tt('Runtime endpoints')}
+            description={tt('Static Console settings tied to the current deployment.')}
           >
             <div className="grid gap-3">
-              <SettingRow label="Platform" value="Cloudflare Workers" />
-              <SettingRow label="Database" value="D1" />
-              <SettingRow label="Auth issuer" value="/api/auth" />
-              <SettingRow label="Discovery" value="/api/auth/.well-known/openid-configuration" />
-              <SettingRow label="JWKS URI" value="/api/auth/jwks" />
-              <SettingRow label="Management API" value="/api/management" />
-            </div>
-          </SettingsSection>
-          <SettingsSection title="Session TTL" description="Runtime session lifetime and cookie-cache values.">
-            <div className="grid gap-3">
-              <SettingRow label="Session TTL" value={`${query.data.policy.sessions.expiresInSeconds}s`} />
-              <SettingRow label="Update age" value={`${query.data.policy.sessions.updateAgeSeconds}s`} />
-              <SettingRow label="Fresh age" value={`${query.data.policy.sessions.freshAgeSeconds}s`} />
-              <SettingRow label="Cookie cache" value={`${query.data.policy.sessions.cookieCacheSeconds}s`} />
+              <SettingRow label={tt('Platform')} value="Cloudflare Workers" />
+              <SettingRow label={tt('Database')} value="D1" />
+              <SettingRow label={tt('Auth issuer')} value="/api/auth" />
+              <SettingRow label={tt('Discovery')} value="/api/auth/.well-known/openid-configuration" />
+              <SettingRow label={tt('JWKS URI')} value="/api/auth/jwks" />
+              <SettingRow label={tt('Management API')} value="/api/management" />
             </div>
           </SettingsSection>
           <SettingsSection
-            title="Signing keys"
-            description="Deployment-managed OIDC signing material exposed through JWKS."
+            title={tt('Session TTL')}
+            description={tt('Runtime session lifetime and cookie-cache values.')}
+          >
+            <div className="grid gap-3">
+              <SettingRow label={tt('Session TTL')} value={`${query.data.policy.sessions.expiresInSeconds}s`} />
+              <SettingRow label={tt('Update age')} value={`${query.data.policy.sessions.updateAgeSeconds}s`} />
+              <SettingRow label={tt('Fresh age')} value={`${query.data.policy.sessions.freshAgeSeconds}s`} />
+              <SettingRow label={tt('Cookie cache')} value={`${query.data.policy.sessions.cookieCacheSeconds}s`} />
+            </div>
+          </SettingsSection>
+          <SettingsSection
+            title={tt('Signing keys')}
+            description={tt('Deployment-managed OIDC signing material exposed through JWKS.')}
           >
             <div className="grid gap-4">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Key</TableHead>
-                    <TableHead>Use</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{tt('Key')}</TableHead>
+                    <TableHead>{tt('Use')}</TableHead>
+                    <TableHead>{tt('Status')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    <TableCell>Current deployment key</TableCell>
-                    <TableCell>OIDC JWT signing</TableCell>
+                    <TableCell>{tt('Current deployment key')}</TableCell>
+                    <TableCell>{tt('OIDC JWT signing')}</TableCell>
                     <TableCell>
                       <StatusBadge active activeLabel="Active" inactiveLabel="Inactive" />
                     </TableCell>
@@ -5433,8 +6095,8 @@ export function DeploymentSettingsPage() {
               </Table>
               <Tabs className="flex flex-col gap-4" setValue={setKeyTab} value={keyTab}>
                 <TabsList>
-                  <TabsTrigger value="private">Private key</TabsTrigger>
-                  <TabsTrigger value="cookie">Cookie key</TabsTrigger>
+                  <TabsTrigger value="private">{tt('Private key')}</TabsTrigger>
+                  <TabsTrigger value="cookie">{tt('Cookie key')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="private">
                   <PolicyCard
@@ -5443,7 +6105,7 @@ export function DeploymentSettingsPage() {
                       ['Storage', 'AUTH_SECRET deployment binding'],
                       ['Exposure', 'Private key material is never shown in Console.'],
                     ]}
-                    title="Private key"
+                    title={tt('Private key')}
                   />
                 </TabsContent>
                 <TabsContent value="cookie">
@@ -5453,7 +6115,7 @@ export function DeploymentSettingsPage() {
                       ['Storage', 'AUTH_SECRET deployment binding'],
                       ['Cookie cache', `${query.data.policy.sessions.cookieCacheSeconds}s`],
                     ]}
-                    title="Cookie key"
+                    title={tt('Cookie key')}
                   />
                 </TabsContent>
               </Tabs>
@@ -5464,7 +6126,6 @@ export function DeploymentSettingsPage() {
     </ResourcePage>
   )
 }
-
 export function ConsolePlaceholderPage({
   description,
   rows,
@@ -5488,7 +6149,6 @@ export function ConsolePlaceholderPage({
     </ResourcePage>
   )
 }
-
 export function OrganizationTemplatePage({
   section = 'organization-roles',
 }: {
@@ -5496,7 +6156,10 @@ export function OrganizationTemplatePage({
 }) {
   const [tab, setTab] = useState<OrganizationTemplateSection>(section)
   const [roleSearch, setRoleSearch] = useState('')
-  const rolesQuery = useQuery({ queryKey: adminQueryKeys.roles, queryFn: listRoles })
+  const rolesQuery = useQuery({
+    queryKey: adminQueryKeys.roles,
+    queryFn: listRoles,
+  })
   const organizationRoles = rolesQuery.data?.roles.filter(
     (role) =>
       (role.organizationId || (!role.applicationId && !role.resourceId)) &&
@@ -5505,11 +6168,12 @@ export function OrganizationTemplatePage({
       ),
   )
   useEffect(() => setTab(section), [section])
-
   return (
     <ResourcePage
-      title="Organization template"
-      description="Configure authorization templates used by organizations. Team management is not part of this surface."
+      title={tt('Organization template')}
+      description={tt(
+        'Configure authorization templates used by organizations. Team management is not part of this surface.',
+      )}
       framed={false}
       error={rolesQuery.error}
       loading={rolesQuery.isLoading}
@@ -5532,28 +6196,27 @@ export function OrganizationTemplatePage({
         <SettingsSections>
           {tab === 'organization-roles' ? (
             <SettingsSection
-              title="Organization roles"
-              description="Create and search organization role definitions through the roles API."
+              title={tt('Organization roles')}
+              description={tt('Create and search organization role definitions through the roles API.')}
             >
               <div className="grid gap-4">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <TextInput
-                    aria-label="Search organization roles"
+                    aria-label={tt('Search organization roles')}
                     onChange={(event) => setRoleSearch(event.target.value)}
-                    placeholder="Search roles"
+                    placeholder={tt('Search roles')}
                     value={roleSearch}
                   />
                   <a className="uiButton uiButton-primary" href="/console/roles">
-                    <Plus data-icon="inline-start" />
-                    Create role
+                    <Plus data-icon="inline-start" /> {tt('Create role')}{' '}
                   </a>
                 </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Scope</TableHead>
-                      <TableHead>Token claim</TableHead>
+                      <TableHead>{tt('Role')}</TableHead>
+                      <TableHead>{tt('Scope')}</TableHead>
+                      <TableHead>{tt('Token claim')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -5576,18 +6239,21 @@ export function OrganizationTemplatePage({
           ) : null}
           {tab === 'organization-permissions' ? (
             <SettingsSection
-              title="Organization permissions"
-              description="Permissions are managed on API resources and attached to organization roles."
+              title={tt('Organization permissions')}
+              description={tt('Permissions are managed on API resources and attached to organization roles.')}
             >
               <EmptyState
                 action={
                   <a className="uiButton uiButton-secondary" href="/console/api-resources">
-                    API resources
+                    {' '}
+                    {tt('API resources')}{' '}
                   </a>
                 }
-                description="Create resource permissions, then attach them to organization-scoped roles from the role detail page."
+                description={tt(
+                  'Create resource permissions, then attach them to organization-scoped roles from the role detail page.',
+                )}
                 framed={false}
-                title="Permission templates use API resources"
+                title={tt('Permission templates use API resources')}
               />
             </SettingsSection>
           ) : null}
@@ -5596,17 +6262,16 @@ export function OrganizationTemplatePage({
     </ResourcePage>
   )
 }
-
 export function CustomizeJwtPage() {
   return (
     <ResourcePage
-      title="Custom JWT"
-      description="Review token claim controls backed by the current authorization model."
+      title={tt('Custom JWT')}
+      description={tt('Review token claim controls backed by the current authorization model.')}
       framed={false}
     >
       <SettingsSections>
         <TokenCustomizationCard
-          title="Access token"
+          title={tt('Access token')}
           rows={[
             ['Audience', 'API resource audience is emitted for matching protected APIs.'],
             ['Roles and permissions', 'Configured through role assignments and API resource permissions.'],
@@ -5614,14 +6279,14 @@ export function CustomizeJwtPage() {
           ]}
         />
         <TokenCustomizationCard
-          title="Machine-to-machine token"
+          title={tt('Machine-to-machine token')}
           rows={[
             ['Application roles', 'Application role assignments are supported.'],
             ['Custom claims', 'Use assignment token claims for trusted application subjects.'],
           ]}
         />
         <TokenCustomizationCard
-          title="ID token"
+          title={tt('ID token')}
           rows={[
             ['Profile claims', 'Built-in auth profile claims are issued by the auth provider.'],
             ['Scope toggles', 'API scopes can opt into ID token inclusion where configured.'],
@@ -5631,7 +6296,6 @@ export function CustomizeJwtPage() {
     </ResourcePage>
   )
 }
-
 export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSection }) {
   const [selectedTab, setSelectedTab] = useState<WebhooksSection>(section)
   const [search, setSearch] = useState('')
@@ -5663,34 +6327,53 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
       setEndpointUrl('')
       setSelectedEvents(['user.created'])
       setSecretDisclosure(response.signingSecret)
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.webhookEndpoints })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.webhookEndpoints,
+      })
     },
   })
   const updateMutation = useAdminMutation({
-    mutationFn: ({ id, input }: { id: string; input: { enabled?: boolean } }) => updateWebhookEndpoint(id, input),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.webhookEndpoints }),
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string
+      input: {
+        enabled?: boolean
+      }
+    }) => updateWebhookEndpoint(id, input),
+    onSuccess: async () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.webhookEndpoints,
+      }),
   })
   const deleteMutation = useAdminMutation({
     mutationFn: deleteWebhookEndpoint,
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.webhookEndpoints }),
+    onSuccess: async () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.webhookEndpoints,
+      }),
   })
   const rotateMutation = useAdminMutation({
     mutationFn: rotateWebhookEndpointSecret,
     onSuccess: async (response) => {
       setSecretDisclosure(response.signingSecret)
-      await queryClient.invalidateQueries({ queryKey: adminQueryKeys.webhookEndpoints })
+      await queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.webhookEndpoints,
+      })
     },
   })
   const retryMutation = useAdminMutation({
     mutationFn: retryWebhookRequest,
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: adminQueryKeys.webhookRequests }),
+    onSuccess: async () =>
+      queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.webhookRequests,
+      }),
   })
   useEffect(() => setSelectedTab(section), [section])
-
   function toggleEvent(event: WebhookEvent, checked: boolean) {
     setSelectedEvents((events) => (checked ? [...events, event] : events.filter((value) => value !== event)))
   }
-
   function createEndpoint(event: FormEvent) {
     event.preventDefault()
     const parsed = createWebhookEndpointRequestSchema.safeParse({
@@ -5701,22 +6384,19 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
     if (!parsed.success) return
     createMutation.mutate(parsed.data)
   }
-
   return (
     <ResourcePage
-      title="Webhooks"
-      description="Configure signed event endpoints and inspect persisted delivery requests."
+      title={tt('Webhooks')}
+      description={tt('Configure signed event endpoints and inspect persisted delivery requests.')}
       framed={false}
       action={
         selectedTab === 'endpoints' ? (
           <Button form="webhook-create-form" type="submit">
-            <Plus data-icon="inline-start" />
-            Create endpoint
+            <Plus data-icon="inline-start" /> {tt('Create endpoint')}{' '}
           </Button>
         ) : (
           <a className="uiButton uiButton-primary" href="/console/webhooks/endpoints">
-            <Plus data-icon="inline-start" />
-            Create endpoint
+            <Plus data-icon="inline-start" /> {tt('Create endpoint')}{' '}
           </a>
         )
       }
@@ -5735,36 +6415,39 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
       <div className="consoleDetailStack">
         <ListToolbar>
           <TextInput
-            aria-label="Search webhooks"
+            aria-label={tt('Search webhooks')}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search endpoints or events"
+            placeholder={tt('Search endpoints or events')}
             value={search}
           />
           <SelectInput
-            aria-label="Filter webhook status"
+            aria-label={tt('Filter webhook status')}
             onChange={(event) => setStatus(event.target.value)}
             value={status}
           >
-            <option value="">Any status</option>
+            <option value="">{tt('Any status')}</option>
             {selectedTab === 'endpoints' ? (
               <>
-                <option value="enabled">Enabled</option>
-                <option value="disabled">Disabled</option>
+                <option value="enabled">{tt('Enabled')}</option>
+                <option value="disabled">{tt('Disabled')}</option>
               </>
             ) : (
               <>
-                <option value="pending">Pending</option>
-                <option value="delivered">Delivered</option>
-                <option value="failed">Failed</option>
+                <option value="pending">{tt('Pending')}</option>
+                <option value="delivered">{tt('Delivered')}</option>
+                <option value="failed">{tt('Failed')}</option>
               </>
             )}
           </SelectInput>
         </ListToolbar>
         {selectedTab === 'endpoints' ? (
           <SettingsSections>
-            <SettingsSection title="Create endpoint" description="Create a signed HTTPS endpoint for selected events.">
+            <SettingsSection
+              title={tt('Create endpoint')}
+              description={tt('Create a signed HTTPS endpoint for selected events.')}
+            >
               <form className="formStack" id="webhook-create-form" onSubmit={createEndpoint}>
-                <Field label="Endpoint URL">
+                <Field label={tt('Endpoint URL')}>
                   <TextInput
                     onChange={(event) => setEndpointUrl(event.target.value)}
                     placeholder="https://example.com/webhooks/auth"
@@ -5791,23 +6474,22 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
                   type="submit"
                   variant="secondary"
                 >
-                  <Plus data-icon="inline-start" />
-                  Create endpoint
+                  <Plus data-icon="inline-start" /> {tt('Create endpoint')}{' '}
                 </Button>
               </form>
             </SettingsSection>
             <SettingsSection
-              title="Endpoints"
-              description="Manage enabled state, signing secret rotation, and endpoint deletion."
+              title={tt('Endpoints')}
+              description={tt('Manage enabled state, signing secret rotation, and endpoint deletion.')}
             >
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Endpoint</TableHead>
-                    <TableHead>Events</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Secret</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>{tt('Endpoint')}</TableHead>
+                    <TableHead>{tt('Events')}</TableHead>
+                    <TableHead>{tt('Status')}</TableHead>
+                    <TableHead>{tt('Secret')}</TableHead>
+                    <TableHead>{tt('Actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -5817,14 +6499,21 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
                       key={endpoint.id}
                       onDelete={(id) => deleteMutation.mutate(id)}
                       onRotate={(id) => rotateMutation.mutate(id)}
-                      onToggle={(id, enabled) => updateMutation.mutate({ id, input: { enabled } })}
+                      onToggle={(id, enabled) =>
+                        updateMutation.mutate({
+                          id,
+                          input: {
+                            enabled,
+                          },
+                        })
+                      }
                     />
                   ))}
                   {endpointsQuery.data?.endpoints?.length === 0 ? (
                     <TableEmptyRow
                       colSpan={5}
-                      description="Create an HTTPS endpoint to receive signed events."
-                      title="No webhook endpoints"
+                      description={tt('Create an HTTPS endpoint to receive signed events.')}
+                      title={tt('No webhook endpoints')}
                     />
                   ) : null}
                 </TableBody>
@@ -5835,17 +6524,17 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
         {selectedTab === 'requests' ? (
           <SettingsSections>
             <SettingsSection
-              title="Recent requests"
-              description="Inspect persisted delivery attempts and retry failed requests."
+              title={tt('Recent requests')}
+              description={tt('Inspect persisted delivery attempts and retry failed requests.')}
             >
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Request</TableHead>
-                    <TableHead>Endpoint</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>{tt('Request')}</TableHead>
+                    <TableHead>{tt('Endpoint')}</TableHead>
+                    <TableHead>{tt('Status')}</TableHead>
+                    <TableHead>{tt('Created')}</TableHead>
+                    <TableHead>{tt('Actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -5877,8 +6566,7 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
                           type="button"
                           variant="secondary"
                         >
-                          <RefreshCw data-icon="inline-start" />
-                          Retry
+                          <RefreshCw data-icon="inline-start" /> {tt('Retry')}{' '}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -5886,8 +6574,8 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
                   {requestsQuery.data?.requests?.length === 0 ? (
                     <TableEmptyRow
                       colSpan={5}
-                      description="Signed delivery attempts are recorded here when webhook events are dispatched."
-                      title="No webhook requests"
+                      description={tt('Signed delivery attempts are recorded here when webhook events are dispatched.')}
+                      title={tt('No webhook requests')}
                     />
                   ) : null}
                 </TableBody>
@@ -5901,7 +6589,6 @@ export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSect
     </ResourcePage>
   )
 }
-
 function WebhookEndpointRow({
   endpoint,
   onDelete,
@@ -5923,7 +6610,7 @@ function WebhookEndpointRow({
       <TableCell>
         <SwitchRow
           checked={endpoint.enabled}
-          label={endpoint.enabled ? 'Enabled' : 'Disabled'}
+          label={endpoint.enabled ? tt('Enabled') : tt('Disabled')}
           onCheckedChange={(checked) => onToggle(endpoint.id, checked)}
         />
       </TableCell>
@@ -5931,76 +6618,72 @@ function WebhookEndpointRow({
       <TableCell>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => onRotate(endpoint.id)} type="button" variant="secondary">
-            <RefreshCw data-icon="inline-start" />
-            Rotate secret
+            <RefreshCw data-icon="inline-start" /> {tt('Rotate secret')}{' '}
           </Button>
           <Button onClick={() => onDelete(endpoint.id)} type="button" variant="danger">
-            <Trash2 data-icon="inline-start" />
-            Delete
+            <Trash2 data-icon="inline-start" /> {tt('Delete')}{' '}
           </Button>
         </div>
       </TableCell>
     </TableRow>
   )
 }
-
 function WebhookSecretDisclosureDialog({ onClose, secret }: { onClose: () => void; secret: string | null }) {
   return (
     <Dialog open={Boolean(secret)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Signing secret</DialogTitle>
-          <DialogDescription>Copy this secret now. It is shown only once.</DialogDescription>
+          <DialogTitle>{tt('Signing secret')}</DialogTitle>
+          <DialogDescription>{tt('Copy this secret now. It is shown only once.')}</DialogDescription>
         </DialogHeader>
         {secret ? (
           <div className="grid gap-3 p-4">
             <code className="break-all rounded-md border border-border bg-muted p-3 text-sm">{secret}</code>
             <Button onClick={() => navigator.clipboard.writeText(secret)} type="button" variant="secondary">
-              <Copy data-icon="inline-start" />
-              Copy secret
+              <Copy data-icon="inline-start" /> {tt('Copy secret')}{' '}
             </Button>
           </div>
         ) : null}
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button">
-            Done
+            {' '}
+            {tt('Done')}{' '}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function WebhookRequestDialog({ onClose, request }: { onClose: () => void; request: WebhookRequest | null }) {
   return (
     <Dialog open={Boolean(request)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Webhook request</DialogTitle>
+          <DialogTitle>{tt('Webhook request')}</DialogTitle>
           <DialogDescription>{request?.id}</DialogDescription>
         </DialogHeader>
         {request ? (
           <div className="grid gap-3 p-4">
-            <SettingRow label="Endpoint" value={request.endpointUrl} />
-            <SettingRow label="Event" value={request.event} />
-            <SettingRow label="Status" value={request.status} />
-            <SettingRow label="Attempts" value={String(request.attemptCount)} />
-            <SettingRow label="HTTP status" value={request.httpStatus ? String(request.httpStatus) : 'Pending'} />
-            {request.error ? <SettingRow label="Error" value={request.error} /> : null}
-            {request.requestBody ? <PayloadBlock label="Request body" value={request.requestBody} /> : null}
-            {request.responseBody ? <PayloadBlock label="Response body" value={request.responseBody} /> : null}
+            <SettingRow label={tt('Endpoint')} value={request.endpointUrl} />
+            <SettingRow label={tt('Event')} value={request.event} />
+            <SettingRow label={tt('Status')} value={request.status} />
+            <SettingRow label={tt('Attempts')} value={String(request.attemptCount)} />
+            <SettingRow label={tt('HTTP status')} value={request.httpStatus ? String(request.httpStatus) : 'Pending'} />
+            {request.error ? <SettingRow label={tt('Error')} value={request.error} /> : null}
+            {request.requestBody ? <PayloadBlock label={tt('Request body')} value={request.requestBody} /> : null}
+            {request.responseBody ? <PayloadBlock label={tt('Response body')} value={request.responseBody} /> : null}
           </div>
         ) : null}
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button">
-            Close
+            {' '}
+            {tt('Close')}{' '}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function PayloadBlock({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1">
@@ -6009,10 +6692,9 @@ function PayloadBlock({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-
 function TokenCustomizationCard({ rows, title }: { rows: Array<[string, string]>; title: string }) {
   return (
-    <SettingsSection title={title} description="Claim controls reflect the persisted authorization contract.">
+    <SettingsSection title={title} description={tt('Claim controls reflect the persisted authorization contract.')}>
       <div className="grid gap-3">
         {rows.map(([label, value]) => (
           <SettingRow key={label} label={label} value={value} />
@@ -6021,24 +6703,33 @@ function TokenCustomizationCard({ rows, title }: { rows: Array<[string, string]>
     </SettingsSection>
   )
 }
-
 type SignInExperienceTab = {
   href: string
   label: string
   value: string
 }
-
 const signInExperienceTabs: SignInExperienceTab[] = [
-  { value: 'branding', label: 'Branding', href: '/console/sign-in-experience/branding' },
+  {
+    value: 'branding',
+    label: 'Branding',
+    href: '/console/sign-in-experience/branding',
+  },
   {
     value: 'sign-up-and-sign-in',
     label: 'Sign-up and sign-in',
     href: '/console/sign-in-experience/sign-up-and-sign-in',
   },
-  { value: 'account-center', label: 'Account Center', href: '/console/sign-in-experience/account-center' },
-  { value: 'content', label: 'Content', href: '/console/sign-in-experience/content' },
+  {
+    value: 'account-center',
+    label: 'Account Center',
+    href: '/console/sign-in-experience/account-center',
+  },
+  {
+    value: 'content',
+    label: 'Content',
+    href: '/console/sign-in-experience/content',
+  },
 ]
-
 function SignInExperiencePage({
   activeTab,
   action,
@@ -6079,22 +6770,25 @@ function SignInExperiencePage({
     </ResourcePage>
   )
 }
-
 function SignInExperienceEditorLayout({ preview, settings }: { preview: ReactNode; settings: ReactNode }) {
   return (
     <div className="signInExperienceLayout">
       <div className="signInExperienceSettings">{settings}</div>
-      <aside className="signInExperiencePreviewPanel" aria-label="Hosted authentication preview">
+      <aside className="signInExperiencePreviewPanel" aria-label={tt('Hosted authentication preview')}>
         {preview}
       </aside>
     </div>
   )
 }
-
 function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
   const [surface, setSurface] = useState<SignInPreviewSurface>('desktop')
   const [flow, setFlow] = useState<HostedAuthPreviewFlow>('sign-in')
-  const [signupForm, setSignupForm] = useState({ email: '', name: '', password: '', username: '' })
+  const [signupForm, setSignupForm] = useState({
+    email: '',
+    name: '',
+    password: '',
+    username: '',
+  })
   const previewStyle = {
     '--brand-primary': preview.primaryColor ?? '#b42318',
     '--brand-background': preview.backgroundColor ?? '#f7f3ee',
@@ -6115,19 +6809,19 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
     preview.privacyUri ? ['Privacy', preview.privacyUri] : null,
     preview.supportEmail ? ['Support', `mailto:${preview.supportEmail}`] : null,
   ].filter((link): link is [string, string] => link !== null)
-  const previewTitle = effectiveFlow === 'sign-up' ? 'Create account' : preview.headline || 'Sign in to continue.'
-
+  const previewTitle =
+    effectiveFlow === 'sign-up' ? tt('Create account') : localizedHostedCopy(preview.headline, 'Sign in to FlareAuth')
   return (
     <div className="hostedPreviewShell">
       <div className="hostedPreviewHeader">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Live preview</p>
-          <h2>Hosted sign-in</h2>
+          <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{tt('Live preview')}</p>
+          <h2>{tt('Hosted sign-in')}</h2>
         </div>
         <Tabs setValue={(value) => setSurface(value as SignInPreviewSurface)} value={surface}>
-          <TabsList aria-label="Preview viewport">
-            <TabsTrigger value="desktop">Desktop</TabsTrigger>
-            <TabsTrigger value="mobile">Mobile</TabsTrigger>
+          <TabsList aria-label={tt('Preview viewport')}>
+            <TabsTrigger value="desktop">{tt('Desktop')}</TabsTrigger>
+            <TabsTrigger value="mobile">{tt('Mobile')}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -6144,7 +6838,7 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
             </div>
           }
           className="hostedAuthPanel"
-          description={preview.description || 'Use one of the enabled methods to access this application.'}
+          description={localizedHostedCopy(preview.description, 'Use your account to continue securely.')}
           eyebrow="Hosted sign-in"
           headingLevel={2}
           legalLinks={legalLinks}
@@ -6159,11 +6853,31 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
                 <SignUpForm
                   email={signupForm.email}
                   name={signupForm.name}
-                  onEmailChange={(email) => setSignupForm((current) => ({ ...current, email }))}
-                  onNameChange={(name) => setSignupForm((current) => ({ ...current, name }))}
-                  onPasswordChange={(password) => setSignupForm((current) => ({ ...current, password }))}
+                  onEmailChange={(email) =>
+                    setSignupForm((current) => ({
+                      ...current,
+                      email,
+                    }))
+                  }
+                  onNameChange={(name) =>
+                    setSignupForm((current) => ({
+                      ...current,
+                      name,
+                    }))
+                  }
+                  onPasswordChange={(password) =>
+                    setSignupForm((current) => ({
+                      ...current,
+                      password,
+                    }))
+                  }
                   onSubmit={(event) => event.preventDefault()}
-                  onUsernameChange={(username) => setSignupForm((current) => ({ ...current, username }))}
+                  onUsernameChange={(username) =>
+                    setSignupForm((current) => ({
+                      ...current,
+                      username,
+                    }))
+                  }
                   password={signupForm.password}
                   username={signupForm.username}
                   usernameEnabled={preview.usernameEnabled}
@@ -6171,7 +6885,8 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
               }
               signInAction={
                 <button className="authSignupLink" onClick={() => setFlow('sign-in')} type="button">
-                  Already have an account?
+                  {' '}
+                  {tt('Already have an account?')}{' '}
                 </button>
               }
               socialButtons={
@@ -6231,13 +6946,13 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
             >
               <div className="formStack">
                 <label className="field">
-                  {effectiveFlow === 'email' || !preview.usernameEnabled ? 'Email' : 'Email or username'}
+                  {effectiveFlow === 'email' || !preview.usernameEnabled ? tt('Email') : tt('Email or username')}
                   <input className="textInput" readOnly type={effectiveFlow === 'email' ? 'email' : 'text'} value="" />
                 </label>
                 {previewMode === 'password' && !preview.identifierFirst ? (
                   <label className="field">
-                    Password
-                    <input className="textInput" readOnly type="password" value="" />
+                    {' '}
+                    {tt('Password')} <input className="textInput" readOnly type="password" value="" />
                   </label>
                 ) : null}
                 <button className="uiButton uiButton-primary w-full" type="button">
@@ -6248,14 +6963,15 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
                 </button>
                 {effectiveFlow === 'email' ? (
                   <button className="authBackAction" onClick={() => setFlow('sign-in')} type="button">
-                    Back to sign in
+                    {' '}
+                    {tt('Back to sign in')}{' '}
                   </button>
                 ) : null}
                 {effectiveFlow === 'sign-in' && passwordSignupEnabled(preview) ? (
                   <p className="authSignupPrompt">
-                    No account yet?{' '}
+                    {tt('No account yet?')}{' '}
                     <button className="authSignupLink" onClick={() => setFlow('sign-up')} type="button">
-                      Create account
+                      {tt('Create account')}
                     </button>
                   </p>
                 ) : null}
@@ -6265,18 +6981,15 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
         </AuthCardFrame>
       </div>
       <Button onClick={() => window.open('/sign-in', '_blank', 'noopener')} type="button" variant="secondary">
-        <Eye data-icon="inline-start" />
-        Open hosted sign-in
+        <Eye data-icon="inline-start" /> {tt('Open hosted sign-in')}{' '}
       </Button>
     </div>
   )
 }
-
 function PreviewBrandMark({ logoUrl, productName }: { logoUrl?: string | null; productName: string }) {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null)
   const brandInitial = productName.trim().slice(0, 1).toUpperCase() || 'F'
   const showLogo = Boolean(logoUrl && failedLogoUrl !== logoUrl)
-
   if (showLogo && logoUrl) {
     return (
       <img
@@ -6289,29 +7002,26 @@ function PreviewBrandMark({ logoUrl, productName }: { logoUrl?: string | null; p
       />
     )
   }
-
   return <span className="brandMark">{brandInitial}</span>
 }
-
+function localizedHostedCopy(value: string | undefined, defaultValue: string) {
+  return !value || value === defaultValue ? tt(defaultValue) : value
+}
 export function hostedAuthMode(preview: HostedAuthPreviewState): SignInMode | null {
   if (preview.passwordEnabled !== false) return 'password'
   if (preview.emailOtpEnabled) return 'otp'
   return null
 }
-
 export function passwordSignupEnabled(preview: HostedAuthPreviewState) {
   return preview.signupEnabled && preview.passwordEnabled !== false
 }
-
 export function previewSignInAction(mode: SignInMode | null) {
-  if (mode === 'otp') return 'Send code'
-  return 'Sign in'
+  if (mode === 'otp') return tt('Send code')
+  return tt('Sign in')
 }
-
 function SettingsSections({ children }: { children: ReactNode }) {
   return <div className="grid gap-4">{children}</div>
 }
-
 function SettingsSection({
   children,
   description,
@@ -6331,7 +7041,6 @@ function SettingsSection({
     </section>
   )
 }
-
 function ChangesSection({
   description,
   error,
@@ -6350,11 +7059,12 @@ function ChangesSection({
   visible: boolean
 }) {
   if (!visible) return null
-
   return (
-    <section aria-label="Unsaved changes" className="changesSheet">
+    <section aria-label={tt('Unsaved changes')} className="changesSheet">
       <div className="min-w-0">
-        <h2 className="text-xs font-semibold uppercase leading-5 tracking-[0.12em] text-muted-foreground">Changes</h2>
+        <h2 className="text-xs font-semibold uppercase leading-5 tracking-[0.12em] text-muted-foreground">
+          {tt('Changes')}
+        </h2>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
       </div>
       <div className="changesSheetControls">
@@ -6362,8 +7072,7 @@ function ChangesSection({
         <div className="changesSheetActions">
           {extraAction}
           <Button onClick={onDiscard} type="button" variant="ghost">
-            <Undo2 data-icon="inline-start" />
-            Discard
+            <Undo2 data-icon="inline-start" /> {tt('Discard')}{' '}
           </Button>
           <Button disabled={pending} type="submit">
             <Save data-icon="inline-start" />
@@ -6374,7 +7083,6 @@ function ChangesSection({
     </section>
   )
 }
-
 function AuthorizationForm({
   buttonLabel,
   defaults,
@@ -6391,7 +7099,6 @@ function AuthorizationForm({
   pending: boolean
 }) {
   const [validationError, setValidationError] = useState<string | null>(null)
-
   return (
     <form
       className="formStack"
@@ -6402,7 +7109,7 @@ function AuthorizationForm({
           setValidationError(null)
           onSubmit(Object.fromEntries(fields.map(([name]) => [name, String(submittedForm.get(name) ?? '')])))
         } catch (submitError) {
-          setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+          setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
         }
       }}
     >
@@ -6428,7 +7135,6 @@ function AuthorizationForm({
     </form>
   )
 }
-
 function AuthorizationRows({
   empty,
   rows = [],
@@ -6445,10 +7151,8 @@ function AuthorizationRows({
   }>
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
-
   if (rows.length === 0)
     return <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">{empty}</p>
-
   return (
     <div className="grid gap-2">
       {rows.map((row) => (
@@ -6464,11 +7168,11 @@ function AuthorizationRows({
                 type="button"
                 variant="secondary"
               >
-                Edit
+                {' '}
+                {tt('Edit')}{' '}
               </Button>
               <Button onClick={row.onDelete} type="button" variant="danger">
-                <Trash2 data-icon="inline-start" />
-                Delete
+                <Trash2 data-icon="inline-start" /> {tt('Delete')}{' '}
               </Button>
             </div>
           </div>
@@ -6492,7 +7196,6 @@ function AuthorizationRows({
     </div>
   )
 }
-
 function AssetUploadControl({
   accept,
   label,
@@ -6505,15 +7208,13 @@ function AssetUploadControl({
   previewUrl: string | null
 }) {
   const inputId = useId()
-
   return (
     <div className="assetUploadRow">
       <AssetUploadPreview previewUrl={previewUrl} />
       <div className="assetUploadField">
         <span className="assetUploadLabel">{label}</span>
         <label className="assetUploadButton" htmlFor={inputId}>
-          <ImageUp data-icon="inline-start" size={16} />
-          Choose file
+          <ImageUp data-icon="inline-start" size={16} /> {tt('Choose file')}{' '}
         </label>
         <input
           accept={accept}
@@ -6531,11 +7232,9 @@ function AssetUploadControl({
     </div>
   )
 }
-
 function AssetUploadPreview({ previewUrl }: { previewUrl: string | null }) {
   const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
   const showPreview = Boolean(previewUrl && failedPreviewUrl !== previewUrl)
-
   if (showPreview && previewUrl) {
     return (
       <img
@@ -6548,14 +7247,12 @@ function AssetUploadPreview({ previewUrl }: { previewUrl: string | null }) {
       />
     )
   }
-
   return (
     <div className="assetPreview text-muted-foreground">
       <ImageUp size={18} />
     </div>
   )
 }
-
 function ResourcePage({
   action,
   auxiliary,
@@ -6607,7 +7304,6 @@ function ResourcePage({
     </>
   )
 }
-
 function ListToolbar({ children }: { children: ReactNode }) {
   return (
     <ConsoleToolbar className="consoleListToolbar rounded-lg border border-border bg-background">
@@ -6615,7 +7311,6 @@ function ListToolbar({ children }: { children: ReactNode }) {
     </ConsoleToolbar>
   )
 }
-
 function ObjectHeader({ badge, id, title }: { badge: string; id: string; title: string }) {
   return (
     <div className="objectHeader">
@@ -6632,7 +7327,6 @@ function ObjectHeader({ badge, id, title }: { badge: string; id: string; title: 
     </div>
   )
 }
-
 function DetailTabs({
   label,
   onChange,
@@ -6647,50 +7341,98 @@ function DetailTabs({
   return (
     <Tabs setValue={onChange} value={value}>
       <TabsList aria-label={label} className="flex w-full flex-wrap sm:inline-flex sm:w-auto">
-        {tabs.map((tab) => createElement(TabsTrigger, { key: tab.value, value: tab.value }, tab.label))}
+        {tabs.map((tab) =>
+          createElement(
+            TabsTrigger,
+            {
+              key: tab.value,
+              value: tab.value,
+            },
+            tab.label,
+          ),
+        )}
       </TabsList>
     </Tabs>
   )
 }
-
 export function navigateConsoleTab(navigate: ReturnType<typeof useNavigate>, href: string) {
-  if (window.location.pathname.startsWith('/console/')) void navigate({ to: href })
+  if (window.location.pathname.startsWith('/console/'))
+    void navigate({
+      to: href,
+    })
 }
-
 export function userDetailTabs(): DetailTab[] {
   return [
-    { value: 'profile', label: 'Profile' },
-    { value: 'security', label: 'Security' },
-    { value: 'sessions', label: 'Sessions' },
-    { value: 'linked-accounts', label: 'Linked accounts' },
-    { value: 'applications', label: 'Applications' },
-    { value: 'operations', label: 'Operations' },
+    {
+      value: 'profile',
+      label: 'Profile',
+    },
+    {
+      value: 'security',
+      label: 'Security',
+    },
+    {
+      value: 'sessions',
+      label: 'Sessions',
+    },
+    {
+      value: 'linked-accounts',
+      label: 'Linked accounts',
+    },
+    {
+      value: 'applications',
+      label: 'Applications',
+    },
+    {
+      value: 'operations',
+      label: 'Operations',
+    },
   ]
 }
-
 export function organizationDetailTabs(): DetailTab[] {
   return [
-    { value: 'settings', label: 'Settings' },
-    { value: 'authorization', label: 'Authorization' },
+    {
+      value: 'settings',
+      label: 'Settings',
+    },
+    {
+      value: 'authorization',
+      label: 'Authorization',
+    },
   ]
 }
-
 export function roleDetailTabs(): DetailTab[] {
   return [
-    { value: 'settings', label: 'Settings' },
-    { value: 'permissions', label: 'Permissions' },
-    { value: 'assignments', label: 'Assignments' },
+    {
+      value: 'settings',
+      label: 'Settings',
+    },
+    {
+      value: 'permissions',
+      label: 'Permissions',
+    },
+    {
+      value: 'assignments',
+      label: 'Assignments',
+    },
   ]
 }
-
 export function apiResourceDetailTabs(): DetailTab[] {
   return [
-    { value: 'settings', label: 'Settings' },
-    { value: 'scopes', label: 'Scopes' },
-    { value: 'permissions', label: 'Permissions' },
+    {
+      value: 'settings',
+      label: 'Settings',
+    },
+    {
+      value: 'scopes',
+      label: 'Scopes',
+    },
+    {
+      value: 'permissions',
+      label: 'Permissions',
+    },
   ]
 }
-
 function MetricCard({
   detail,
   label,
@@ -6707,7 +7449,7 @@ function MetricCard({
       <CardHeader className="p-5">
         <div className="flex items-center justify-between gap-2">
           <CardDescription className="font-semibold text-foreground">{label}</CardDescription>
-          {pending ? <Badge variant="outline">Pending</Badge> : null}
+          {pending ? <Badge variant="outline">{tt('Pending')}</Badge> : null}
         </div>
         <CardTitle className="pt-5 text-2xl leading-none">{value}</CardTitle>
         <p className="text-xs leading-5 text-muted-foreground">{detail}</p>
@@ -6715,18 +7457,16 @@ function MetricCard({
     </Card>
   )
 }
-
 function DashboardChartPanel({ dashboard }: { dashboard: AdminDashboard }) {
   void dashboard
-
   return (
     <Card className="consoleChartPanel">
       <CardHeader className="flex-row items-start justify-between gap-3 p-5">
         <div>
-          <CardTitle>Daily active users</CardTitle>
+          <CardTitle>{tt('Daily active users')}</CardTitle>
           <div className="mt-6 flex items-baseline gap-2">
             <span className="text-2xl font-semibold leading-none">--</span>
-            <span className="text-sm font-medium text-muted-foreground">Pending activity data</span>
+            <span className="text-sm font-medium text-muted-foreground">{tt('Pending activity data')}</span>
           </div>
         </div>
         <Button type="button" variant="secondary">
@@ -6735,7 +7475,7 @@ function DashboardChartPanel({ dashboard }: { dashboard: AdminDashboard }) {
         </Button>
       </CardHeader>
       <CardContent className="grid gap-6 p-5 pt-0">
-        <div aria-label="Daily active users trend" className="consoleChartCanvas" role="img">
+        <div aria-label={tt('Daily active users trend')} className="consoleChartCanvas" role="img">
           <div className="consoleChartAxis" />
           <div className="consoleChartAxis" />
           <div className="consoleChartAxis" />
@@ -6748,43 +7488,44 @@ function DashboardChartPanel({ dashboard }: { dashboard: AdminDashboard }) {
           </div>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <DashboardActivityCard label="Weekly active users" />
-          <DashboardActivityCard label="Monthly active users" />
+          <DashboardActivityCard label={tt('Weekly active users')} />
+          <DashboardActivityCard label={tt('Monthly active users')} />
         </div>
       </CardContent>
     </Card>
   )
 }
-
 function DashboardActivityCard({ label }: { label: string }) {
   return (
     <div className="consoleActivityCard">
       <p className="text-sm font-semibold">{label}</p>
       <div className="mt-8 flex items-baseline justify-between gap-3">
         <span className="text-2xl font-semibold leading-none">--</span>
-        <span className="text-sm font-medium text-muted-foreground">Pending</span>
+        <span className="text-sm font-medium text-muted-foreground">{tt('Pending')}</span>
       </div>
     </div>
   )
 }
-
 export function formatDashboardDate(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-
 export function dashboardChartLabels(date: Date) {
-  return Array.from({ length: 8 }, (_, index) => {
-    const labelDate = new Date(date)
-    labelDate.setDate(date.getDate() - (7 - index) * 4)
-    const month = String(labelDate.getMonth() + 1).padStart(2, '0')
-    const day = String(labelDate.getDate()).padStart(2, '0')
-    return `${month}-${day}`
-  })
+  return Array.from(
+    {
+      length: 8,
+    },
+    (_, index) => {
+      const labelDate = new Date(date)
+      labelDate.setDate(date.getDate() - (7 - index) * 4)
+      const month = String(labelDate.getMonth() + 1).padStart(2, '0')
+      const day = String(labelDate.getDate()).padStart(2, '0')
+      return `${month}-${day}`
+    },
+  )
 }
-
 function SetupChecklist({ items, title }: { items: ManagementReadinessItem[]; title: string }) {
   return (
     <section className="grid gap-3">
@@ -6818,7 +7559,6 @@ function SetupChecklist({ items, title }: { items: ManagementReadinessItem[]; ti
     </section>
   )
 }
-
 function SecuritySectionTabs({ active }: { active: 'captcha' | 'blocklist' | 'general' }) {
   return (
     <RoutedSettingsTabs
@@ -6832,14 +7572,12 @@ function SecuritySectionTabs({ active }: { active: 'captcha' | 'blocklist' | 'ge
     />
   )
 }
-
 function lines(value: string) {
   return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
 }
-
 function RoutedSettingsTabs<TValue extends string>({
   active,
   ariaLabel,
@@ -6852,7 +7590,6 @@ function RoutedSettingsTabs<TValue extends string>({
   tabs: ReadonlyArray<readonly [TValue, string, string]>
 }) {
   const navigate = useNavigate()
-
   return (
     <nav aria-label={ariaLabel} className="flex flex-wrap gap-6 border-b border-border">
       {tabs.map(([value, label, to]) => (
@@ -6867,7 +7604,6 @@ function RoutedSettingsTabs<TValue extends string>({
           onClick={(event) => {
             if (event.defaultPrevented || event.button !== 0) return
             if (event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return
-
             event.preventDefault()
             onSelect?.(value)
             navigateConsoleTab(navigate, to)
@@ -6879,7 +7615,6 @@ function RoutedSettingsTabs<TValue extends string>({
     </nav>
   )
 }
-
 function SummaryRow({ meta, status, title }: { meta: string; status: ReactNode; title: string }) {
   return (
     <div className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
@@ -6891,7 +7626,6 @@ function SummaryRow({ meta, status, title }: { meta: string; status: ReactNode; 
     </div>
   )
 }
-
 function PolicyCard({
   framed = true,
   rows,
@@ -6913,12 +7647,9 @@ function PolicyCard({
       </CardContent>
     </>
   )
-
   if (!framed) return <div>{content}</div>
-
   return <Card>{content}</Card>
 }
-
 function CopyButton({ label, value }: { label: string; value: string }) {
   return (
     <Button onClick={() => navigator.clipboard.writeText(value)} type="button" variant="secondary">
@@ -6927,7 +7658,6 @@ function CopyButton({ label, value }: { label: string; value: string }) {
     </Button>
   )
 }
-
 function SecretDisclosureDialog({
   clientId,
   clientSecret,
@@ -6943,29 +7673,40 @@ function SecretDisclosureDialog({
     <Dialog open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Copy client secret</DialogTitle>
+          <DialogTitle>{tt('Copy client secret')}</DialogTitle>
           <DialogDescription>
-            This secret is shown once. Store it in your application secret manager before closing this dialog.
+            {' '}
+            {tt(
+              'This secret is shown once. Store it in your application secret manager before closing this dialog.',
+            )}{' '}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 p-4">
-          <SettingRow label="Client ID" value={clientId ?? ''} />
-          <SettingRow label="Client secret" value={clientSecret ?? ''} />
+          <SettingRow label={tt('Client ID')} value={clientId ?? ''} />
+          <SettingRow label={tt('Client secret')} value={clientSecret ?? ''} />
           <CopyButton
-            label="Copy secret"
-            value={JSON.stringify({ clientId, clientSecret, tokenEndpointAuthMethod: 'client_secret_basic' }, null, 2)}
+            label={tt('Copy secret')}
+            value={JSON.stringify(
+              {
+                clientId,
+                clientSecret,
+                tokenEndpointAuthMethod: 'client_secret_basic',
+              },
+              null,
+              2,
+            )}
           />
         </div>
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button" variant="secondary">
-            Close
+            {' '}
+            {tt('Close')}{' '}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function DeleteApplicationDialog({
   applicationName,
   error,
@@ -6985,9 +7726,11 @@ function DeleteApplicationDialog({
     <Dialog open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete application</DialogTitle>
+          <DialogTitle>{tt('Delete application')}</DialogTitle>
           <DialogDescription>
-            Deleting {applicationName} removes the OIDC client and stops existing integrations from authenticating.
+            {' '}
+            {tt('Deleting')} {applicationName}{' '}
+            {tt('removes the OIDC client and stops existing integrations from authenticating.')}{' '}
           </DialogDescription>
         </DialogHeader>
         <div className="p-4">
@@ -6995,17 +7738,18 @@ function DeleteApplicationDialog({
         </div>
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button disabled={pending} onClick={onConfirm} type="button" variant="danger">
-            Delete application
+            {' '}
+            {tt('Delete application')}{' '}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function BanUserDialog({
   error,
   onClose,
@@ -7022,33 +7766,35 @@ function BanUserDialog({
   userName: string
 }) {
   const [reason, setReason] = useState('')
-
   return (
     <Dialog open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ban user</DialogTitle>
-          <DialogDescription>Banning {userName} blocks sign-in until an admin unbans the account.</DialogDescription>
+          <DialogTitle>{tt('Ban user')}</DialogTitle>
+          <DialogDescription>
+            {tt('Banning')} {userName} {tt('blocks sign-in until an admin unbans the account.')}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 p-4">
-          <Field label="Reason">
+          <Field label={tt('Reason')}>
             <TextArea onChange={(event) => setReason(event.target.value)} value={reason} />
           </Field>
           <MutationError error={error} />
         </div>
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button disabled={pending} onClick={() => onConfirm(reason)} type="button" variant="danger">
-            Ban user
+            {' '}
+            {tt('Ban user')}{' '}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function DangerConfirmDialog({
   actionLabel,
   description,
@@ -7080,7 +7826,8 @@ function DangerConfirmDialog({
         </div>
         <DialogFooter className="m-0">
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button disabled={pending} onClick={onConfirm} type="button" variant="danger">
             {actionLabel}
@@ -7090,16 +7837,14 @@ function DangerConfirmDialog({
     </Dialog>
   )
 }
-
 function MutationError({ error }: { error: unknown }) {
   if (!error) return null
   return (
     <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-      {error instanceof Error ? error.message : 'Request failed.'}
+      {error instanceof Error ? tt(error.message) : tt('Request failed.')}
     </div>
   )
 }
-
 function SwitchRow({
   checked,
   disabled = false,
@@ -7123,7 +7868,6 @@ function SwitchRow({
     </div>
   )
 }
-
 export function clientConfig(application: ApplicationResponse, clientSecret: string | null) {
   return JSON.stringify(
     {
@@ -7136,27 +7880,27 @@ export function clientConfig(application: ApplicationResponse, clientSecret: str
       scopes: application.allowedScopes.join(' '),
       tokenEndpointAuthMethod: application.tokenEndpointAuthMethod,
       customData: application.customData,
-      ...(clientSecret ? { clientSecret } : {}),
+      ...(clientSecret
+        ? {
+            clientSecret,
+          }
+        : {}),
     },
     null,
     2,
   )
 }
-
 export function listItems(value: readonly string[] | undefined) {
   return Array.isArray(value) ? [...value] : []
 }
-
 export function listValue(value: readonly string[] | undefined, separator: string) {
   return listItems(value).join(separator)
 }
-
 export function clientTypeLabel(value: ApplicationResponse['clientType']) {
   if (value === 'public_spa') return 'Public SPA'
   if (value === 'public_native') return 'Public native'
   return 'Confidential web'
 }
-
 function StatusBadge({
   active,
   activeLabel,
@@ -7168,7 +7912,6 @@ function StatusBadge({
 }) {
   return <Badge variant={active ? 'secondary' : 'outline'}>{active ? activeLabel : inactiveLabel}</Badge>
 }
-
 function useConnectorPreviewProviders() {
   const query = useQuery({
     queryKey: adminQueryKeys.connectors,
@@ -7176,7 +7919,6 @@ function useConnectorPreviewProviders() {
     initialData: emptyConnectorsResponse,
   })
   const connectors = Array.isArray(query.data?.connectors) ? query.data.connectors : []
-
   return {
     ...query,
     providers: connectors
@@ -7189,7 +7931,6 @@ function useConnectorPreviewProviders() {
       })),
   }
 }
-
 function LoadingState({ label }: { label: string }) {
   return (
     <Card>
@@ -7200,7 +7941,6 @@ function LoadingState({ label }: { label: string }) {
     </Card>
   )
 }
-
 function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
     <Card className="border-destructive/40">
@@ -7211,14 +7951,14 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) 
         </div>
         {onRetry ? (
           <Button onClick={onRetry} variant="secondary">
-            Retry
+            {' '}
+            {tt('Retry')}{' '}
           </Button>
         ) : null}
       </CardContent>
     </Card>
   )
 }
-
 function CreateApplicationDialog({
   createdApplication,
   error,
@@ -7227,23 +7967,31 @@ function CreateApplicationDialog({
   open,
   pending,
 }: {
-  createdApplication: (ApplicationResponse & { clientSecret?: string }) | null
+  createdApplication:
+    | (ApplicationResponse & {
+        clientSecret?: string
+      })
+    | null
   error: string | null
   onClose: () => void
   onSubmit: (input: z.infer<typeof createApplicationRequestSchema>) => void
   open: boolean
   pending: boolean
 }) {
-  const [form, setForm] = useState<FormState>({ clientType: 'public_spa', redirectUris: '' })
+  const [form, setForm] = useState<FormState>({
+    clientType: 'public_spa',
+    redirectUris: '',
+  })
   const [validationError, setValidationError] = useState<string | null>(null)
   return (
     <Dialog open={open}>
       {createdApplication ? (
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Application created</DialogTitle>
+            <DialogTitle>{tt('Application created')}</DialogTitle>
             <DialogDescription>
-              Copy the generated credentials, then open the settings page to finish setup.
+              {' '}
+              {tt('Copy the generated credentials, then open the settings page to finish setup.')}{' '}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 p-4 text-sm">
@@ -7251,21 +7999,23 @@ function CreateApplicationDialog({
               <CheckCircle2 data-icon="inline-start" />
               {createdApplication.name}
             </div>
-            <SettingRow label="Client ID" value={createdApplication.clientId} />
+            <SettingRow label={tt('Client ID')} value={createdApplication.clientId} />
             {createdApplication.clientSecret ? (
-              <SettingRow label="Client secret" value={createdApplication.clientSecret} />
+              <SettingRow label={tt('Client secret')} value={createdApplication.clientSecret} />
             ) : (
-              <SettingRow label="Client secret" value="No secret for public clients" />
+              <SettingRow label={tt('Client secret')} value="No secret for public clients" />
             )}
-            <SettingRow label="Redirect URIs" value={listValue(createdApplication.redirectUris, ', ')} />
-            <SettingRow label="Next step" value="Review redirects, origins, and client metadata." />
+            <SettingRow label={tt('Redirect URIs')} value={listValue(createdApplication.redirectUris, ', ')} />
+            <SettingRow label={tt('Next step')} value="Review redirects, origins, and client metadata." />
           </div>
           <DialogFooter className="m-0">
             <LinkButton href={`/console/applications/${createdApplication.id}/settings`} variant="secondary">
-              Open settings
+              {' '}
+              {tt('Open settings')}{' '}
             </LinkButton>
             <Button onClick={onClose} type="button">
-              Close
+              {' '}
+              {tt('Close')}{' '}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -7289,12 +8039,12 @@ function CreateApplicationDialog({
             }
           }}
           pending={pending}
-          title="Create application"
+          title={tt('Create application')}
         >
-          <Field label="Name">
+          <Field label={tt('Name')}>
             <TextInput onChange={(event) => setValue(setForm, 'name', event.target.value)} required />
           </Field>
-          <Field label="Slug">
+          <Field label={tt('Slug')}>
             <TextInput
               onChange={(event) => setValue(setForm, 'slug', event.target.value)}
               placeholder="customer-portal"
@@ -7304,7 +8054,7 @@ function CreateApplicationDialog({
             onChange={(clientType) => setValue(setForm, 'clientType', clientType)}
             value={form.clientType}
           />
-          <Field label="Redirect URIs" help="One URI per line.">
+          <Field label={tt('Redirect URIs')} help={tt('One URI per line.')}>
             <TextArea onChange={(event) => setValue(setForm, 'redirectUris', event.target.value)} required />
           </Field>
         </FormDialog>
@@ -7312,12 +8062,11 @@ function CreateApplicationDialog({
     </Dialog>
   )
 }
-
 function ApplicationTypeCards({ onChange, value }: { onChange: (clientType: string) => void; value: string }) {
   const selected = value
   return (
     <fieldset className="applicationTypeGrid">
-      <legend>Application type</legend>
+      <legend>{tt('Application type')}</legend>
       {applicationTypeOptions.map((option) => (
         <button
           aria-pressed={selected === option.value}
@@ -7338,7 +8087,6 @@ function ApplicationTypeCards({ onChange, value }: { onChange: (clientType: stri
     </fieldset>
   )
 }
-
 function CreateUserDialog({
   error,
   onClose,
@@ -7365,22 +8113,22 @@ function CreateUserDialog({
             setValidationError(null)
             onSubmit(parseForm(managementCreateUserRequestSchema, form))
           } catch (submitError) {
-            setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+            setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
           }
         }}
         pending={pending}
-        title="Create user"
+        title={tt('Create user')}
       >
-        <Field label="Email">
+        <Field label={tt('Email')}>
           <TextInput onChange={(event) => setValue(setForm, 'email', event.target.value)} required type="email" />
         </Field>
-        <Field label="Display name">
+        <Field label={tt('Display name')}>
           <TextInput onChange={(event) => setValue(setForm, 'displayName', event.target.value)} required />
         </Field>
-        <Field label="Username">
+        <Field label={tt('Username')}>
           <TextInput autoComplete="username" onChange={(event) => setValue(setForm, 'username', event.target.value)} />
         </Field>
-        <Field label="Initial password">
+        <Field label={tt('Initial password')}>
           <TextInput
             autoComplete="new-password"
             onChange={(event) => setValue(setForm, 'password', event.target.value)}
@@ -7391,7 +8139,6 @@ function CreateUserDialog({
     </Dialog>
   )
 }
-
 function CreateRoleDialog({
   error,
   onClose,
@@ -7405,7 +8152,10 @@ function CreateRoleDialog({
   onSubmit: (input: z.infer<typeof createRoleRequestSchema>) => void
   open: boolean
   pending: boolean
-  resources: Array<{ id: string; name: string }>
+  resources: Array<{
+    id: string
+    name: string
+  }>
 }) {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -7420,24 +8170,24 @@ function CreateRoleDialog({
             setValidationError(null)
             onSubmit(parseForm(createRoleRequestSchema, form))
           } catch (submitError) {
-            setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+            setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
           }
         }}
         pending={pending}
-        title="Create role"
+        title={tt('Create role')}
       >
-        <Field label="Key">
+        <Field label={tt('Key')}>
           <TextInput onChange={(event) => setValue(setForm, 'key', event.target.value)} required />
         </Field>
-        <Field label="Name">
+        <Field label={tt('Name')}>
           <TextInput onChange={(event) => setValue(setForm, 'name', event.target.value)} required />
         </Field>
-        <Field label="Description">
+        <Field label={tt('Description')}>
           <TextInput onChange={(event) => setValue(setForm, 'description', event.target.value)} />
         </Field>
-        <Field label="API resource">
+        <Field label={tt('API resource')}>
           <SelectInput onChange={(event) => setValue(setForm, 'resourceId', event.target.value)} defaultValue="">
-            <option value="">Global role</option>
+            <option value="">{tt('Global role')}</option>
             {resources.map((resource) => (
               <option key={resource.id} value={resource.id}>
                 {resource.name}
@@ -7449,7 +8199,6 @@ function CreateRoleDialog({
     </Dialog>
   )
 }
-
 function ConfirmDialog({
   description,
   error,
@@ -7479,17 +8228,17 @@ function ConfirmDialog({
         ) : null}
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button disabled={pending} onClick={onConfirm} type="button" variant="danger">
-            {pending ? 'Deleting...' : 'Delete'}
+            {pending ? tt('Deleting...') : tt('Delete')}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
 function SimpleCreateDialog({
   error,
   fields,
@@ -7520,7 +8269,7 @@ function SimpleCreateDialog({
             setValidationError(null)
             onSubmit(form)
           } catch (submitError) {
-            setValidationError(submitError instanceof Error ? submitError.message : 'Invalid form input.')
+            setValidationError(submitError instanceof Error ? tt(submitError.message) : tt('Invalid form input.'))
           }
         }}
         pending={pending}
@@ -7538,7 +8287,6 @@ function SimpleCreateDialog({
     </Dialog>
   )
 }
-
 function FormDialog({
   children,
   error,
@@ -7558,7 +8306,9 @@ function FormDialog({
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>Required fields are validated before the management API request is sent.</DialogDescription>
+        <DialogDescription>
+          {tt('Required fields are validated before the management API request is sent.')}
+        </DialogDescription>
       </DialogHeader>
       <form className="grid gap-4 p-4" onSubmit={onSubmit}>
         {error ? (
@@ -7569,32 +8319,30 @@ function FormDialog({
         {children}
         <DialogFooter className="m-0 -mx-4 -mb-4">
           <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
+            {' '}
+            {tt('Cancel')}{' '}
           </Button>
           <Button disabled={pending} type="submit">
-            {pending ? 'Saving...' : 'Save'}
+            {pending ? tt('Saving...') : tt('Save')}
           </Button>
         </DialogFooter>
       </form>
     </DialogContent>
   )
 }
-
 function parseForm<T extends z.ZodType>(schema: T, form: unknown): z.infer<T> {
   const result = schema.safeParse(removeBlankValues(form))
-  if (!result.success) throw new Error(result.error.issues[0]?.message ?? 'Invalid form input.')
+  if (!result.success) throw new Error(tt(result.error.issues[0]?.message ?? 'Invalid form input.'))
   return result.data
 }
-
 export function parseMetadata(value: string | undefined) {
   if (!value?.trim()) return undefined
   const parsed = JSON.parse(value)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Provider metadata must be a JSON object.')
+    throw new Error(tt('Provider metadata must be a JSON object.'))
   }
   return parsed as Record<string, unknown>
 }
-
 export function parseConnectorMetadata(form: FormState) {
   const metadata = parseMetadata(form.providerMetadata) ?? {}
   for (const [key, value] of Object.entries(form)) {
@@ -7604,7 +8352,6 @@ export function parseConnectorMetadata(form: FormState) {
   }
   return Object.keys(metadata).length ? metadata : undefined
 }
-
 export function connectorFieldLabel(field: string) {
   return field
     .replace(/URI/g, 'Uri')
@@ -7614,7 +8361,6 @@ export function connectorFieldLabel(field: string) {
     .replace(/\bUri\b/g, 'URI')
     .replace(/\bId\b/g, 'ID')
 }
-
 export function connectorUpdateForm(form: FormState) {
   const input = {
     ...form,
@@ -7626,15 +8372,16 @@ export function connectorUpdateForm(form: FormState) {
     jwksEndpoint: nullableFormValue(form.jwksEndpoint),
   }
   if (form.clientSecret?.trim()) {
-    return { ...input, clientSecret: form.clientSecret.trim() }
+    return {
+      ...input,
+      clientSecret: form.clientSecret.trim(),
+    }
   }
   return input
 }
-
 export function nullableFormValue(value: string | undefined) {
   return value === '' ? null : value
 }
-
 export function connectorToForm(connector: ConnectorResponse | null): FormState {
   if (!connector) return emptyForm
   return {
@@ -7657,51 +8404,43 @@ export function connectorToForm(connector: ConnectorResponse | null): FormState 
     ),
   }
 }
-
 export function removeBlankValues(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ''))
 }
-
 export function shallowEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
   const leftEntries = Object.entries(left)
   if (leftEntries.length !== Object.keys(right).length) return false
   return leftEntries.every(([key, value]) => Object.is(value, right[key]))
 }
-
 export function nullableString(value: string) {
   const trimmed = value.trim()
   return trimmed ? trimmed : null
 }
-
 export function parseTokenClaims(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return undefined
   const parsed = JSON.parse(trimmed) as unknown
   return tokenClaimsObjectSchema.parse(parsed)
 }
-
 export function parseLineList(value: string) {
   return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
 }
-
 export function parseCustomData(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return {}
   const parsed = JSON.parse(trimmed) as unknown
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Custom data JSON must be an object.')
+    throw new Error(tt('Custom data JSON must be an object.'))
   }
   return parsed as Record<string, unknown>
 }
-
 export function customCssProperties(css: string): CSSProperties {
   const result = hostedCustomCssSchema.safeParse(css)
   if (!result.success) return {}
-
   return Object.fromEntries(
     result.data
       .split(';')
@@ -7713,11 +8452,12 @@ export function customCssProperties(css: string): CSSProperties {
       }),
   ) as CSSProperties
 }
-
 function setValue(setForm: (next: (form: FormState) => FormState) => void, key: string, value: string) {
-  setForm((form) => ({ ...form, [key]: value }))
+  setForm((form) => ({
+    ...form,
+    [key]: value,
+  }))
 }
-
 function useAdminMutation<TInput, TOutput>({
   mutationFn,
   onSuccess,
@@ -7729,10 +8469,9 @@ function useAdminMutation<TInput, TOutput>({
   const mutation = useMutation({
     mutationFn,
     onMutate: () => setErrorMessage(null),
-    onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Request failed.'),
+    onError: (error) => setErrorMessage(error instanceof Error ? tt(error.message) : tt('Request failed.')),
     onSuccess,
   })
-
   return {
     data: mutation.data,
     error: mutation.error,
@@ -7745,17 +8484,14 @@ function useAdminMutation<TInput, TOutput>({
     },
   }
 }
-
 export function formatDate(value: string | Date | undefined) {
   if (!value) return 'Unknown'
   return new Date(value).toLocaleDateString()
 }
-
 export function formatRole(role: ManagementUserResponse['role']) {
   if (Array.isArray(role)) return role.join(', ')
   return role ?? 'user'
 }
-
 export function userDisplayName(user: ManagementUserResponse) {
   return user.displayName ?? user.name ?? user.email ?? user.id
 }

@@ -1,6 +1,8 @@
 import type { ConfigzConfigResponse } from '@shared/api/configz'
 import { ArrowLeft } from 'lucide-react'
 import { type CSSProperties, createElement, type ReactNode, useEffect } from 'react'
+import { PreferencesControls } from '@/components/preferences-controls'
+import { tt } from '@/lib/i18n'
 
 type AuthLayoutProps = {
   children: ReactNode
@@ -13,10 +15,9 @@ type AuthLayoutProps = {
   title: string
   description: string
 }
-
 export function AuthLayout({
   backHref,
-  backLabel = 'Back',
+  backLabel,
   children,
   config,
   eyebrow,
@@ -26,24 +27,22 @@ export function AuthLayout({
   variant = 'form',
 }: AuthLayoutProps) {
   const style = brandingStyle(config)
-
   useEffect(() => {
     if (!config?.branding.faviconUrl) return
-
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]') ?? document.createElement('link')
     link.rel = 'icon'
     link.href = config.branding.faviconUrl
     document.head.appendChild(link)
   }, [config?.branding.faviconUrl])
-
   return (
-    <main className={`authShell authShell-${variant}`} style={style} aria-label="Hosted authentication">
+    <main className={`authShell authShell-${variant}`} style={style} aria-label={tt('auth.hostedAuthentication')}>
       {backHref ? (
         <a className="authBackLink" href={backHref}>
           <ArrowLeft aria-hidden="true" size={16} />
-          {backLabel}
+          {backLabel ?? tt('auth.back')}
         </a>
       ) : null}
+      <PreferencesControls className="authPreferences" />
       <AuthCardFrame
         brand={icon ? <div className="authMessageIcon">{icon}</div> : <BrandIdentity config={config} />}
         description={description}
@@ -59,7 +58,6 @@ export function AuthLayout({
     </main>
   )
 }
-
 export function AuthCardFrame({
   ariaLabel,
   brand,
@@ -89,17 +87,26 @@ export function AuthCardFrame({
     <section aria-label={ariaLabel} aria-labelledby={ariaLabel ? undefined : titleId} className={className}>
       <div className="authBrandPanel">
         {brand}
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        {createElement(`h${headingLevel}`, { id: titleId }, title)}
+        {eyebrow ? <p className="eyebrow">{tt(eyebrow)}</p> : null}
+        {createElement(
+          `h${headingLevel}`,
+          {
+            id: titleId,
+          },
+          title,
+        )}
         <p>{description}</p>
       </div>
       <div className="authContent">{children}</div>
       <AuthLegalLinks links={legalLinks} />
-      <p className="authPoweredBy">Powered by {productName}</p>
+      <p className="authPoweredBy">
+        {tt('auth.poweredBy', {
+          productName,
+        })}
+      </p>
     </section>
   )
 }
-
 export function BrandIdentity({ config }: { config: ConfigzConfigResponse | null }) {
   const productName = config?.copy?.productName ?? 'FlareAuth'
   return (
@@ -113,7 +120,6 @@ export function BrandIdentity({ config }: { config: ConfigzConfigResponse | null
     </a>
   )
 }
-
 export function brandingStyle(config: ConfigzConfigResponse | null): CSSProperties {
   const branding = config?.branding
   return {
@@ -122,7 +128,6 @@ export function brandingStyle(config: ConfigzConfigResponse | null): CSSProperti
     ...customProperties(branding?.customCss ?? null),
   } as CSSProperties
 }
-
 function customProperties(css: string | null): CSSProperties {
   if (!css) return {}
   return Object.fromEntries(
@@ -136,7 +141,6 @@ function customProperties(css: string | null): CSSProperties {
       }),
   ) as CSSProperties
 }
-
 export function authLegalLinks(config: ConfigzConfigResponse | null) {
   return [
     config?.links.termsUri ? ['Terms', config.links.termsUri] : null,
@@ -144,15 +148,13 @@ export function authLegalLinks(config: ConfigzConfigResponse | null) {
     config?.links.supportEmail ? ['Support', `mailto:${config.links.supportEmail}`] : null,
   ].filter((link): link is [string, string] => link !== null)
 }
-
 function AuthLegalLinks({ links }: { links: Array<[string, string]> }) {
   if (links.length === 0) return null
-
   return (
-    <nav className="authLegalLinks" aria-label="Hosted authentication legal links">
+    <nav className="authLegalLinks" aria-label={tt('auth.hostedLegalLinks')}>
       {links.map(([label, href]) => (
         <a href={href} key={label}>
-          {label}
+          {tt(label)}
         </a>
       ))}
     </nav>

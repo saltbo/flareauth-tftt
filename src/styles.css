@@ -6,54 +6,97 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --brand-primary: #b42318;
-  --brand-background: #f7f3ee;
-  --ink: #18181b;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --surface: #ffffff;
-  --soft: #f8fafc;
-  --console-canvas: #f0eef8;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted-color: #f4f4f5;
-  --muted-foreground: oklch(0.556 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --brand-primary: #cc785c;
+  --brand-primary-active: #a9583e;
+  --brand-background: #faf9f5;
+  --ink: #141413;
+  --muted: #6c6a64;
+  --line: #e6dfd8;
+  --surface: #faf9f5;
+  --soft: #f5f0e8;
+  --panel: #ffffff;
+  --console-canvas: #f5f0e8;
+  --background: #faf9f5;
+  --foreground: #141413;
+  --card: #ffffff;
+  --card-foreground: #141413;
+  --primary: #cc785c;
+  --primary-foreground: #ffffff;
+  --secondary: #efe9de;
+  --secondary-foreground: #252523;
+  --muted-color: #f5f0e8;
+  --muted-foreground: #6c6a64;
+  --destructive: #c64545;
   --destructive-foreground: #ffffff;
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: #e6dfd8;
+  --input: #e6dfd8;
   color: var(--ink);
-  background: #f8fafc;
+  background: var(--background);
   color-scheme: light;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover: #ffffff;
+  --popover-foreground: #141413;
+  --accent: #efe9de;
+  --accent-foreground: #252523;
+  --ring: #cc785c;
+  --chart-1: #cc785c;
+  --chart-2: #5db8a6;
+  --chart-3: #e8a55a;
+  --chart-4: #5db872;
+  --chart-5: #252320;
+  --radius: 0.5rem;
+  --sidebar: #f5f0e8;
+  --sidebar-foreground: #141413;
+  --sidebar-primary: #cc785c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efe9de;
+  --sidebar-accent-foreground: #252523;
+  --sidebar-border: #e6dfd8;
+  --sidebar-ring: #cc785c;
+}
+
+.dark {
+  --brand-primary: #e8a55a;
+  --brand-primary-active: #f0b86e;
+  --brand-background: #181715;
+  --ink: #faf9f5;
+  --muted: #a09d96;
+  --line: #36332e;
+  --surface: #181715;
+  --soft: #1f1e1b;
+  --panel: #252320;
+  --console-canvas: #181715;
+  --background: #181715;
+  --foreground: #faf9f5;
+  --card: #252320;
+  --card-foreground: #faf9f5;
+  --primary: #e8a55a;
+  --primary-foreground: #181715;
+  --secondary: #252320;
+  --secondary-foreground: #faf9f5;
+  --muted-color: #1f1e1b;
+  --muted-foreground: #a09d96;
+  --destructive: #f87171;
+  --destructive-foreground: #181715;
+  --border: #36332e;
+  --input: #4a463f;
+  --popover: #252320;
+  --popover-foreground: #faf9f5;
+  --accent: #2e2b26;
+  --accent-foreground: #faf9f5;
+  --ring: #e8a55a;
+  --sidebar: #1f1e1b;
+  --sidebar-foreground: #faf9f5;
+  --sidebar-primary: #e8a55a;
+  --sidebar-primary-foreground: #181715;
+  --sidebar-accent: #252320;
+  --sidebar-accent-foreground: #faf9f5;
+  --sidebar-border: #36332e;
+  --sidebar-ring: #e8a55a;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -145,7 +188,107 @@ textarea {
   touch-action: manipulation;
 }
 
+.preferencesControls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.preferencesControl {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.preferencesControl select {
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.authPreferences {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+
+.consolePreferences {
+  display: inline-flex;
+}
+
+.accountTopbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dark .authPanel,
+.dark .hostedAuthPanel,
+.dark .accountHero,
+.dark .accountPanelGroup,
+.dark .settingsAction,
+.dark .panelTitleIcon,
+.dark .itemRowIcon,
+.dark .consoleActivityCard,
+.dark .objectHeader,
+.dark .applicationTypeCard,
+.dark .setupPanel,
+.dark .itemRow,
+.dark .socialButton,
+.dark .statusPill {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.dark .accountPanelHeader,
+.dark .subsectionTitle,
+.dark .hostedPreviewHeader,
+.dark .statusPill,
+.dark .setupPanel,
+.dark .segmented {
+  background: var(--soft);
+}
+
+.dark .authShell {
+  background: color-mix(in srgb, var(--brand-background) 92%, #000000);
+}
+
+.dark .authBackLink,
+.dark .authBrandPanel p:not(.eyebrow),
+.dark .authBackAction,
+.dark .authSignupPrompt,
+.dark .intro,
+.dark .statusPill span {
+  color: var(--muted);
+}
+
+.dark .applicationTypeCard:hover,
+.dark .applicationTypeCard.selected {
+  background: color-mix(in srgb, var(--brand-primary) 12%, var(--panel));
+}
+
 .consoleShell {
+  --background: #ffffff;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --secondary: #f4f4f2;
+  --muted-color: #f4f4f2;
+  --border: #e3e2dc;
+  --input: #e3e2dc;
+  --console-canvas: #f7f7f4;
   position: fixed;
   inset: 0;
   display: grid;
@@ -156,11 +299,23 @@ textarea {
   font-size: 14px;
 }
 
+.dark .consoleShell {
+  --background: #252320;
+  --card: #252320;
+  --popover: #252320;
+  --secondary: #2e2b26;
+  --muted-color: #1f1e1b;
+  --border: #36332e;
+  --input: #4a463f;
+  --console-canvas: #181715;
+}
+
 .consoleTopbar {
   position: sticky;
   top: 0;
   z-index: 30;
   width: 100%;
+  min-width: 0;
   height: 64px;
   border-bottom: 1px solid var(--border);
   background: var(--console-canvas);
@@ -174,6 +329,7 @@ textarea {
 }
 
 .consoleBody {
+  min-width: 0;
   min-height: 0;
 }
 
@@ -237,6 +393,19 @@ textarea {
   gap: 16px;
   margin: 0 auto 0 8px;
   padding: 24px 24px 24px 0;
+}
+
+.consoleAccountMenuPreferences {
+  padding: 4px;
+}
+
+.consoleMenuPreferences {
+  display: grid;
+  gap: 6px;
+}
+
+.consoleMenuPreferences .preferencesControl {
+  justify-content: space-between;
 }
 
 .shell {
@@ -641,7 +810,7 @@ main:not(.shell):not(.authShell) h1 {
 .field {
   display: grid;
   gap: 6px;
-  color: #27272a;
+  color: var(--ink);
   font-size: 14px;
   font-weight: 600;
 }
@@ -656,10 +825,10 @@ main:not(.shell):not(.authShell) h1 {
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--input);
   border-radius: 8px;
   outline: none;
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   font-size: 14px;
 }
@@ -682,7 +851,7 @@ main:not(.shell):not(.authShell) h1 {
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   font: inherit;
   font-weight: 650;
@@ -722,7 +891,7 @@ main:not(.shell):not(.authShell) h1 {
 }
 
 .passwordField button:hover {
-  background: #f4f4f5;
+  background: var(--muted-color);
   color: var(--ink);
 }
 
@@ -764,7 +933,7 @@ main:not(.shell):not(.authShell) h1 {
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   cursor: pointer;
   font-size: 14px;
@@ -810,7 +979,7 @@ main:not(.shell):not(.authShell) h1 {
 }
 
 .avatarUploadLabel {
-  color: #3f3f46;
+  color: var(--ink);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
@@ -830,7 +999,7 @@ main:not(.shell):not(.authShell) h1 {
   padding: 0 11px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
   font-family: inherit;
   font-size: 13px;
@@ -840,7 +1009,7 @@ main:not(.shell):not(.authShell) h1 {
 
 .avatarUploadButton:hover {
   border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--line));
-  background: #fafafa;
+  background: var(--muted-color);
 }
 
 .avatarUploadButton:focus-within,
@@ -923,23 +1092,23 @@ main:not(.shell):not(.authShell) h1 {
 }
 
 .uiButton-primary {
-  color: #ffffff;
+  color: var(--primary-foreground);
   background: var(--brand-primary);
 }
 
 .uiButton-primary:hover {
-  background: color-mix(in srgb, var(--brand-primary) 88%, black);
+  background: var(--brand-primary-active);
 }
 
 .uiButton-secondary {
   border-color: var(--line);
-  background: #ffffff;
+  background: var(--panel);
   color: var(--ink);
 }
 
 .uiButton-secondary:hover {
   border-color: color-mix(in srgb, var(--brand-primary) 18%, var(--line));
-  background: #fafafa;
+  background: var(--muted-color);
 }
 
 .uiButton-ghost {
@@ -969,7 +1138,7 @@ main:not(.shell):not(.authShell) h1 {
   margin-bottom: 12px;
   padding: 4px;
   border-radius: 8px;
-  background: #f4f4f5;
+  background: var(--muted-color);
 }
 
 .segmented button {
@@ -1127,15 +1296,15 @@ main:not(.shell):not(.authShell) h1 {
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #27272a;
+  background: var(--panel);
+  color: var(--ink);
   font-size: 14px;
   font-weight: 600;
 }
 
 .socialButton:hover {
   border-color: color-mix(in srgb, var(--brand-primary) 18%, var(--line));
-  background: #fafafa;
+  background: var(--muted-color);
 }
 
 .socialButton:disabled {
@@ -1150,7 +1319,7 @@ main:not(.shell):not(.authShell) h1 {
   height: 24px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--brand-background) 26%, #ffffff);
+  background: color-mix(in srgb, var(--brand-background) 26%, var(--panel));
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
@@ -2132,6 +2301,12 @@ main:not(.shell):not(.authShell) h1 {
 }
 
 @media (max-width: 860px) {
+  .consoleTopbar,
+  .consoleBody,
+  .consoleMain {
+    width: 100%;
+  }
+
   .consoleContent {
     min-width: 0;
     gap: 16px;
@@ -2149,6 +2324,15 @@ main:not(.shell):not(.authShell) h1 {
   .authBackLink {
     top: 14px;
     left: 14px;
+  }
+
+  .authPreferences {
+    top: 14px;
+    right: 14px;
+  }
+
+  .consolePreferences {
+    display: inline-flex;
   }
 
   .authPanel {
@@ -2173,11 +2357,27 @@ main:not(.shell):not(.authShell) h1 {
 }
 
 @media (max-width: 560px) {
+  .consoleTopbar > div {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .consoleBrand {
+    gap: 8px;
+  }
+
+  .consoleBrandName,
+  .consoleBrandContext,
+  .consoleBrand [aria-hidden='true'] {
+    display: none;
+  }
+
   .shell {
     padding: 18px;
   }
 
   .topbar,
+  .accountTopbar,
   .accountHeader,
   .panelHeader,
   .buttonRow,

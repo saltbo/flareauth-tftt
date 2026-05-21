@@ -6,16 +6,21 @@ import { Field, TextInput } from '@/components/ui/field'
 import { Status } from '@/components/ui/status'
 import { useConfigz } from '@/features/auth/hooks'
 import { createOnboardingAdmin, getOnboardingStatus } from '@/lib/api'
-
+import { tt } from '@/lib/i18n'
 export function OnboardingRoute() {
   const { data: config } = useConfigz()
-  const [status, setStatus] = useState<{ required: boolean } | null>(null)
-  const [submit, setSubmit] = useState({ loading: false, message: null as string | null, error: null as string | null })
+  const [status, setStatus] = useState<{
+    required: boolean
+  } | null>(null)
+  const [submit, setSubmit] = useState({
+    loading: false,
+    message: null as string | null,
+    error: null as string | null,
+  })
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-
   useEffect(() => {
     let active = true
     getOnboardingStatus().then((value) => {
@@ -25,10 +30,13 @@ export function OnboardingRoute() {
       active = false
     }
   }, [])
-
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    setSubmit({ loading: true, message: null, error: null })
+    setSubmit({
+      loading: true,
+      message: null,
+      error: null,
+    })
     try {
       await createOnboardingAdmin({
         email,
@@ -36,38 +44,42 @@ export function OnboardingRoute() {
         password,
         username: username || undefined,
       })
-      setStatus({ required: false })
-      setSubmit({ loading: false, message: 'First admin created. Sign in to finish Console setup.', error: null })
+      setStatus({
+        required: false,
+      })
+      setSubmit({
+        loading: false,
+        message: tt('First admin created. Sign in to finish Console setup.'),
+        error: null,
+      })
     } catch (error) {
       setSubmit({
         loading: false,
         message: null,
-        error: error instanceof Error ? error.message : 'Onboarding failed.',
+        error: error instanceof Error ? tt(error.message) : tt('Onboarding failed.'),
       })
     }
   }
-
   return (
     <AuthLayout
       config={config}
       eyebrow="First-run onboarding"
-      title="Create the first admin."
-      description="Start this deployment from the browser, then continue to Console setup."
+      title={tt('Create the first admin.')}
+      description={tt('Start this deployment from the browser, then continue to Console setup.')}
     >
       {status?.required === false || submit.message ? (
         <>
-          <Status tone="success">{submit.message ?? 'First-admin onboarding is already locked.'}</Status>
+          <Status tone="success">{submit.message ?? tt('First-admin onboarding is already locked.')}</Status>
           <LinkButton href="/sign-in?return_to=/console/onboarding">
-            <KeyRound size={18} />
-            Continue to sign in
+            <KeyRound size={18} /> {tt('Continue to sign in')}{' '}
           </LinkButton>
         </>
       ) : (
         <form className="formStack" onSubmit={onSubmit}>
-          <Field label="Name">
+          <Field label={tt('Name')}>
             <TextInput autoComplete="name" onChange={(event) => setName(event.target.value)} required value={name} />
           </Field>
-          <Field label="Email">
+          <Field label={tt('Email')}>
             <TextInput
               autoComplete="email"
               onChange={(event) => setEmail(event.target.value)}
@@ -76,10 +88,10 @@ export function OnboardingRoute() {
               value={email}
             />
           </Field>
-          <Field label="Username">
+          <Field label={tt('Username')}>
             <TextInput autoComplete="username" onChange={(event) => setUsername(event.target.value)} value={username} />
           </Field>
-          <Field label="Password">
+          <Field label={tt('Password')}>
             <TextInput
               autoComplete="new-password"
               minLength={8}
@@ -90,7 +102,8 @@ export function OnboardingRoute() {
             />
           </Field>
           <Button disabled={submit.loading} type="submit">
-            Create first admin
+            {' '}
+            {tt('Create first admin')}{' '}
           </Button>
         </form>
       )}

@@ -3,6 +3,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { adminClient, emailOTPClient, usernameClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { ApiRequestError } from './api'
+import { i18n } from './i18n'
 
 export const authClient = createAuthClient({
   plugins: [adminClient(), emailOTPClient(), oauthProviderClient(), passkeyClient(), usernameClient()],
@@ -141,9 +142,10 @@ export async function nativeAuth(
   body?: Record<string, unknown>,
   method = 'POST',
 ): Promise<NativeAuthResult> {
+  const headers = authHeaders(body)
   const response = await fetch(`/api/auth${path}`, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!response.ok) {
@@ -151,6 +153,12 @@ export async function nativeAuth(
   }
   if (response.status === 204) return {}
   return response.json() as Promise<NativeAuthResult>
+}
+
+function authHeaders(body: Record<string, unknown> | undefined) {
+  const headers: Record<string, string> = body ? { 'content-type': 'application/json' } : {}
+  if (i18n.language === 'zh') headers['accept-language'] = i18n.language
+  return Object.keys(headers).length > 0 ? headers : undefined
 }
 
 async function responseMessage(response: Pick<Response, 'status' | 'text'>): Promise<string> {

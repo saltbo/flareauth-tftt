@@ -1,3 +1,4 @@
+import { i18n } from '@better-auth/i18n'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
@@ -11,6 +12,7 @@ import { verifyMessage } from 'viem'
 import { parseSiweMessage, validateSiweMessage } from 'viem/siwe'
 import type { ManagementSignInSettingsResponse } from '../shared/api/management'
 import type { SecurityPolicy } from '../shared/api/security'
+import { betterAuthTranslations } from './auth-i18n'
 import type { Database } from './db/client'
 import * as schema from './db/schema'
 import type { TransactionalEmailSender } from './lib/email/sender'
@@ -160,6 +162,12 @@ export function createAuth(
       },
     },
     plugins: [
+      i18n({
+        translations: betterAuthTranslations,
+        defaultLocale: 'en',
+        detection: ['cookie', 'header'],
+        localeCookie: 'flareauth_locale',
+      }),
       jwt({
         jwt: {
           issuer: `${baseURL}/api/auth`,
