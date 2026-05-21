@@ -6293,17 +6293,17 @@ function PreviewBrandMark({ logoUrl, productName }: { logoUrl?: string | null; p
   return <span className="brandMark">{brandInitial}</span>
 }
 
-function hostedAuthMode(preview: HostedAuthPreviewState): SignInMode | null {
+export function hostedAuthMode(preview: HostedAuthPreviewState): SignInMode | null {
   if (preview.passwordEnabled !== false) return 'password'
   if (preview.emailOtpEnabled) return 'otp'
   return null
 }
 
-function passwordSignupEnabled(preview: HostedAuthPreviewState) {
+export function passwordSignupEnabled(preview: HostedAuthPreviewState) {
   return preview.signupEnabled && preview.passwordEnabled !== false
 }
 
-function previewSignInAction(mode: SignInMode | null) {
+export function previewSignInAction(mode: SignInMode | null) {
   if (mode === 'otp') return 'Send code'
   return 'Sign in'
 }
@@ -6653,11 +6653,11 @@ function DetailTabs({
   )
 }
 
-function navigateConsoleTab(navigate: ReturnType<typeof useNavigate>, href: string) {
+export function navigateConsoleTab(navigate: ReturnType<typeof useNavigate>, href: string) {
   if (window.location.pathname.startsWith('/console/')) void navigate({ to: href })
 }
 
-function userDetailTabs(): DetailTab[] {
+export function userDetailTabs(): DetailTab[] {
   return [
     { value: 'profile', label: 'Profile' },
     { value: 'security', label: 'Security' },
@@ -6668,14 +6668,14 @@ function userDetailTabs(): DetailTab[] {
   ]
 }
 
-function organizationDetailTabs(): DetailTab[] {
+export function organizationDetailTabs(): DetailTab[] {
   return [
     { value: 'settings', label: 'Settings' },
     { value: 'authorization', label: 'Authorization' },
   ]
 }
 
-function roleDetailTabs(): DetailTab[] {
+export function roleDetailTabs(): DetailTab[] {
   return [
     { value: 'settings', label: 'Settings' },
     { value: 'permissions', label: 'Permissions' },
@@ -6683,7 +6683,7 @@ function roleDetailTabs(): DetailTab[] {
   ]
 }
 
-function apiResourceDetailTabs(): DetailTab[] {
+export function apiResourceDetailTabs(): DetailTab[] {
   return [
     { value: 'settings', label: 'Settings' },
     { value: 'scopes', label: 'Scopes' },
@@ -6768,14 +6768,14 @@ function DashboardActivityCard({ label }: { label: string }) {
   )
 }
 
-function formatDashboardDate(date: Date) {
+export function formatDashboardDate(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
-function dashboardChartLabels(date: Date) {
+export function dashboardChartLabels(date: Date) {
   return Array.from({ length: 8 }, (_, index) => {
     const labelDate = new Date(date)
     labelDate.setDate(date.getDate() - (7 - index) * 4)
@@ -7124,7 +7124,7 @@ function SwitchRow({
   )
 }
 
-function clientConfig(application: ApplicationResponse, clientSecret: string | null) {
+export function clientConfig(application: ApplicationResponse, clientSecret: string | null) {
   return JSON.stringify(
     {
       issuer: application.oidc.issuer,
@@ -7143,15 +7143,15 @@ function clientConfig(application: ApplicationResponse, clientSecret: string | n
   )
 }
 
-function listItems(value: readonly string[] | undefined) {
+export function listItems(value: readonly string[] | undefined) {
   return Array.isArray(value) ? [...value] : []
 }
 
-function listValue(value: readonly string[] | undefined, separator: string) {
+export function listValue(value: readonly string[] | undefined, separator: string) {
   return listItems(value).join(separator)
 }
 
-function clientTypeLabel(value: ApplicationResponse['clientType']) {
+export function clientTypeLabel(value: ApplicationResponse['clientType']) {
   if (value === 'public_spa') return 'Public SPA'
   if (value === 'public_native') return 'Public native'
   return 'Confidential web'
@@ -7586,7 +7586,7 @@ function parseForm<T extends z.ZodType>(schema: T, form: unknown): z.infer<T> {
   return result.data
 }
 
-function parseMetadata(value: string | undefined) {
+export function parseMetadata(value: string | undefined) {
   if (!value?.trim()) return undefined
   const parsed = JSON.parse(value)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -7595,7 +7595,7 @@ function parseMetadata(value: string | undefined) {
   return parsed as Record<string, unknown>
 }
 
-function parseConnectorMetadata(form: FormState) {
+export function parseConnectorMetadata(form: FormState) {
   const metadata = parseMetadata(form.providerMetadata) ?? {}
   for (const [key, value] of Object.entries(form)) {
     if (!key.startsWith('metadata.') || value === '') continue
@@ -7605,7 +7605,7 @@ function parseConnectorMetadata(form: FormState) {
   return Object.keys(metadata).length ? metadata : undefined
 }
 
-function connectorFieldLabel(field: string) {
+export function connectorFieldLabel(field: string) {
   return field
     .replace(/URI/g, 'Uri')
     .replace(/ID/g, 'Id')
@@ -7615,7 +7615,7 @@ function connectorFieldLabel(field: string) {
     .replace(/\bId\b/g, 'ID')
 }
 
-function connectorUpdateForm(form: FormState) {
+export function connectorUpdateForm(form: FormState) {
   const input = {
     ...form,
     clientId: nullableFormValue(form.clientId),
@@ -7631,11 +7631,11 @@ function connectorUpdateForm(form: FormState) {
   return input
 }
 
-function nullableFormValue(value: string | undefined) {
+export function nullableFormValue(value: string | undefined) {
   return value === '' ? null : value
 }
 
-function connectorToForm(connector: ConnectorResponse | null): FormState {
+export function connectorToForm(connector: ConnectorResponse | null): FormState {
   if (!connector) return emptyForm
   return {
     slug: connector.slug,
@@ -7658,37 +7658,37 @@ function connectorToForm(connector: ConnectorResponse | null): FormState {
   }
 }
 
-function removeBlankValues(input: unknown): unknown {
+export function removeBlankValues(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ''))
 }
 
-function shallowEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
+export function shallowEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
   const leftEntries = Object.entries(left)
   if (leftEntries.length !== Object.keys(right).length) return false
   return leftEntries.every(([key, value]) => Object.is(value, right[key]))
 }
 
-function nullableString(value: string) {
+export function nullableString(value: string) {
   const trimmed = value.trim()
   return trimmed ? trimmed : null
 }
 
-function parseTokenClaims(value: string) {
+export function parseTokenClaims(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return undefined
   const parsed = JSON.parse(trimmed) as unknown
   return tokenClaimsObjectSchema.parse(parsed)
 }
 
-function parseLineList(value: string) {
+export function parseLineList(value: string) {
   return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
 }
 
-function parseCustomData(value: string) {
+export function parseCustomData(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return {}
   const parsed = JSON.parse(trimmed) as unknown
@@ -7698,7 +7698,7 @@ function parseCustomData(value: string) {
   return parsed as Record<string, unknown>
 }
 
-function customCssProperties(css: string): CSSProperties {
+export function customCssProperties(css: string): CSSProperties {
   const result = hostedCustomCssSchema.safeParse(css)
   if (!result.success) return {}
 
@@ -7746,16 +7746,16 @@ function useAdminMutation<TInput, TOutput>({
   }
 }
 
-function formatDate(value: string | Date | undefined) {
+export function formatDate(value: string | Date | undefined) {
   if (!value) return 'Unknown'
   return new Date(value).toLocaleDateString()
 }
 
-function formatRole(role: ManagementUserResponse['role']) {
+export function formatRole(role: ManagementUserResponse['role']) {
   if (Array.isArray(role)) return role.join(', ')
   return role ?? 'user'
 }
 
-function userDisplayName(user: ManagementUserResponse) {
+export function userDisplayName(user: ManagementUserResponse) {
   return user.displayName ?? user.name ?? user.email ?? user.id
 }

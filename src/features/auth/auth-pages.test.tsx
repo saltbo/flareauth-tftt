@@ -2,11 +2,19 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AuthCallbackPage,
+  authContinuationParams,
+  authPageHref,
+  authRequestContext,
   EmailVerificationPage,
   ForgotPasswordPage,
+  primarySignInMode,
+  readRedirectUrl,
+  redirectDestination,
+  requiresTwoFactor,
   resolveAuthRedirect,
   SignInPage,
   SignUpPage,
+  safeAuthRedirect,
 } from './auth-pages'
 import { ConsentPage } from './consent-page'
 
@@ -136,10 +144,69 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   delete window.turnstile
+  delete window.ethereum
   window.history.pushState(null, '', '/')
 })
 
 describe('hosted auth pages', () => {
+  it('normalizes hosted auth continuation and redirect helpers', () => {
+    expect(primarySignInMode({ ...configz.signIn, passwordEnabled: true, emailOtpEnabled: true })).toBe('password')
+    expect(primarySignInMode({ ...configz.signIn, passwordEnabled: false, emailOtpEnabled: true })).toBe('otp')
+    expect(primarySignInMode({ ...configz.signIn, passwordEnabled: false, emailOtpEnabled: false })).toBeNull()
+    expect(redirectDestination('https://client.example.com/callback')).toBe('client.example.com')
+    expect(redirectDestination('not-a-url')).toBeNull()
+    expect(requiresTwoFactor({ twoFactorRedirect: true })).toBe(true)
+    expect(requiresTwoFactor({ twoFactorRedirect: false })).toBe(false)
+    expect(readRedirectUrl(null)).toBeNull()
+    expect(readRedirectUrl({ url: '/profile' })).toBe('/profile')
+    expect(readRedirectUrl({ redirectTo: '/settings' })).toBe('/settings')
+    expect(readRedirectUrl({ callbackURL: '/callback' })).toBe('/callback')
+    expect(readRedirectUrl({ url: 'https://client.example.com/callback' })).toBeNull()
+    expect(readRedirectUrl({ url: 'https://client.example.com/callback' }, { allowExternal: true })).toBe(
+      'https://client.example.com/callback',
+    )
+    expect(safeAuthRedirect('/profile')).toBe('/profile')
+    expect(safeAuthRedirect('https://client.example.com/callback')).toBeNull()
+
+    window.history.pushState(
+      null,
+      '',
+      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1&token=ignored',
+    )
+    expect(authContinuationParams().toString()).toBe(
+      'client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    )
+    expect(authPageHref('/sign-up')).toBe(
+      '/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    )
+    expect(authRequestContext('sign-in')).toEqual({
+      title: 'Continue to client.example.com.',
+      description: 'Sign in with your hosted account to continue to client.example.com.',
+    })
+    expect(authRequestContext('sign-up')).toEqual({
+      title: 'Create an account for client.example.com.',
+      description: 'Create a hosted account to continue to client.example.com.',
+    })
+    expect(authRequestContext('recovery')).toEqual({
+      title: 'Recover access for client.example.com.',
+      description: 'Recover your hosted account before continuing to client.example.com.',
+    })
+    expect(authRequestContext('verification')).toEqual({
+      title: 'Verify your email for client.example.com.',
+      description: 'Confirm your email address before continuing to client.example.com.',
+    })
+
+    window.history.pushState(null, '', '/sign-in?client_id=client-1&redirect_uri=bad')
+    expect(authRequestContext('sign-in')).toEqual({
+      title: 'Continue to the requested application.',
+      description: 'Sign in with your hosted account to continue.',
+    })
+    window.history.pushState(null, '', '/sign-in')
+    expect(authContinuationParams().toString()).toBe('')
+    expect(authPageHref('/sign-up')).toBe('/sign-up')
+    expect(authRequestContext('sign-in')).toEqual({})
+  })
+
   it('renders a product-focused sign-in form and social connectors from configz', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
@@ -684,6 +751,78 @@ describe('hosted auth pages', () => {
         ]),
       )
     })
+  })
+
+  it('surfaces wallet sign-in browser boundary errors', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') {
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            builtInProviders: {
+              ...configz.builtInProviders,
+              web3Wallet: { enabled: true, chains: [1], allowSignUp: true },
+            },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<SignInPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue with Web3 wallet' }))
+    expect(await screen.findByText('No wallet provider was found in this browser.')).toBeTruthy()
+
+    cleanup()
+    vi.restoreAllMocks()
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') {
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            builtInProviders: {
+              ...configz.builtInProviders,
+              web3Wallet: { enabled: true, chains: [1], allowSignUp: true },
+            },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+    window.ethereum = {
+      request: vi.fn().mockImplementation(({ method }) => {
+        if (method === 'eth_requestAccounts') return Promise.resolve(['0x0000000000000000000000000000000000000001'])
+        if (method === 'eth_chainId') return Promise.resolve('0x2105')
+        throw new Error(`Unsupported wallet method ${method}`)
+      }),
+    }
+    render(<SignInPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue with Web3 wallet' }))
+    expect(await screen.findByText('This wallet network is not enabled. Switch to chain 1.')).toBeTruthy()
+  })
+
+  it('surfaces One Tap configuration errors before invoking Google Identity Services', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') {
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            builtInProviders: {
+              ...configz.builtInProviders,
+              oneTap: { ...configz.builtInProviders.oneTap, enabled: true, clientId: '' },
+            },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<SignInPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue with OneTap' }))
+    expect(await screen.findByText('Google One Tap Client ID is not configured.')).toBeTruthy()
   })
 
   it('toggles hosted password visibility controls', async () => {
@@ -1271,6 +1410,16 @@ describe('hosted auth pages', () => {
     expect(await screen.findByRole('heading', { name: 'Sign-in could not continue.' })).toBeTruthy()
     expect(screen.getByText('Denied')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/sign-in')
+
+    cleanup()
+    window.history.pushState(null, '', '/auth/callback?error=email_not_found')
+    render(<AuthCallbackPage />)
+    expect(await screen.findByRole('heading', { name: 'Sign-in could not continue.' })).toBeTruthy()
+    expect(
+      screen.getByText(
+        'You do not have an account yet. This sign-in method did not provide account information. Sign in with another method first, then link this method to your account so you can use it next time.',
+      ),
+    ).toBeTruthy()
 
     cleanup()
     window.history.pushState(

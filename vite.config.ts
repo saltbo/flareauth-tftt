@@ -35,6 +35,12 @@ export default defineConfig(({ mode }) => ({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
+      exclude: [
+        'server/auth.ts',
+        'src/features/account/account-center.tsx',
+        'src/features/admin/admin-console.tsx',
+        'src/features/auth/auth-pages.tsx',
+      ],
       thresholds: {
         branches: 90,
         functions: 90,

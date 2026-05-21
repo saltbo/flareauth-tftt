@@ -3,7 +3,19 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Toaster } from '@/components/ui/sonner'
-import { AccountCenter, AccountCenterPage } from './account-center'
+import {
+  AccountCenter,
+  AccountCenterPage,
+  asRecord,
+  base64UrlToBuffer,
+  bufferToBase64Url,
+  formatSessionDevice,
+  readChainId,
+  readFirstString,
+  readRedirectUrl,
+  readRequiredString,
+  readString,
+} from './account-center'
 
 const navigateMock = vi.hoisted(() => vi.fn())
 
@@ -19,10 +31,39 @@ vi.mock('@tanstack/react-router', () => ({
 afterEach(() => {
   cleanup()
   navigateMock.mockReset()
+  delete window.ethereum
   vi.restoreAllMocks()
 })
 
 describe('account center', () => {
+  it('normalizes account center helper values', () => {
+    expect(bufferToBase64Url(new Uint8Array([251, 255]).buffer)).toBe('-_8')
+    expect(Array.from(new Uint8Array(base64UrlToBuffer('-_8')))).toEqual([251, 255])
+    expect(asRecord({ id: 'value' })).toEqual({ id: 'value' })
+    expect(asRecord(null)).toEqual({})
+    expect(readString('value')).toBe('value')
+    expect(readString('')).toBeNull()
+    expect(readFirstString(['first'])).toBe('first')
+    expect(readFirstString([1])).toBeNull()
+    expect(readChainId(1)).toBe(1)
+    expect(readChainId('0x2105')).toBe(8453)
+    expect(readChainId('10')).toBe(10)
+    expect(() => readChainId(null)).toThrow('Wallet did not return a chain ID.')
+    expect(readRequiredString('challenge', 'challenge')).toBe('challenge')
+    expect(() => readRequiredString('', 'challenge')).toThrow('Passkey registration option challenge is required.')
+    expect(readRedirectUrl({ url: '/profile' })).toBe('/profile')
+    expect(readRedirectUrl({ redirectTo: '/settings' })).toBe('/settings')
+    expect(readRedirectUrl({ callbackURL: '/callback' })).toBe('/callback')
+    expect(readRedirectUrl({ url: 1 })).toBeNull()
+    expect(formatSessionDevice(null)).toBe('Unknown device')
+    expect(formatSessionDevice('Custom Agent')).toBe('Custom Agent')
+    expect(formatSessionDevice('Mozilla/5.0 (Mac OS X) Chrome/120')).toBe('Chrome on macOS')
+    expect(formatSessionDevice('Mozilla/5.0 (Windows NT 10.0) Edg/120')).toBe('Edge on Windows')
+    expect(formatSessionDevice('Mozilla/5.0 (Android 14) Firefox/120')).toBe('Firefox on Android')
+    expect(formatSessionDevice('Mozilla/5.0 (iPhone) Safari/605')).toBe('Safari on iOS')
+    expect(formatSessionDevice('Mozilla/5.0 Unknown/1.0')).toBe('Browser session')
+  })
+
   it('loads profile, security, session, connection, and application sections', async () => {
     mockAccountFetch({ image: 'https://auth.example.com/api/assets/avatar.png' })
 
@@ -394,6 +435,75 @@ describe('account center', () => {
         }),
       })
     })
+  })
+
+  it('surfaces Web3 wallet enrollment boundary errors', async () => {
+    mockAccountFetch({}, { web3WalletEnabled: true })
+    render(<AccountCenterOnlyWithToaster />)
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    fireEvent.click(
+      within(screen.getByText('Web3 wallet').closest('article') as HTMLElement).getByRole('button', {
+        name: 'Connect',
+      }),
+    )
+    expect(await screen.findByText('No wallet provider was found in this browser.')).toBeTruthy()
+
+    cleanup()
+    vi.restoreAllMocks()
+    mockAccountFetch({}, { web3WalletEnabled: true })
+    window.ethereum = {
+      request: vi.fn().mockImplementation(({ method }) => {
+        if (method === 'eth_requestAccounts') return Promise.resolve([])
+        throw new Error(`Unsupported wallet method ${method}`)
+      }),
+    }
+    render(<AccountCenterOnlyWithToaster />)
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    fireEvent.click(
+      within(screen.getByText('Web3 wallet').closest('article') as HTMLElement).getByRole('button', {
+        name: 'Connect',
+      }),
+    )
+    expect(await screen.findByText('No wallet account was selected.')).toBeTruthy()
+
+    cleanup()
+    vi.restoreAllMocks()
+    mockAccountFetch({}, { web3WalletEnabled: true })
+    window.ethereum = {
+      request: vi.fn().mockImplementation(({ method }) => {
+        if (method === 'eth_requestAccounts') return Promise.resolve(['0x0000000000000000000000000000000000000001'])
+        if (method === 'eth_chainId') return Promise.resolve('0x2105')
+        throw new Error(`Unsupported wallet method ${method}`)
+      }),
+    }
+    render(<AccountCenterOnlyWithToaster />)
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    fireEvent.click(
+      within(screen.getByText('Web3 wallet').closest('article') as HTMLElement).getByRole('button', {
+        name: 'Connect',
+      }),
+    )
+    expect(await screen.findByText('This wallet network is not enabled. Switch to chain 1.')).toBeTruthy()
+
+    cleanup()
+    vi.restoreAllMocks()
+    mockAccountFetch({}, { web3WalletEnabled: true })
+    window.ethereum = {
+      request: vi.fn().mockImplementation(({ method }) => {
+        if (method === 'eth_requestAccounts') return Promise.resolve(['0x0000000000000000000000000000000000000001'])
+        if (method === 'eth_chainId') return Promise.resolve(1)
+        if (method === 'personal_sign') return Promise.resolve(null)
+        throw new Error(`Unsupported wallet method ${method}`)
+      }),
+    }
+    render(<AccountCenterOnlyWithToaster />)
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    fireEvent.click(
+      within(screen.getByText('Web3 wallet').closest('article') as HTMLElement).getByRole('button', {
+        name: 'Connect',
+      }),
+    )
+    expect(await screen.findByText('Wallet did not return a signature.')).toBeTruthy()
   })
 
   it('surfaces unsupported and canceled passkey registration errors', async () => {

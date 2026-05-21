@@ -1293,13 +1293,15 @@ function SocialButtons({
   )
 }
 
-function primarySignInMode(enabled: NonNullable<ReturnType<typeof useConfigz>['data']>['signIn']): SignInMode | null {
+export function primarySignInMode(
+  enabled: NonNullable<ReturnType<typeof useConfigz>['data']>['signIn'],
+): SignInMode | null {
   if (enabled.passwordEnabled) return 'password'
   if (enabled.emailOtpEnabled) return 'otp'
   return null
 }
 
-function authRequestContext(intent: 'sign-in' | 'sign-up' | 'recovery' | 'verification') {
+export function authRequestContext(intent: 'sign-in' | 'sign-up' | 'recovery' | 'verification') {
   const params = new URLSearchParams(window.location.search)
   const redirectUri = params.get('redirect_uri')
   if (!params.has('client_id') || !redirectUri) return {}
@@ -1349,7 +1351,7 @@ function authRequestContext(intent: 'sign-in' | 'sign-up' | 'recovery' | 'verifi
   }
 }
 
-function redirectDestination(redirectUri: string) {
+export function redirectDestination(redirectUri: string) {
   try {
     return new URL(redirectUri).host
   } catch {
@@ -1357,12 +1359,12 @@ function redirectDestination(redirectUri: string) {
   }
 }
 
-function authPageHref(path: string) {
+export function authPageHref(path: string) {
   const params = authContinuationParams()
   return params.size > 0 ? `${path}?${params.toString()}` : path
 }
 
-function authContinuationParams() {
+export function authContinuationParams() {
   const params = new URLSearchParams(window.location.search)
   const continuation = new URLSearchParams()
   for (const name of [
@@ -1392,7 +1394,9 @@ export function resolveAuthRedirect(response: unknown, callback: string | undefi
   return readRedirectUrl(response) ?? safeRedirectPath(callback) ?? '/profile'
 }
 
-function requiresTwoFactor(response: unknown): response is { twoFactorRedirect: true; twoFactorMethods?: string[] } {
+export function requiresTwoFactor(
+  response: unknown,
+): response is { twoFactorRedirect: true; twoFactorMethods?: string[] } {
   return (
     typeof response === 'object' &&
     response !== null &&
@@ -1401,7 +1405,7 @@ function requiresTwoFactor(response: unknown): response is { twoFactorRedirect: 
   )
 }
 
-function readRedirectUrl(response: unknown, options: { allowExternal?: boolean } = {}): string | null {
+export function readRedirectUrl(response: unknown, options: { allowExternal?: boolean } = {}): string | null {
   if (typeof response !== 'object' || response === null) return null
   if ('url' in response && typeof response.url === 'string') return safeAuthRedirect(response.url, options)
   if ('redirectTo' in response && typeof response.redirectTo === 'string') return safeAuthRedirect(response.redirectTo)
@@ -1410,7 +1414,7 @@ function readRedirectUrl(response: unknown, options: { allowExternal?: boolean }
   return null
 }
 
-function safeAuthRedirect(value: string, options: { allowExternal?: boolean } = {}) {
+export function safeAuthRedirect(value: string, options: { allowExternal?: boolean } = {}) {
   if (options.allowExternal) return value
   return safeRedirectPath(value) ?? null
 }

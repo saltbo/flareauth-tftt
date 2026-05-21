@@ -1539,7 +1539,7 @@ function serializePasskeyCredential(credential: Credential) {
   }
 }
 
-function base64UrlToBuffer(value: string): ArrayBuffer {
+export function base64UrlToBuffer(value: string): ArrayBuffer {
   const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
   const binary = atob(padded)
@@ -1550,7 +1550,7 @@ function base64UrlToBuffer(value: string): ArrayBuffer {
   return bytes.buffer
 }
 
-function bufferToBase64Url(buffer: ArrayBuffer) {
+export function bufferToBase64Url(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (const byte of bytes) {
@@ -1559,26 +1559,26 @@ function bufferToBase64Url(buffer: ArrayBuffer) {
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 }
 
-function readString(value: unknown) {
+export function readString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-function readFirstString(value: unknown) {
+export function readFirstString(value: unknown) {
   return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : null
 }
 
-function readChainId(value: unknown) {
+export function readChainId(value: unknown) {
   if (typeof value === 'number') return value
   if (typeof value === 'string' && value.startsWith('0x')) return Number.parseInt(value, 16)
   if (typeof value === 'string') return Number(value)
   throw new Error('Wallet did not return a chain ID.')
 }
 
-function readRequiredString(value: unknown, field: string) {
+export function readRequiredString(value: unknown, field: string) {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`Passkey registration option ${field} is required.`)
   }
@@ -1589,7 +1589,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
 }
 
-function readRedirectUrl(response: unknown) {
+export function readRedirectUrl(response: unknown) {
   if (typeof response !== 'object' || response === null) return null
   if ('url' in response && typeof response.url === 'string') return response.url
   if ('redirectTo' in response && typeof response.redirectTo === 'string') return response.redirectTo
@@ -1597,7 +1597,7 @@ function readRedirectUrl(response: unknown) {
   return null
 }
 
-function formatSessionDevice(userAgent: string | null) {
+export function formatSessionDevice(userAgent: string | null) {
   if (!userAgent) return 'Unknown device'
   if (!userAgent.includes('/')) return userAgent
 

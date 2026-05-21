@@ -7,17 +7,21 @@ import {
   requestEmailVerification,
   requestPasswordReset,
   requestPhoneOtp,
+  requestWalletNonce,
   resetPassword,
   resetPasswordWithEmailOtp,
   signInWithEmailOtp,
+  signInWithOneTap,
   signInWithPassword,
   signInWithSocial,
   signInWithUsername,
+  signInWithWallet,
   signOut,
   signUp,
   verifyEmail,
   verifyEmailOtp,
   verifyPhoneNumber,
+  verifySignInTotp,
 } from './auth-client'
 
 afterEach(() => {
@@ -111,6 +115,15 @@ describe('native auth client', () => {
     await verifyEmailOtp({ email: 'jane@example.com', otp: '123456' })
     await requestEmailOtpPasswordReset({ email: 'jane@example.com' })
     await resetPasswordWithEmailOtp({ email: 'jane@example.com', otp: '123456', password: 'new-password' })
+    await requestWalletNonce({ walletAddress: '0x0000000000000000000000000000000000000001', chainId: 1 })
+    await signInWithWallet({
+      message: 'Sign this message.',
+      signature: '0xsignature',
+      walletAddress: '0x0000000000000000000000000000000000000001',
+      chainId: 1,
+    })
+    await signInWithOneTap({ idToken: 'id-token-1' })
+    await verifySignInTotp({ code: '123456', trustDevice: true })
 
     expect(requests.map((request) => request.url)).toEqual([
       '/api/auth/sign-in/email',
@@ -127,6 +140,10 @@ describe('native auth client', () => {
       '/api/auth/email-otp/verify-email',
       '/api/auth/email-otp/request-password-reset',
       '/api/auth/email-otp/reset-password',
+      '/api/auth/siwe/nonce',
+      '/api/auth/siwe/verify',
+      '/api/auth/one-tap/callback',
+      '/api/auth/two-factor/verify-totp',
     ])
   })
 

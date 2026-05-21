@@ -15,6 +15,13 @@ describe('account API client', () => {
     await account.requestAccountEmailChange({ email: 'new@example.com' })
     await account.changeAccountPassword({ currentPassword: 'old-password', newPassword: 'new-password' })
     await account.listLinkedAccounts()
+    await account.linkWalletAddress({
+      message: 'Sign this message.',
+      signature: '0xsignature',
+      walletAddress: '0x0000000000000000000000000000000000000001',
+      chainId: 1,
+    })
+    await account.unlinkWalletAddress('siwe:1:0x0000000000000000000000000000000000000001')
     await account.unlinkAccount('google', 'google-account-1')
     await account.listConsentedApplications()
     await account.revokeApplicationConsent('consent-1')
@@ -37,6 +44,22 @@ describe('account API client', () => {
       ['emailChange.post', { json: { email: 'new@example.com' } }],
       ['passwordChange.post', { json: { currentPassword: 'old-password', newPassword: 'new-password' } }],
       ['linkedAccounts.get'],
+      [
+        'fetch',
+        '/api/account/wallet-addresses',
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            message: 'Sign this message.',
+            signature: '0xsignature',
+            walletAddress: '0x0000000000000000000000000000000000000001',
+            chainId: 1,
+          }),
+        },
+      ],
+      ['walletAddress.delete', { param: { accountId: 'siwe:1:0x0000000000000000000000000000000000000001' } }],
       ['linkedAccounts.delete', { param: { providerId: 'google' }, query: { accountId: 'google-account-1' } }],
       ['applications.get'],
       ['applicationConsent.delete', { param: { consentId: 'consent-1' } }],
@@ -89,6 +112,9 @@ async function loadAccountApi() {
           'linked-accounts': {
             $get: endpoint('linkedAccounts.get'),
             ':providerId': { $delete: endpoint('linkedAccounts.delete') },
+          },
+          'wallet-addresses': {
+            ':accountId': { $delete: endpoint('walletAddress.delete') },
           },
           applications: {
             $get: endpoint('applications.get'),
