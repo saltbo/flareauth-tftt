@@ -19,12 +19,27 @@ test('Passwordless mode removes password UI and blocks native password sign-in e
   await expect(page.getByRole('textbox', { name: 'Email or username' })).toHaveCount(0)
   await expect(page.getByRole('textbox', { name: 'Password' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Sign in' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Create account' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Send code' })).toBeVisible()
+
+  await page.goto('/sign-up')
+  await expect(page.getByText('Password sign up is not available')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create account' })).toHaveCount(0)
 
   const signedOutContext = await browser.newContext({ baseURL })
   const directPasswordResponse = await signedOutContext.request.post('/api/auth/sign-in/username', {
     data: { username: admin.username, password: admin.password },
   })
   expect(directPasswordResponse.status(), await directPasswordResponse.text()).toBe(403)
+  const directSignUpResponse = await signedOutContext.request.post('/api/auth/sign-up/email', {
+    data: {
+      email: 'passwordless-signup@example.com',
+      name: 'Passwordless Signup',
+      password: 'CloudAuth!2749',
+      username: 'passwordless-signup',
+    },
+  })
+  expect(directSignUpResponse.status(), await directSignUpResponse.text()).toBe(403)
   await signedOutContext.close()
 
   await attachCoverage(testInfo, ['passwordless-linkage', 'password-sign-in'])
@@ -41,7 +56,7 @@ test('disabled sign-up blocks hosted registration UI and the direct sign-up API'
   await expect(page.getByRole('link', { name: 'Create account' })).toHaveCount(0)
 
   await page.goto('/sign-up')
-  await expect(page.getByText('Sign up is not available')).toBeVisible()
+  await expect(page.getByText('Password sign up is not available')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create account' })).toHaveCount(0)
 
   const signedOutContext = await browser.newContext({ baseURL })

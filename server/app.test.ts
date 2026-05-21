@@ -162,6 +162,47 @@ describe('createApp', () => {
     expect(auth.handler).toHaveBeenCalledTimes(2)
   })
 
+  it('blocks SIWE sign-in before Better Auth can create an unlinked wallet account', async () => {
+    const auth = createAuthMock()
+    const wallets = createWalletRepositoryMock({ linked: false })
+    const response = await createApp(auth, {
+      walletRepository: wallets,
+      configzServiceFactory: () => createConfigzServiceMock(),
+    }).request('/api/auth/siwe/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: '0x0000000000000000000000000000000000000001',
+        chainId: 1,
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'forbidden', message: 'This wallet is not linked to an existing account.' },
+    })
+    expect(auth.handler).not.toHaveBeenCalled()
+  })
+
+  it('allows SIWE sign-in for an already linked wallet', async () => {
+    const auth = createAuthMock()
+    const wallets = createWalletRepositoryMock({ linked: true })
+    const response = await createApp(auth, {
+      walletRepository: wallets,
+      configzServiceFactory: () => createConfigzServiceMock(),
+    }).request('/api/auth/siwe/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: '0x0000000000000000000000000000000000000001',
+        chainId: 1,
+      }),
+    })
+
+    expect(response.status).toBe(204)
+    expect(auth.handler).toHaveBeenCalled()
+  })
+
   it('mounts admin authorization routes behind the admin auth boundary', async () => {
     const app = createApp(createAuthMock())
 
@@ -247,6 +288,22 @@ function createConfigzServiceMock(overrides: Record<string, unknown> = {}) {
         usernameEnabled: true,
         identifierFirst: false,
       },
+      builtInProviders: {
+        email: { enabled: true },
+        phone: { enabled: false },
+        web3Wallet: { enabled: true, chains: [1], allowSignUp: true },
+        passkey: { allowSignUp: true },
+        oneTap: {
+          enabled: false,
+          clientId: '',
+          autoSelect: false,
+          cancelOnTapOutside: true,
+          uxMode: 'popup',
+          context: 'signin',
+          promptBaseDelayMs: 1000,
+          promptMaxAttempts: 5,
+        },
+      },
       accountCenter: {
         profileEditingEnabled: true,
         displayNameEditable: true,
@@ -260,6 +317,27 @@ function createConfigzServiceMock(overrides: Record<string, unknown> = {}) {
       },
       ...overrides,
     }),
+  }
+}
+
+function createWalletRepositoryMock({ linked }: { linked: boolean }) {
+  const wallet = linked
+    ? {
+        id: 'wallet-1',
+        userId: 'user-1',
+        address: '0x0000000000000000000000000000000000000001',
+        chainId: 1,
+        isPrimary: true,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+    : null
+  return {
+    findWalletAddress: vi.fn().mockResolvedValue(wallet),
+    findAnyWalletAddress: vi.fn().mockResolvedValue(wallet),
+    getSiweNonce: vi.fn().mockResolvedValue(null),
+    deleteSiweNonce: vi.fn().mockResolvedValue(undefined),
+    linkWalletAddress: vi.fn().mockResolvedValue(wallet),
+    unlinkWalletAddress: vi.fn().mockResolvedValue(undefined),
   }
 }
 

@@ -477,7 +477,8 @@ describe('management routes', () => {
       },
       builtInProviders: {
         phone: { enabled: false, smsProvider: 'twilio' },
-        web3Wallet: { enabled: false, chains: [1] },
+        web3Wallet: { enabled: false, chains: [1], allowSignUp: true },
+        passkey: { allowSignUp: true },
         oneTap: { enabled: false, clientId: '' },
       },
     })
@@ -586,6 +587,11 @@ describe('management routes', () => {
             identifierFirst: false,
           },
           builtInProviders: {
+            email: {
+              enabled: true,
+              otpLength: 6,
+              expiresInSeconds: 300,
+            },
             phone: {
               enabled: false,
               smsProvider: 'twilio',
@@ -607,8 +613,11 @@ describe('management routes', () => {
               chains: [1],
               domain: '',
               emailDomainName: '',
-              anonymous: true,
+              allowSignUp: true,
               ensLookupEnabled: false,
+            },
+            passkey: {
+              allowSignUp: true,
             },
             oneTap: {
               enabled: false,
@@ -1594,6 +1603,11 @@ function createConfigzServiceMock(
 
 function builtInProvidersFixture() {
   return {
+    email: {
+      enabled: true,
+      otpLength: 6,
+      expiresInSeconds: 300,
+    },
     phone: {
       enabled: false,
       smsProvider: 'twilio',
@@ -1615,8 +1629,11 @@ function builtInProvidersFixture() {
       chains: [1],
       domain: '',
       emailDomainName: '',
-      anonymous: true,
+      allowSignUp: true,
       ensLookupEnabled: false,
+    },
+    passkey: {
+      allowSignUp: true,
     },
     oneTap: {
       enabled: false,

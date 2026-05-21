@@ -90,7 +90,7 @@ export function verifyPhoneNumber(input: { phoneNumber: string; code: string }) 
   return nativeAuth('/phone-number/verify', input)
 }
 
-export function signInWithSocial(input: { provider: string; callbackURL?: string }) {
+export function signInWithSocial(input: { provider: string; callbackURL?: string; errorCallbackURL?: string }) {
   return nativeAuth('/sign-in/social', input)
 }
 

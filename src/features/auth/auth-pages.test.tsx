@@ -21,8 +21,10 @@ const configz = {
     identifierFirst: false,
   },
   builtInProviders: {
+    email: { enabled: true },
     phone: { enabled: false },
-    web3Wallet: { enabled: false, chains: [1] },
+    web3Wallet: { enabled: false, chains: [1], allowSignUp: true },
+    passkey: { allowSignUp: true },
     oneTap: {
       enabled: false,
       clientId: '',
@@ -323,6 +325,7 @@ describe('hosted auth pages', () => {
 
     expect(await screen.findByRole('button', { name: 'Send code' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Create account' })).toBeNull()
   })
 
   it('starts with an identifier step when identifier-first sign-in is enabled', async () => {
@@ -468,6 +471,7 @@ describe('hosted auth pages', () => {
           provider: 'github',
           callbackURL:
             '/api/auth/oauth2/authorize?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+          errorCallbackURL: 'http://localhost:3000/auth/callback',
         },
       })
     })
@@ -489,7 +493,29 @@ describe('hosted auth pages', () => {
 
     render(<SignUpPage />)
 
-    expect(await screen.findByRole('heading', { name: 'Sign up is not available' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Password sign up is not available' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeTruthy()
+  })
+
+  it('does not render password registration when password auth is disabled', async () => {
+    vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url === '/api/configz') {
+        return Promise.resolve(
+          jsonResponse({
+            ...configz,
+            signIn: { ...configz.signIn, passwordEnabled: false, signupEnabled: true },
+          }),
+        )
+      }
+      return Promise.resolve(jsonResponse({ ok: true }))
+    })
+
+    render(<SignUpPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Password sign up is not available' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeTruthy()
@@ -859,6 +885,7 @@ describe('hosted auth pages', () => {
             provider: 'github',
             callbackURL:
               '/api/auth/oauth2/authorize?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+            errorCallbackURL: 'http://localhost:3000/auth/callback',
           },
         },
       ])
@@ -890,6 +917,7 @@ describe('hosted auth pages', () => {
             provider: 'demo-sso',
             callbackURL:
               '/api/auth/oauth2/authorize?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+            errorCallbackURL: 'http://localhost:3000/auth/callback',
           },
         },
       ])

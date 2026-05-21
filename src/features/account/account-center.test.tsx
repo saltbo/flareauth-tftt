@@ -361,6 +361,41 @@ describe('account center', () => {
     expect(navigator.credentials.create).toHaveBeenCalled()
   })
 
+  it('links Web3 wallet from the signed-in account center', async () => {
+    const requests = mockAccountFetch({}, { web3WalletEnabled: true })
+    window.ethereum = {
+      request: vi.fn().mockImplementation(({ method }) => {
+        if (method === 'eth_requestAccounts') return Promise.resolve(['0x0000000000000000000000000000000000000001'])
+        if (method === 'eth_chainId') return Promise.resolve('0x1')
+        if (method === 'personal_sign') return Promise.resolve('0xsignature')
+        throw new Error(`Unsupported wallet method ${method}`)
+      }),
+    }
+
+    render(<AccountCenterOnlyWithToaster />)
+
+    await screen.findByRole('heading', { name: 'Jane Stone' })
+    const walletRow = screen.getByText('Web3 wallet').closest('article') as HTMLElement
+    fireEvent.click(within(walletRow).getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        path: '/api/auth/siwe/nonce',
+        method: 'POST',
+        body: { walletAddress: '0x0000000000000000000000000000000000000001', chainId: 1 },
+      })
+      expect(requests).toContainEqual({
+        path: '/api/account/wallet-addresses',
+        method: 'POST',
+        body: expect.objectContaining({
+          signature: '0xsignature',
+          walletAddress: '0x0000000000000000000000000000000000000001',
+          chainId: 1,
+        }),
+      })
+    })
+  })
+
   it('surfaces unsupported and canceled passkey registration errors', async () => {
     mockAccountFetch()
     Object.defineProperty(window.navigator, 'credentials', {
@@ -695,6 +730,7 @@ function mockAccountFetch(
     accountCenter?: ReturnType<typeof configz>['accountCenter']
     security?: ReturnType<typeof security>
     signOutFailure?: unknown
+    web3WalletEnabled?: boolean
   } = {},
 ) {
   const requests: RequestRecord[] = []
@@ -703,11 +739,16 @@ function mockAccountFetch(
     const method = init?.method ?? 'GET'
     const body = init?.body instanceof FormData ? '[form-data]' : init?.body ? JSON.parse(String(init.body)) : null
     if (method !== 'GET' || path.startsWith('/api/auth/passkey/')) requests.push({ path, method, body })
-    if (path === '/api/configz') return Promise.resolve(jsonResponse(configz(options.accountCenter)))
+    if (path === '/api/configz') {
+      return Promise.resolve(jsonResponse(configz(options.accountCenter, options.web3WalletEnabled)))
+    }
     if (path === '/api/account/profile')
       return Promise.resolve(jsonResponse({ user: { ...profile(), ...profileOverrides } }))
     if (path === '/api/auth/link-social' && method === 'POST') {
       return Promise.resolve(jsonResponse({ url: 'https://github.example.com/oauth' }))
+    }
+    if (path === '/api/auth/siwe/nonce' && method === 'POST') {
+      return Promise.resolve(jsonResponse({ nonce: 'nonce123' }))
     }
     if (path === '/api/account/linked-accounts') return Promise.resolve(jsonResponse({ accounts: linkedAccounts() }))
     if (path === '/api/account/applications') return Promise.resolve(jsonResponse({ applications: applications() }))
@@ -762,7 +803,10 @@ function mockAccountFetch(
   return requests
 }
 
-function configz(accountCenter: typeof defaultAccountCenterSettings = defaultAccountCenterSettings) {
+function configz(
+  accountCenter: typeof defaultAccountCenterSettings = defaultAccountCenterSettings,
+  web3WalletEnabled = false,
+) {
   return {
     onboarding: { required: false, href: '/onboarding' },
     signIn: {
@@ -784,6 +828,22 @@ function configz(accountCenter: typeof defaultAccountCenterSettings = defaultAcc
       { slug: 'google', providerType: 'social', providerId: 'google', displayName: 'Google', icon: 'google' },
       { slug: 'github', providerType: 'social', providerId: 'github', displayName: 'GitHub', icon: 'github' },
     ],
+    builtInProviders: {
+      email: { enabled: true },
+      phone: { enabled: false },
+      web3Wallet: { enabled: web3WalletEnabled, chains: [1], allowSignUp: true },
+      passkey: { allowSignUp: true },
+      oneTap: {
+        enabled: false,
+        clientId: '',
+        autoSelect: false,
+        cancelOnTapOutside: true,
+        uxMode: 'popup',
+        context: 'signin',
+        promptBaseDelayMs: 1000,
+        promptMaxAttempts: 5,
+      },
+    },
     links: { termsUri: null, privacyUri: null, supportEmail: null },
     copy: {
       productName: 'Acme ID',

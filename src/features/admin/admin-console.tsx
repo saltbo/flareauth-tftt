@@ -1976,7 +1976,6 @@ export function ConnectorsPage() {
         provider={selectedProvider}
         builtInProviders={signInQuery.data?.builtInProviders ?? null}
         security={securityQuery.data?.policy ?? null}
-        signIn={signInQuery.data?.signIn ?? null}
         updateBuiltInError={updateBuiltInSignInMutation.errorMessage ?? updateBuiltInSecurityMutation.errorMessage}
         updateBuiltInPending={updateBuiltInSignInMutation.isPending || updateBuiltInSecurityMutation.isPending}
         updatePending={updateMutation.isPending}
@@ -2019,7 +2018,6 @@ function connectorProviderRows(
   security: SecurityPolicy | undefined,
 ): ConnectorProviderRow[] {
   const connectorsByProvider = new Map(connectors.map((connector) => [connector.providerId, connector]))
-  const signIn = signInSettings?.signIn
   const builtIn = signInSettings?.builtInProviders
   const socialRows = templates
     .filter((template) => template.providerType === 'social')
@@ -2044,13 +2042,13 @@ function connectorProviderRows(
     {
       key: 'builtin:email',
       displayName: 'Email',
-      description: 'Email code sign-in',
+      description: 'Email sign-in provider',
       icon: 'email',
       providerId: 'email',
       providerType: 'builtin',
       typeLabel: 'Built-in',
-      configurationLabel: signIn?.emailOtpEnabled ? 'Runtime enabled' : 'Runtime disabled',
-      enabled: Boolean(signIn?.emailOtpEnabled),
+      configurationLabel: builtIn?.email.enabled ? 'Runtime enabled' : 'Runtime disabled',
+      enabled: Boolean(builtIn?.email.enabled),
       connector: null,
       template: null,
     },
@@ -2126,7 +2124,6 @@ function ConnectorProviderDrawer({
   open,
   provider,
   security,
-  signIn,
   updateBuiltInError,
   updateBuiltInPending,
   updatePending,
@@ -2146,7 +2143,6 @@ function ConnectorProviderDrawer({
   open: boolean
   provider: ConnectorProviderRow | null
   security: SecurityPolicy | null
-  signIn: { emailOtpEnabled: boolean } | null
   updateBuiltInError: string | null
   updateBuiltInPending: boolean
   updatePending: boolean
@@ -2198,27 +2194,15 @@ function ConnectorProviderDrawer({
           </SheetTitle>
         </SheetHeader>
         {provider.providerType === 'builtin' ? (
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto px-8">
-              <BuiltinProviderPanel
-                error={updateBuiltInError}
-                onUpdatePasskey={onUpdateBuiltInPasskey}
-                onUpdateSignIn={onUpdateBuiltInSignIn}
-                pending={updateBuiltInPending}
-                provider={provider}
-                builtInProviders={builtInProviders}
-                security={security}
-                signIn={signIn}
-              />
-            </div>
-            <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
-              <SheetClose asChild>
-                <Button type="button" variant="secondary">
-                  Close
-                </Button>
-              </SheetClose>
-            </SheetFooter>
-          </>
+          <BuiltinProviderPanel
+            error={updateBuiltInError}
+            onUpdatePasskey={onUpdateBuiltInPasskey}
+            onUpdateSignIn={onUpdateBuiltInSignIn}
+            pending={updateBuiltInPending}
+            provider={provider}
+            builtInProviders={builtInProviders}
+            security={security}
+          />
         ) : (
           <form
             className="flex min-h-0 flex-1 flex-col"
@@ -2276,6 +2260,23 @@ function ConnectorProviderDrawer({
                     type="button"
                   />
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Allow users without an email</p>
+                    <p className="text-xs text-muted-foreground">
+                      Allow this provider to enter the registration path. If it returns no email for a new user, the
+                      hosted flow shows an account-binding error.
+                    </p>
+                  </div>
+                  <Switch
+                    aria-label="Allow users without an email"
+                    checked={form['metadata.allowUsersWithoutEmail'] === 'true'}
+                    onCheckedChange={(allowUsersWithoutEmail) =>
+                      setValue(setForm, 'metadata.allowUsersWithoutEmail', String(allowUsersWithoutEmail))
+                    }
+                    type="button"
+                  />
+                </div>
                 <ConnectorDynamicFields
                   form={form}
                   isExisting={isExisting}
@@ -2308,6 +2309,41 @@ function ConnectorProviderDrawer({
   )
 }
 
+function BuiltinProviderForm({
+  children,
+  error,
+  hasChanges,
+  onSubmit,
+  pending,
+}: {
+  children: ReactNode
+  error: string | null
+  hasChanges: boolean
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  pending: boolean
+}) {
+  return (
+    <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-8">
+        <div className="grid gap-4">
+          {error ? <div className="text-sm text-destructive">{error}</div> : null}
+          {children}
+        </div>
+      </div>
+      <SheetFooter className="border-t border-border sm:flex-row sm:justify-end">
+        <SheetClose asChild>
+          <Button type="button" variant="secondary">
+            Close
+          </Button>
+        </SheetClose>
+        <Button disabled={!hasChanges || pending} type="submit">
+          {pending ? 'Saving...' : 'Save'}
+        </Button>
+      </SheetFooter>
+    </form>
+  )
+}
+
 function BuiltinProviderPanel({
   builtInProviders,
   error,
@@ -2316,7 +2352,6 @@ function BuiltinProviderPanel({
   pending,
   provider,
   security,
-  signIn,
 }: {
   builtInProviders: ManagementSignInSettingsResponse['builtInProviders'] | null
   error: string | null
@@ -2325,81 +2360,98 @@ function BuiltinProviderPanel({
   pending: boolean
   provider: ConnectorProviderRow
   security: SecurityPolicy | null
-  signIn: { emailOtpEnabled: boolean } | null
 }) {
-  const [emailOtpEnabled, setEmailOtpEnabled] = useState(false)
+  const [emailForm, setEmailForm] = useState(defaultEmailProviderSettings())
   const [passkeyEnabled, setPasskeyEnabled] = useState(false)
+  const [passkeyAllowSignUp, setPasskeyAllowSignUp] = useState(true)
   const [phoneForm, setPhoneForm] = useState(defaultPhoneProviderSettings())
   const [web3Form, setWeb3Form] = useState(defaultWeb3ProviderSettings())
   const [oneTapForm, setOneTapForm] = useState(defaultOneTapProviderSettings())
-
-  useEffect(() => {
-    setEmailOtpEnabled(signIn?.emailOtpEnabled ?? false)
-  }, [signIn])
 
   useEffect(() => {
     setPasskeyEnabled(security?.passkeys.enabled ?? false)
   }, [security])
 
   useEffect(() => {
+    setEmailForm({ ...defaultEmailProviderSettings(), ...(builtInProviders?.email ?? {}) })
     setPhoneForm({ ...defaultPhoneProviderSettings(), ...(builtInProviders?.phone ?? {}) })
     setWeb3Form({ ...defaultWeb3ProviderSettings(), ...(builtInProviders?.web3Wallet ?? {}) })
+    setPasskeyAllowSignUp(builtInProviders?.passkey.allowSignUp ?? true)
     setOneTapForm({ ...defaultOneTapProviderSettings(), ...(builtInProviders?.oneTap ?? {}) })
   }, [builtInProviders])
 
   if (provider.providerId === 'email') {
-    const hasChanges = emailOtpEnabled !== Boolean(signIn?.emailOtpEnabled)
+    const loaded = { ...defaultEmailProviderSettings(), ...(builtInProviders?.email ?? {}) }
+    const hasChanges = !shallowEqual(emailForm, loaded)
 
     return (
-      <form
-        className="grid gap-4"
+      <BuiltinProviderForm
+        error={error}
+        hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdateSignIn({ signIn: { emailOtpEnabled } })
+          onUpdateSignIn({ builtInProviders: { email: emailForm } })
         }}
+        pending={pending}
       >
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <BuiltInProviderSwitch
-          checked={emailOtpEnabled}
+          checked={emailForm.enabled}
           description="Allow users to receive a one-time sign-in code by email."
-          label="Email code"
-          onCheckedChange={setEmailOtpEnabled}
+          label="Enabled"
+          onCheckedChange={(enabled) => setEmailForm((current) => ({ ...current, enabled }))}
         />
-        <SettingRow label="Delivery" value="Cloudflare Email binding" />
-        <div className="flex justify-end gap-2">
-          <Button disabled={!hasChanges || pending} type="submit">
-            Save
-          </Button>
-        </div>
-      </form>
+        <Field label="OTP length">
+          <TextInput
+            onChange={(event) => setEmailForm((current) => ({ ...current, otpLength: Number(event.target.value) }))}
+            type="number"
+            value={String(emailForm.otpLength)}
+          />
+        </Field>
+        <Field label="Code expiry seconds">
+          <TextInput
+            onChange={(event) =>
+              setEmailForm((current) => ({ ...current, expiresInSeconds: Number(event.target.value) }))
+            }
+            type="number"
+            value={String(emailForm.expiresInSeconds)}
+          />
+        </Field>
+      </BuiltinProviderForm>
     )
   }
 
   if (provider.providerId === 'passkey') {
-    const hasChanges = passkeyEnabled !== Boolean(security?.passkeys.enabled)
+    const loadedAllowSignUp = builtInProviders?.passkey.allowSignUp ?? true
+    const hasPasskeyEnabledChanges = passkeyEnabled !== Boolean(security?.passkeys.enabled)
+    const hasChanges = hasPasskeyEnabledChanges || passkeyAllowSignUp !== loadedAllowSignUp
 
     return (
-      <form
-        className="grid gap-4"
+      <BuiltinProviderForm
+        error={error}
+        hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
-          onUpdatePasskey(passkeyEnabled)
+          if (hasPasskeyEnabledChanges) onUpdatePasskey(passkeyEnabled)
+          if (passkeyAllowSignUp !== loadedAllowSignUp) {
+            onUpdateSignIn({ builtInProviders: { passkey: { allowSignUp: passkeyAllowSignUp } } })
+          }
         }}
+        pending={pending}
       >
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <BuiltInProviderSwitch
           checked={passkeyEnabled}
           description={`Use WebAuthn passkeys for this tenant (${security?.passkeys.rpName ?? 'tenant'}).`}
-          label="Passkey sign-in"
+          label="Enabled"
           onCheckedChange={setPasskeyEnabled}
         />
+        <BuiltInProviderSwitch
+          checked={passkeyAllowSignUp}
+          description="Allow passkeys to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a passkey."
+          label="Allow for sign-up"
+          onCheckedChange={setPasskeyAllowSignUp}
+        />
         <SettingRow label="Relying party" value={security?.passkeys.rpName ?? 'Not loaded'} />
-        <div className="flex justify-end gap-2">
-          <Button disabled={!hasChanges || pending} type="submit">
-            Save
-          </Button>
-        </div>
-      </form>
+      </BuiltinProviderForm>
     )
   }
 
@@ -2408,18 +2460,19 @@ function BuiltinProviderPanel({
     const hasChanges = !shallowEqual(phoneForm, loaded)
 
     return (
-      <form
-        className="grid gap-4"
+      <BuiltinProviderForm
+        error={error}
+        hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
           onUpdateSignIn({ builtInProviders: { phone: phoneForm } })
         }}
+        pending={pending}
       >
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <BuiltInProviderSwitch
           checked={phoneForm.enabled}
           description="Show phone number sign-in and verification flows."
-          label="Phone sign-in"
+          label="Enabled"
           onCheckedChange={(enabled) => setPhoneForm((current) => ({ ...current, enabled }))}
         />
         <Field label="SMS provider">
@@ -2521,23 +2574,12 @@ function BuiltinProviderPanel({
           />
         </Field>
         <BuiltInProviderSwitch
-          checked={phoneForm.signUpOnVerification}
-          description="Create a new account after successful phone verification."
-          label="Sign up on verification"
-          onCheckedChange={(signUpOnVerification) => setPhoneForm((current) => ({ ...current, signUpOnVerification }))}
-        />
-        <BuiltInProviderSwitch
           checked={phoneForm.requireVerification}
           description="Require phone verification before phone sign-in."
           label="Require verification"
           onCheckedChange={(requireVerification) => setPhoneForm((current) => ({ ...current, requireVerification }))}
         />
-        <div className="flex justify-end gap-2">
-          <Button disabled={!hasChanges || pending} type="submit">
-            Save
-          </Button>
-        </div>
-      </form>
+      </BuiltinProviderForm>
     )
   }
 
@@ -2546,18 +2588,19 @@ function BuiltinProviderPanel({
     const hasChanges = !shallowEqual(web3Form, loaded)
 
     return (
-      <form
-        className="grid gap-4"
+      <BuiltinProviderForm
+        error={error}
+        hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
           onUpdateSignIn({ builtInProviders: { web3Wallet: web3Form } })
         }}
+        pending={pending}
       >
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <BuiltInProviderSwitch
           checked={web3Form.enabled}
           description="Enable Sign In With Ethereum wallet authentication."
-          label="Wallet sign-in"
+          label="Enabled"
           onCheckedChange={(enabled) => setWeb3Form((current) => ({ ...current, enabled }))}
         />
         <Field label="Enabled chains">
@@ -2585,10 +2628,10 @@ function BuiltinProviderPanel({
           </div>
         </Field>
         <BuiltInProviderSwitch
-          checked={web3Form.anonymous}
-          description="Allow wallet-only accounts without requiring an email address."
-          label="Anonymous wallet accounts"
-          onCheckedChange={(anonymous) => setWeb3Form((current) => ({ ...current, anonymous }))}
+          checked={web3Form.allowSignUp}
+          description="Allow wallets to participate in the registration path. If a new user has no account information, they will be asked to sign in with another method first and then bind a wallet."
+          label="Allow for sign-up"
+          onCheckedChange={(allowSignUp) => setWeb3Form((current) => ({ ...current, allowSignUp }))}
         />
         <BuiltInProviderSwitch
           checked={web3Form.ensLookupEnabled}
@@ -2596,12 +2639,7 @@ function BuiltinProviderPanel({
           label="ENS lookup"
           onCheckedChange={(ensLookupEnabled) => setWeb3Form((current) => ({ ...current, ensLookupEnabled }))}
         />
-        <div className="flex justify-end gap-2">
-          <Button disabled={!hasChanges || pending} type="submit">
-            Save
-          </Button>
-        </div>
-      </form>
+      </BuiltinProviderForm>
     )
   }
 
@@ -2610,18 +2648,19 @@ function BuiltinProviderPanel({
     const hasChanges = !shallowEqual(oneTapForm, loaded)
 
     return (
-      <form
-        className="grid gap-4"
+      <BuiltinProviderForm
+        error={error}
+        hasChanges={hasChanges}
         onSubmit={(event) => {
           event.preventDefault()
           onUpdateSignIn({ builtInProviders: { oneTap: oneTapForm } })
         }}
+        pending={pending}
       >
-        {error ? <div className="text-sm text-destructive">{error}</div> : null}
         <BuiltInProviderSwitch
           checked={oneTapForm.enabled}
           description="Enable Google One Tap on hosted sign-in."
-          label="One Tap"
+          label="Enabled"
           onCheckedChange={(enabled) => setOneTapForm((current) => ({ ...current, enabled }))}
         />
         <Field label="Client ID">
@@ -2661,12 +2700,6 @@ function BuiltinProviderPanel({
           label="Cancel on outside tap"
           onCheckedChange={(cancelOnTapOutside) => setOneTapForm((current) => ({ ...current, cancelOnTapOutside }))}
         />
-        <BuiltInProviderSwitch
-          checked={oneTapForm.disableSignUp}
-          description="Only allow existing users to sign in with One Tap."
-          label="Disable sign up"
-          onCheckedChange={(disableSignUp) => setOneTapForm((current) => ({ ...current, disableSignUp }))}
-        />
         <Field label="Prompt base delay">
           <TextInput
             onChange={(event) =>
@@ -2685,12 +2718,7 @@ function BuiltinProviderPanel({
             value={String(oneTapForm.promptMaxAttempts)}
           />
         </Field>
-        <div className="flex justify-end gap-2">
-          <Button disabled={!hasChanges || pending} type="submit">
-            Save
-          </Button>
-        </div>
-      </form>
+      </BuiltinProviderForm>
     )
   }
 
@@ -2756,13 +2784,21 @@ function defaultPhoneProviderSettings(): ManagementSignInSettingsResponse['built
   }
 }
 
+function defaultEmailProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['email'] {
+  return {
+    enabled: true,
+    otpLength: 6,
+    expiresInSeconds: 300,
+  }
+}
+
 function defaultWeb3ProviderSettings(): ManagementSignInSettingsResponse['builtInProviders']['web3Wallet'] {
   return {
     enabled: false,
     chains: [1],
     domain: '',
     emailDomainName: '',
-    anonymous: true,
+    allowSignUp: true,
     ensLookupEnabled: false,
   }
 }
@@ -6069,7 +6105,7 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
   const previewMode = flow === 'email' ? 'otp' : primaryMode
   const socialProviders = preview.socialProviders ?? []
   const effectiveFlow =
-    flow === 'sign-up' && !preview.signupEnabled
+    flow === 'sign-up' && !passwordSignupEnabled(preview)
       ? 'sign-in'
       : flow === 'email' && !preview.emailOtpEnabled
         ? 'sign-in'
@@ -6215,7 +6251,7 @@ function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
                     Back to sign in
                   </button>
                 ) : null}
-                {effectiveFlow === 'sign-in' && preview.signupEnabled ? (
+                {effectiveFlow === 'sign-in' && passwordSignupEnabled(preview) ? (
                   <p className="authSignupPrompt">
                     No account yet?{' '}
                     <button className="authSignupLink" onClick={() => setFlow('sign-up')} type="button">
@@ -6261,6 +6297,10 @@ function hostedAuthMode(preview: HostedAuthPreviewState): SignInMode | null {
   if (preview.passwordEnabled !== false) return 'password'
   if (preview.emailOtpEnabled) return 'otp'
   return null
+}
+
+function passwordSignupEnabled(preview: HostedAuthPreviewState) {
+  return preview.signupEnabled && preview.passwordEnabled !== false
 }
 
 function previewSignInAction(mode: SignInMode | null) {
@@ -7559,7 +7599,8 @@ function parseConnectorMetadata(form: FormState) {
   const metadata = parseMetadata(form.providerMetadata) ?? {}
   for (const [key, value] of Object.entries(form)) {
     if (!key.startsWith('metadata.') || value === '') continue
-    metadata[key.replace('metadata.', '')] = value
+    const metadataKey = key.replace('metadata.', '')
+    metadata[metadataKey] = metadataKey === 'allowUsersWithoutEmail' ? value === 'true' : value
   }
   return Object.keys(metadata).length ? metadata : undefined
 }
@@ -7611,7 +7652,7 @@ function connectorToForm(connector: ConnectorResponse | null): FormState {
     providerMetadata: JSON.stringify(connector.providerMetadata, null, 2),
     ...Object.fromEntries(
       Object.entries(connector.providerMetadata).flatMap(([key, value]) =>
-        typeof value === 'string' ? [[`metadata.${key}`, value]] : [],
+        typeof value === 'string' || typeof value === 'boolean' ? [[`metadata.${key}`, String(value)]] : [],
       ),
     ),
   }

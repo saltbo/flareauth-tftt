@@ -122,7 +122,7 @@ export async function loadAuthConnectorConfig(repository: ConnectorRepository): 
 
     if (connector.providerType === 'social') {
       socialProviders[connector.providerId] = {
-        ...connector.providerMetadata,
+        ...signupEnabledMetadata(connector.providerMetadata),
         clientId,
         clientSecret,
         scope: connector.scopes ?? undefined,
@@ -132,7 +132,7 @@ export async function loadAuthConnectorConfig(repository: ConnectorRepository): 
     }
 
     genericOAuthProviders.push({
-      ...connector.providerMetadata,
+      ...signupEnabledMetadata(connector.providerMetadata),
       providerId: connector.providerId,
       clientId,
       clientSecret,
@@ -160,6 +160,15 @@ export async function loadAuthConnectorConfig(repository: ConnectorRepository): 
       })),
     ),
   }
+}
+
+function signupEnabledMetadata(metadata: Record<string, unknown> | null) {
+  const sanitized = { ...(metadata ?? {}) }
+  delete sanitized.disableSignUp
+  delete sanitized.disableSignup
+  delete sanitized.disableImplicitSignUp
+  delete sanitized.allowUsersWithoutEmail
+  return sanitized
 }
 
 function assertSupportedProvider(providerType: ConnectorProviderType, providerId: string) {

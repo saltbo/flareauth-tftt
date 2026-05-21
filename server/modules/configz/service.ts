@@ -91,6 +91,11 @@ const defaultCopy = {
 }
 
 export const defaultBuiltInProviders: ManagementSignInSettingsResponse['builtInProviders'] = {
+  email: {
+    enabled: true,
+    otpLength: 6,
+    expiresInSeconds: 300,
+  },
   phone: {
     enabled: false,
     smsProvider: 'twilio',
@@ -112,8 +117,11 @@ export const defaultBuiltInProviders: ManagementSignInSettingsResponse['builtInP
     chains: [1],
     domain: '',
     emailDomainName: '',
-    anonymous: true,
+    allowSignUp: true,
     ensLookupEnabled: false,
+  },
+  passkey: {
+    allowSignUp: true,
   },
   oneTap: {
     enabled: false,
@@ -155,7 +163,7 @@ export class ConfigzService {
       ? await this.options.availableIdentityProviderIds()
       : null
     const copy = readCopy(settings?.metadata)
-    const builtInProviders = readBuiltInProviders(settings?.metadata)
+    const builtInProviders = readBuiltInProviders(settings?.metadata, this.options.emailOtpEnabled)
     const passwordEnabled = settings?.passwordEnabled ?? true
     const signupEnabled = settings?.signupEnabled ?? true
     const issuer = this.options.issuer.replace(/\/$/, '')
@@ -169,16 +177,19 @@ export class ConfigzService {
         passwordEnabled,
         signupEnabled,
         socialLoginEnabled: settings?.socialLoginEnabled ?? true,
-        emailOtpEnabled: readBoolean(settings?.metadata, 'emailOtpEnabled') ?? this.options.emailOtpEnabled,
+        emailOtpEnabled: builtInProviders.email.enabled,
         usernameEnabled: this.options.usernameEnabled,
         identifierFirst: settings?.identifierFirst ?? false,
       },
       builtInProviders: {
+        email: { enabled: builtInProviders.email.enabled },
         phone: { enabled: builtInProviders.phone.enabled },
         web3Wallet: {
           enabled: builtInProviders.web3Wallet.enabled,
           chains: builtInProviders.web3Wallet.chains,
+          allowSignUp: builtInProviders.web3Wallet.allowSignUp,
         },
+        passkey: { allowSignUp: builtInProviders.passkey.allowSignUp },
         oneTap: {
           enabled: builtInProviders.oneTap.enabled,
           clientId: builtInProviders.oneTap.clientId,
@@ -263,7 +274,7 @@ export class ConfigzService {
     const settings = await this.repository.getSettings()
     return {
       signIn: config.signIn,
-      builtInProviders: readBuiltInProviders(settings?.metadata),
+      builtInProviders: readBuiltInProviders(settings?.metadata, this.options.emailOtpEnabled),
       links: config.links,
       copy: config.copy,
     }
@@ -351,22 +362,23 @@ function readCopy(metadata: Record<string, unknown> | null | undefined) {
   }
 }
 
-function readBuiltInProviders(metadata: Record<string, unknown> | null | undefined) {
+function readBuiltInProviders(metadata: Record<string, unknown> | null | undefined, emailOtpEnabled = true) {
   const value =
     metadata && typeof metadata.builtInProviders === 'object' && metadata.builtInProviders !== null
       ? (metadata.builtInProviders as Partial<ManagementSignInSettingsResponse['builtInProviders']>)
       : {}
 
   return {
-    phone: { ...defaultBuiltInProviders.phone, ...(value.phone ?? {}) },
+    email: {
+      ...defaultBuiltInProviders.email,
+      enabled: emailOtpEnabled,
+      ...(value.email ?? {}),
+    },
+    phone: { ...defaultBuiltInProviders.phone, ...(value.phone ?? {}), signUpOnVerification: false },
     web3Wallet: { ...defaultBuiltInProviders.web3Wallet, ...(value.web3Wallet ?? {}) },
-    oneTap: { ...defaultBuiltInProviders.oneTap, ...(value.oneTap ?? {}) },
+    passkey: { ...defaultBuiltInProviders.passkey, ...(value.passkey ?? {}) },
+    oneTap: { ...defaultBuiltInProviders.oneTap, ...(value.oneTap ?? {}), disableSignUp: false },
   }
-}
-
-function readBoolean(metadata: Record<string, unknown> | null | undefined, key: string) {
-  const value = metadata?.[key]
-  return typeof value === 'boolean' ? value : null
 }
 
 function readString(value: Record<string, unknown> | null, key: string) {

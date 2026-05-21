@@ -229,7 +229,7 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
           >
             Profile
           </a>
-          <DropdownMenuItem onClick={() => void onSignOut()}>退出登录</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void onSignOut()}>Sign out</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

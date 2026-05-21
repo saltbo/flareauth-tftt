@@ -49,9 +49,9 @@ test('Email connector drawer controls hosted email-code sign-in and backend enfo
 async function setEmailCodeEnabled(page: Page, enabled: boolean) {
   await signIn(page)
   await page.goto('/console/connectors')
-  await page.getByRole('button', { name: /^Email Email code sign-in/ }).click()
+  await page.getByRole('button', { name: /^Email Email sign-in provider/ }).click()
 
-  const switchControl = page.getByRole('switch', { name: 'Email code' })
+  const switchControl = page.getByRole('dialog', { name: 'Email' }).getByRole('switch', { name: 'Enabled' })
   if ((await switchControl.getAttribute('aria-checked')) !== String(enabled)) {
     await switchControl.click()
   }
@@ -59,7 +59,7 @@ async function setEmailCodeEnabled(page: Page, enabled: boolean) {
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: /^Email Email code sign-in/ })).toContainText(
+  await expect(page.getByRole('button', { name: /^Email Email sign-in provider/ })).toContainText(
     enabled ? 'Runtime enabled' : 'Runtime disabled',
   )
 }

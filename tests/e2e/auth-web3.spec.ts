@@ -8,9 +8,7 @@ test.beforeEach(async () => {
   await resetAndBootstrap()
 })
 
-test('Web3 wallet sign-in follows the real hosted SIWE flow with an external wallet boundary', async ({
-  page,
-}, testInfo) => {
+test('Web3 wallet sign-in requires an existing account binding', async ({ page }, testInfo) => {
   await signIn(page)
   const settings = await page.request.patch('/api/management/sign-in-settings', {
     data: {
@@ -18,7 +16,7 @@ test('Web3 wallet sign-in follows the real hosted SIWE flow with an external wal
         web3Wallet: {
           enabled: true,
           chains: [1],
-          anonymous: true,
+          allowSignUp: true,
           domain: '',
           emailDomainName: '',
           ensLookupEnabled: false,
@@ -27,12 +25,6 @@ test('Web3 wallet sign-in follows the real hosted SIWE flow with an external wal
     },
   })
   expect(settings.status(), await settings.text()).toBe(200)
-  await signOut(page)
-
-  await page.goto('/sign-in')
-  await expect(page.getByRole('button', { name: 'Continue with Web3 wallet' })).toBeVisible()
-  await page.getByRole('button', { name: 'Continue with Web3 wallet' }).click()
-  await expect(page.getByRole('alert')).toContainText('No wallet provider was found')
 
   const account = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
   await page.exposeFunction('signWalletMessage', (message: string) => account.signMessage({ message }))
@@ -50,10 +42,21 @@ test('Web3 wallet sign-in follows the real hosted SIWE flow with an external wal
       },
     }
   }, account.address)
-  await page.reload()
+
+  await signOut(page)
+  await page.goto('/sign-in')
   await page.getByRole('button', { name: 'Continue with Web3 wallet' }).click()
-  await page.waitForURL('**/profile')
-  await expect(page.getByRole('heading', { name: account.address })).toBeVisible()
+  await expect(page).toHaveURL(/\/auth\/callback/)
+  await expect(page.getByRole('alert')).toContainText('You do not have an account yet.')
+
+  await signIn(page)
+  await page.goto('/profile')
+  const linkResponse = page.waitForResponse(
+    (response) => response.url().includes('/api/account/wallet-addresses') && response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Connect' }).click()
+  const linked = await linkResponse
+  expect(linked.status(), await linked.text()).toBe(201)
 
   expect(walletAddressRows(account.address)).toEqual([
     expect.objectContaining({
@@ -62,6 +65,12 @@ test('Web3 wallet sign-in follows the real hosted SIWE flow with an external wal
       is_primary: 1,
     }),
   ])
+
+  await signOut(page)
+  await page.goto('/sign-in')
+  await page.getByRole('button', { name: 'Continue with Web3 wallet' }).click()
+  await page.waitForURL('**/profile')
+  await expect(page.getByRole('heading', { name: 'FlareAuth Admin' })).toBeVisible()
 
   await attachCoverage(testInfo, ['web3-wallet-sign-in'])
 })

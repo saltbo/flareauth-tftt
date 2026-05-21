@@ -325,6 +325,11 @@ async function managementSignInSettingsFromConfig(
   return {
     signIn: config.signIn,
     builtInProviders: {
+      email: {
+        enabled: config.signIn.emailOtpEnabled,
+        otpLength: 6,
+        expiresInSeconds: 300,
+      },
       phone: {
         enabled: false,
         smsProvider: 'twilio',
@@ -346,8 +351,11 @@ async function managementSignInSettingsFromConfig(
         chains: [1],
         domain: '',
         emailDomainName: '',
-        anonymous: true,
+        allowSignUp: true,
         ensLookupEnabled: false,
+      },
+      passkey: {
+        allowSignUp: true,
       },
       oneTap: {
         enabled: false,

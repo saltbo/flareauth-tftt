@@ -1,11 +1,14 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
+import { getAddress, verifyMessage } from 'viem'
+import { parseSiweMessage, validateSiweMessage } from 'viem/siwe'
 import type { z } from 'zod'
 import {
   accountEmailChangeConfirmSchema,
   accountEmailChangeSchema,
   accountPasswordChangeSchema,
   accountProfileUpdateSchema,
+  accountWalletAddressLinkSchema,
 } from '../../../shared/api/account'
 import { linkAccountRequestSchema, unlinkAccountQuerySchema } from '../../../shared/api/connectors'
 import { paginationMetadata, paginationQuerySchema } from '../../../shared/api/pagination'
@@ -18,6 +21,7 @@ import { type ConfigzAccountCenter, defaultAccountCenterSettings } from '../../m
 import { validateEmailPolicy, validatePasswordPolicy } from '../../modules/security/policy'
 import type { SecurityRepository } from '../../modules/security/repository'
 import type { UserRepository } from '../../modules/users/repository'
+import type { WalletRepository } from '../../modules/wallets/repository'
 import type { ManagementAuthApi } from '../auth-api'
 import { toBoundaryError } from '../auth-api'
 import type { ConfigzServiceFactory } from '../configz'
@@ -34,6 +38,7 @@ export function accountRoutes(
   security?: SecurityRepository,
   applicationServiceFactory: AccountApplicationServiceFactory = createApplicationService,
   configzServiceFactory?: ConfigzServiceFactory,
+  wallets?: WalletRepository,
 ) {
   const app = new Hono<{ Bindings: ApplicationBindings & ConfigzBindings }>()
 
@@ -148,6 +153,64 @@ export function accountRoutes(
       throw toBoundaryError(error)
     }
   })
+
+  if (wallets) {
+    app.post('/wallet-addresses', async (c) => {
+      await assertAccountCenterAllowed(
+        c,
+        'connectedAccountsEnabled',
+        'Connected account access is disabled for this account center.',
+        configzServiceFactory,
+      )
+      const body = await readJson(c, accountWalletAddressLinkSchema)
+      const walletAddress = getAddress(body.walletAddress)
+      const config = await accountCenterConfig(c, configzServiceFactory)
+      if (!config.builtInProviders.web3Wallet.enabled) {
+        throw forbidden('Web3 wallet linking is disabled.')
+      }
+      if (!config.builtInProviders.web3Wallet.chains.includes(body.chainId)) {
+        throw badRequest('This wallet network is not enabled.')
+      }
+
+      const nonce = await wallets.getSiweNonce(walletAddress, body.chainId)
+      if (!nonce || new Date() > nonce.expiresAt) throw forbidden('Invalid or expired wallet challenge.')
+      const nonceValue = nonce.value.split(':')[0]
+
+      const message = parseSiweMessage(body.message)
+      const valid = validateSiweMessage({
+        address: walletAddress as `0x${string}`,
+        domain: siweDomain(c, ''),
+        message,
+        nonce: nonceValue,
+      })
+      if (!valid || message.chainId !== body.chainId) throw forbidden('Invalid wallet challenge.')
+
+      const verified = await verifyMessage({
+        address: walletAddress as `0x${string}`,
+        message: body.message,
+        signature: body.signature as `0x${string}`,
+      })
+      if (!verified) throw forbidden('Invalid wallet signature.')
+
+      await wallets.deleteSiweNonce(walletAddress, body.chainId)
+      await wallets.linkWalletAddress(getAuthContext(c).user!.id, {
+        address: walletAddress,
+        chainId: body.chainId,
+      })
+      return c.json({}, 201)
+    })
+
+    app.delete('/wallet-addresses/:accountId', async (c) => {
+      await assertAccountCenterAllowed(
+        c,
+        'connectedAccountsEnabled',
+        'Connected account access is disabled for this account center.',
+        configzServiceFactory,
+      )
+      await wallets.unlinkWalletAddress(getAuthContext(c).user!.id, c.req.param('accountId'))
+      return c.body(null, 204)
+    })
+  }
 
   app.get('/linked-accounts', async (c) => {
     await assertAccountCenterAllowed(
@@ -279,6 +342,16 @@ async function accountCenterSettings(
   if (serviceFactory) return (await serviceFactory(c).getConfig()).accountCenter
   if (c.env?.DB) return (await createConfigzService(c).getConfig()).accountCenter
   return defaultAccountCenterSettings
+}
+
+async function accountCenterConfig(c: Context<{ Bindings: ConfigzBindings }>, serviceFactory?: ConfigzServiceFactory) {
+  if (serviceFactory) return serviceFactory(c).getConfig()
+  return createConfigzService(c).getConfig()
+}
+
+function siweDomain(c: Context, configuredDomain: string) {
+  if (configuredDomain.trim()) return configuredDomain.trim()
+  return new URL(c.req.url).host
 }
 
 async function assertAccountCenterAllowed(

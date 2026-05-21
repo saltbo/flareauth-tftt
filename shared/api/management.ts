@@ -43,6 +43,11 @@ export const managementErrorResponseSchema = z.object({
 })
 
 export const managementBuiltInProviderSettingsSchema = z.object({
+  email: z.object({
+    enabled: z.boolean(),
+    otpLength: z.number().int().min(4).max(10),
+    expiresInSeconds: z.number().int().min(30).max(3600),
+  }),
   phone: z.object({
     enabled: z.boolean(),
     smsProvider: z.enum(['twilio', 'vonage', 'messagebird']),
@@ -64,8 +69,11 @@ export const managementBuiltInProviderSettingsSchema = z.object({
     chains: z.array(z.number().int().positive()),
     domain: z.string(),
     emailDomainName: z.string(),
-    anonymous: z.boolean(),
+    allowSignUp: z.boolean(),
     ensLookupEnabled: z.boolean(),
+  }),
+  passkey: z.object({
+    allowSignUp: z.boolean(),
   }),
   oneTap: z.object({
     enabled: z.boolean(),
@@ -117,8 +125,10 @@ export const updateManagementSignInSettingsRequestSchema = z.object({
     .optional(),
   builtInProviders: z
     .object({
+      email: managementBuiltInProviderSettingsSchema.shape.email.partial(),
       phone: managementBuiltInProviderSettingsSchema.shape.phone.partial(),
       web3Wallet: managementBuiltInProviderSettingsSchema.shape.web3Wallet.partial(),
+      passkey: managementBuiltInProviderSettingsSchema.shape.passkey.partial(),
       oneTap: managementBuiltInProviderSettingsSchema.shape.oneTap.partial(),
     })
     .partial()

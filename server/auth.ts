@@ -201,6 +201,8 @@ export function createAuth(
         },
       }),
       emailOTP({
+        otpLength: options.builtInProviders?.email.otpLength,
+        expiresIn: options.builtInProviders?.email.expiresInSeconds,
         changeEmail: {
           enabled: true,
           verifyCurrentEmail: false,
@@ -221,12 +223,7 @@ export function createAuth(
               otpLength: options.builtInProviders.phone.otpLength,
               expiresIn: options.builtInProviders.phone.expiresInSeconds,
               requireVerification: options.builtInProviders.phone.requireVerification,
-              signUpOnVerification: options.builtInProviders.phone.signUpOnVerification
-                ? {
-                    getTempEmail: (phoneNumber) => `${phoneNumber.replace(/\D/g, '')}@phone.local`,
-                    getTempName: (phoneNumber) => phoneNumber,
-                  }
-                : undefined,
+              signUpOnVerification: undefined,
               sendOTP: async ({ phoneNumber, code }) => {
                 await sendSmsOtp(options.builtInProviders?.phone, phoneNumber, code)
               },
@@ -240,7 +237,7 @@ export function createAuth(
         ? [
             oneTap({
               clientId: options.builtInProviders.oneTap.clientId || undefined,
-              disableSignup: options.builtInProviders.oneTap.disableSignUp,
+              disableSignup: false,
             }),
           ]
         : []),
@@ -249,7 +246,7 @@ export function createAuth(
             siwe({
               domain: siweDomain(baseURL, options.builtInProviders.web3Wallet.domain),
               emailDomainName: options.builtInProviders.web3Wallet.emailDomainName || 'wallet.local',
-              anonymous: options.builtInProviders.web3Wallet.anonymous,
+              anonymous: true,
               getNonce: async () => createNonce(),
               verifyMessage: async ({ address, chainId, message, signature, cacao }) => {
                 if (!options.builtInProviders?.web3Wallet.chains.includes(chainId)) return false

@@ -2,6 +2,7 @@ import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } fr
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status'
+import { getAddress } from 'viem'
 import type {
   AccountEmailChangeConfirmInput,
   AccountEmailChangeInput,
@@ -10,6 +11,7 @@ import type {
   AccountProfileUpdateInput,
   AccountSecurityResponse,
   AccountSessionsResponse,
+  AccountWalletAddressLinkInput,
   ConsentedApplicationsResponse,
   LinkedAccountsResponse,
 } from '../shared/api/account'
@@ -113,6 +115,7 @@ import type { ConfigzBindings } from './modules/configz/context'
 import type { OnboardingRepository } from './modules/onboarding/repository'
 import type { SecurityRepository } from './modules/security/repository'
 import type { UserRepository } from './modules/users/repository'
+import type { WalletRepository } from './modules/wallets/repository'
 import { accountRoutes } from './routes/account'
 import { adminApiResourcesRoute } from './routes/admin/api-resources'
 import { adminApplicationsRoute } from './routes/admin/applications'
@@ -150,6 +153,7 @@ export interface AppOptions {
   trustedOrigins?: string[]
   userRepository?: UserRepository
   securityRepository?: SecurityRepository
+  walletRepository?: WalletRepository
   onboardingRepository?: OnboardingRepository
   securityPolicy?: SecurityPolicy
   configzServiceFactory?: ConfigzServiceFactory & ManagementConfigzServiceFactory
@@ -204,6 +208,7 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
           options.securityRepository,
           options.applicationServiceFactory,
           options.configzServiceFactory,
+          options.walletRepository,
         ),
       )
       app.route(
@@ -231,6 +236,9 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
     if (options.configzServiceFactory) {
       await requireHostedAuthMethodEnabled(c, options.configzServiceFactory)
     }
+    if (options.walletRepository) {
+      await requireLinkedSiweWallet(c, options.walletRepository)
+    }
 
     return auth.handler(c.req.raw)
   })
@@ -256,6 +264,9 @@ async function requireHostedAuthMethodEnabled(c: Context, factory: ConfigzServic
   if (!config.signIn.socialLoginEnabled && path === '/api/auth/sign-in/social') {
     throw forbidden('Social authentication is disabled.')
   }
+  if (web3WalletAuthPaths.has(path) && !config.builtInProviders.web3Wallet.enabled) {
+    throw forbidden('Web3 wallet authentication is disabled.')
+  }
 }
 
 const passwordAuthPaths = new Set([
@@ -270,14 +281,45 @@ const passwordAuthPaths = new Set([
 ])
 
 const emailOtpAuthPaths = new Set(['/api/auth/sign-in/email-otp'])
+const web3WalletAuthPaths = new Set(['/api/auth/siwe/nonce', '/api/auth/siwe/get-nonce', '/api/auth/siwe/verify'])
 
 function isManagedHostedAuthPath(path: string) {
   return (
     passwordAuthPaths.has(path) ||
     emailOtpAuthPaths.has(path) ||
+    web3WalletAuthPaths.has(path) ||
     path === '/api/auth/email-otp/send-verification-otp' ||
     path === '/api/auth/sign-in/social'
   )
+}
+
+async function requireLinkedSiweWallet(c: Context, wallets: WalletRepository) {
+  if (c.req.path !== '/api/auth/siwe/verify') return
+
+  const body = await c.req.raw
+    .clone()
+    .json()
+    .catch(() => null)
+  if (!body || typeof body !== 'object') return
+
+  const record = body as Record<string, unknown>
+  const walletAddress = typeof record.walletAddress === 'string' ? toWalletAddress(record.walletAddress) : null
+  const chainId = typeof record.chainId === 'number' ? record.chainId : 1
+  if (!walletAddress) return
+
+  const linked = await wallets.findWalletAddress(walletAddress, chainId)
+  const linkedOnAnotherChain = linked ? null : await wallets.findAnyWalletAddress(walletAddress)
+  if (!linked && !linkedOnAnotherChain) {
+    throw forbidden('This wallet is not linked to an existing account.')
+  }
+}
+
+function toWalletAddress(value: string) {
+  try {
+    return getAddress(value)
+  } catch {
+    return null
+  }
 }
 
 async function isBlockedEmailOtpRequest(c: Context) {
@@ -331,6 +373,12 @@ type RpcSchema = {
   }
   '/api/account/password/change': {
     $post: RpcEndpoint<{ json: AccountPasswordChangeInput }, EmptyResponse>
+  }
+  '/api/account/wallet-addresses': {
+    $post: RpcEndpoint<{ json: AccountWalletAddressLinkInput }, EmptyResponse, 201>
+  }
+  '/api/account/wallet-addresses/:accountId': {
+    $delete: RpcEndpoint<{ param: { accountId: string } }, EmptyResponse, 204>
   }
   '/api/account/linked-accounts': {
     $get: RpcEndpoint<RpcNoInput, LinkedAccountsResponse>
@@ -629,6 +677,7 @@ function mountRpcRoutes(app: Hono, auth: AuthHandler, options: RpcAppOptions) {
         options.securityRepository,
         options.applicationServiceFactory,
         options.configzServiceFactory,
+        options.walletRepository,
       ),
     )
     .route(

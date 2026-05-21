@@ -16,8 +16,10 @@ describe('configz routes', () => {
             identifierFirst: false,
           },
           builtInProviders: {
+            email: { enabled: true },
             phone: { enabled: false },
-            web3Wallet: { enabled: false, chains: [1] },
+            web3Wallet: { enabled: false, chains: [1], allowSignUp: true },
+            passkey: { allowSignUp: true },
             oneTap: {
               enabled: false,
               clientId: '',

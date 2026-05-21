@@ -86,10 +86,10 @@ describe('AdminShell', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Account menu' })[0])
 
     expect(screen.getByRole('menuitem', { name: 'Profile' })).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
 
-    fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
   })
 

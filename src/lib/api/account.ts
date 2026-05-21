@@ -3,6 +3,7 @@ import type {
   AccountEmailChangeInput,
   AccountPasswordChangeInput,
   AccountProfileUpdateInput,
+  AccountWalletAddressLinkInput,
 } from '@shared/api/account'
 import type {
   SecurityPasskeyRegistrationOptionsInput,
@@ -72,6 +73,21 @@ export function unlinkAccount(providerId: string, accountId: string) {
       query: { accountId },
     }),
   )
+}
+
+export async function linkWalletAddress(input: AccountWalletAddressLinkInput) {
+  return readJsonResponse<Record<string, unknown>>(
+    await fetch('/api/account/wallet-addresses', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  )
+}
+
+export async function unlinkWalletAddress(accountId: string) {
+  return readRpcResponse(apiClient.api.account['wallet-addresses'][':accountId'].$delete({ param: { accountId } }))
 }
 
 export function listConsentedApplications() {

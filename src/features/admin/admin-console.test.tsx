@@ -2206,7 +2206,14 @@ describe('admin console', () => {
       if (url === '/api/management/connectors') return Promise.resolve(jsonResponse({ connectors: [], pagination }))
       if (url === '/api/management/sign-in-settings' && method === 'GET') {
         return Promise.resolve(
-          jsonResponse({ ...signInSettings, signIn: { ...signInSettings.signIn, emailOtpEnabled: false } }),
+          jsonResponse({
+            ...signInSettings,
+            builtInProviders: {
+              ...signInSettings.builtInProviders,
+              email: { ...signInSettings.builtInProviders.email, enabled: false },
+            },
+            signIn: { ...signInSettings.signIn, emailOtpEnabled: false },
+          }),
         )
       }
       if (url === '/api/management/sign-in-settings' && method === 'PATCH') {
@@ -2232,18 +2239,20 @@ describe('admin console', () => {
     renderWithQuery(<ConnectorsPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Email.*Runtime disabled.*Not enabled/ }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Email code' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Email' })).getByRole('switch', { name: 'Enabled' }))
+    fireEvent.change(screen.getByLabelText('OTP length'), { target: { value: '8' } })
+    fireEvent.change(screen.getByLabelText('Code expiry seconds'), { target: { value: '600' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => {
       expect(requests).toContainEqual({
         url: '/api/management/sign-in-settings',
-        body: { signIn: { emailOtpEnabled: true } },
+        body: { builtInProviders: { email: { enabled: true, otpLength: 8, expiresInSeconds: 600 } } },
       })
     })
 
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Email' })).getAllByRole('button', { name: 'Close' })[0])
     fireEvent.click(await screen.findByRole('button', { name: /Passkey.*Runtime disabled.*Not enabled/ }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Passkey sign-in' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Passkey' })).getByRole('switch', { name: 'Enabled' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => {
       expect(requests).toContainEqual({
@@ -2256,7 +2265,9 @@ describe('admin console', () => {
       within(screen.getByRole('dialog', { name: 'Passkey' })).getAllByRole('button', { name: 'Close' })[0],
     )
     fireEvent.click(await screen.findByRole('button', { name: /Phone \(SMS\).*Runtime disabled.*Not enabled/ }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Phone sign-in' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Phone (SMS)' })).getByRole('switch', { name: 'Enabled' }),
+    )
     expect(
       Array.from(screen.getByLabelText('SMS provider').querySelectorAll('option')).map((option) => option.value),
     ).toEqual(['twilio', 'vonage', 'messagebird'])
@@ -2288,7 +2299,9 @@ describe('admin console', () => {
       within(screen.getByRole('dialog', { name: 'Phone (SMS)' })).getAllByRole('button', { name: 'Close' })[0],
     )
     fireEvent.click(await screen.findByRole('button', { name: /Web3 wallet.*Runtime disabled.*Not enabled/ }))
-    fireEvent.click(screen.getByRole('switch', { name: 'Wallet sign-in' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Web3 wallet' })).getByRole('switch', { name: 'Enabled' }),
+    )
     expect(screen.queryByLabelText('SIWE domain')).toBeNull()
     expect(screen.queryByLabelText('Email domain')).toBeNull()
     fireEvent.click(screen.getByLabelText('Base'))
@@ -2311,7 +2324,7 @@ describe('admin console', () => {
       within(screen.getByRole('dialog', { name: 'Web3 wallet' })).getAllByRole('button', { name: 'Close' })[0],
     )
     fireEvent.click(await screen.findByRole('button', { name: /OneTap.*Runtime disabled.*Not enabled/ }))
-    fireEvent.click(screen.getByRole('switch', { name: 'One Tap' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'OneTap' })).getByRole('switch', { name: 'Enabled' }))
     fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: 'google-client-id' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => {
@@ -2536,7 +2549,7 @@ describe('admin console', () => {
     cleanup()
     renderWithQuery(<ConnectorsPage />)
     expect((await screen.findAllByText('Provider')).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /Email.*Runtime disabled.*Not enabled/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Email.*Runtime enabled.*Enabled/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Phone \(SMS\).*Runtime disabled.*Not enabled/ })).toBeTruthy()
     expect(screen.queryByLabelText('Search social connectors')).toBeNull()
 
@@ -3215,6 +3228,7 @@ describe('admin console', () => {
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Continue with identity provider' })).toBeNull()
     expect(screen.queryByText('No account yet? Create account')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull()
 
     unmount()
     renderWithQuery(<ContentSettingsPage />)
@@ -3224,6 +3238,7 @@ describe('admin console', () => {
     expect(screen.queryByRole('button', { name: 'Password' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Continue with identity provider' })).toBeNull()
     expect(screen.queryByText('No account yet? Create account')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull()
   })
 
   it('renders hosted sign-in previews inside editable sign-in experience pages', async () => {
@@ -5725,6 +5740,11 @@ const signInSettings = {
     identifierFirst: false,
   },
   builtInProviders: {
+    email: {
+      enabled: true,
+      otpLength: 6,
+      expiresInSeconds: 300,
+    },
     phone: {
       enabled: false,
       smsProvider: 'twilio',
@@ -5746,8 +5766,11 @@ const signInSettings = {
       chains: [1],
       domain: '',
       emailDomainName: '',
-      anonymous: true,
+      allowSignUp: true,
       ensLookupEnabled: false,
+    },
+    passkey: {
+      allowSignUp: true,
     },
     oneTap: {
       enabled: false,
@@ -5935,8 +5958,10 @@ const configz = {
     identifierFirst: false,
   },
   builtInProviders: {
+    email: { enabled: true },
     phone: { enabled: false },
-    web3Wallet: { enabled: false, chains: [1] },
+    web3Wallet: { enabled: false, chains: [1], allowSignUp: true },
+    passkey: { allowSignUp: true },
     oneTap: {
       enabled: false,
       clientId: '',

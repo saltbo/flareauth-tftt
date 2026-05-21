@@ -11,9 +11,11 @@ import {
   ShieldCheck,
   Upload,
   UserRound,
+  Wallet,
 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { createSiweMessage } from 'viem/siwe'
 import { BrandIdentity, brandingStyle } from '@/components/layout/auth-layout'
 import { ProviderIcon } from '@/components/provider-icon'
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,7 @@ import {
   getAccountProfile,
   getAccountSecurity,
   linkAccount,
+  linkWalletAddress,
   listAccountSessions,
   listConsentedApplications,
   listLinkedAccounts,
@@ -47,12 +50,13 @@ import {
   revokeSession,
   startTotpEnrollment,
   unlinkAccount,
+  unlinkWalletAddress,
   updateAccountProfile,
   uploadAccountAvatar,
   verifyPasskeyRegistration,
   verifyTotp,
 } from '@/lib/api/account'
-import { signOut } from '@/lib/auth-client'
+import { requestWalletNonce, signOut } from '@/lib/auth-client'
 
 type UserProfile = {
   id: string
@@ -305,6 +309,7 @@ export function AccountCenter() {
                       confirm={setConfirmation}
                       mutate={mutate}
                       providers={config?.identityProviders ?? []}
+                      walletProvider={config?.builtInProviders.web3Wallet}
                     />
                     <ApplicationsSection applications={data.applications} confirm={setConfirmation} mutate={mutate} />
                   </section>
@@ -996,14 +1001,18 @@ function ConnectionsSection({
   confirm,
   mutate,
   providers,
+  walletProvider,
 }: {
   accounts: LinkedAccount[]
   confirm: ConfirmDestructiveHandler
   mutate: MutationHandler
   providers: IdentityProvider[]
+  walletProvider?: { enabled: boolean; allowSignUp?: boolean; chains: number[] }
 }) {
   const externalAccounts = accounts.filter((account) => account.providerId !== 'credential')
   const accountByProvider = new Map(externalAccounts.map((account) => [account.providerId, account]))
+  const walletAccounts = externalAccounts.filter((account) => account.providerId === 'siwe')
+  const walletEnabled = Boolean(walletProvider?.enabled)
 
   async function connectProvider(provider: IdentityProvider) {
     const result = await mutate(
@@ -1021,43 +1030,83 @@ function ConnectionsSection({
     if (redirectUrl) window.location.assign(redirectUrl)
   }
 
+  async function connectWallet() {
+    await mutate('Wallet linked.', () => enrollWallet(walletProvider?.chains ?? [1]))
+  }
+
   return (
     <section className="settingsPanel">
       <SubsectionTitle title="Linked accounts" description="External sign-in identities connected to this account." />
       <ItemList
         empty="No sign-in connectors are available."
         emptyDescription="Enable a social or OAuth connector before users can link one here."
-        items={providers.map((provider) => {
-          const account = accountByProvider.get(provider.providerId)
-          return {
-            id: provider.slug,
-            icon: <ProviderIcon className="providerIcon providerIconLarge" provider={provider} />,
-            title: provider.displayName,
-            meta: account ? `Linked ${formatDate(account.createdAt)}` : 'Not linked to this account.',
-            status: account ? 'Linked' : 'Available',
-            action: account ? (
-              <Button
-                onClick={() =>
-                  confirm({
-                    title: 'Unlink account',
-                    description: `${provider.displayName} will no longer be connected to your account.`,
-                    actionLabel: 'Unlink account',
-                    onConfirm: () =>
-                      mutate('Linked account removed.', () => unlinkAccount(provider.providerId, account.accountId)),
-                  })
-                }
-                type="button"
-                variant="ghost"
-              >
-                Unlink
-              </Button>
-            ) : (
-              <Button onClick={() => void connectProvider(provider)} type="button" variant="secondary">
-                Connect
-              </Button>
-            ),
-          }
-        })}
+        items={[
+          ...providers.map((provider) => {
+            const account = accountByProvider.get(provider.providerId)
+            return {
+              id: provider.slug,
+              icon: <ProviderIcon className="providerIcon providerIconLarge" provider={provider} />,
+              title: provider.displayName,
+              meta: account ? `Linked ${formatDate(account.createdAt)}` : 'Not linked to this account.',
+              status: account ? 'Linked' : 'Available',
+              action: account ? (
+                <Button
+                  onClick={() =>
+                    confirm({
+                      title: 'Unlink account',
+                      description: `${provider.displayName} will no longer be connected to your account.`,
+                      actionLabel: 'Unlink account',
+                      onConfirm: () =>
+                        mutate('Linked account removed.', () => unlinkAccount(provider.providerId, account.accountId)),
+                    })
+                  }
+                  type="button"
+                  variant="ghost"
+                >
+                  Unlink
+                </Button>
+              ) : (
+                <Button onClick={() => void connectProvider(provider)} type="button" variant="secondary">
+                  Connect
+                </Button>
+              ),
+            }
+          }),
+          ...(walletEnabled
+            ? [
+                {
+                  id: 'web3-wallet',
+                  icon: <Wallet size={16} />,
+                  title: 'Web3 wallet',
+                  meta: walletAccounts.length
+                    ? `${walletAccounts.length} wallet${walletAccounts.length === 1 ? '' : 's'} linked.`
+                    : 'Link a wallet after signing in with an email-based account.',
+                  status: walletAccounts.length ? 'Linked' : 'Available',
+                  action: walletAccounts.length ? (
+                    <Button
+                      onClick={() => {
+                        const account = walletAccounts[0]
+                        confirm({
+                          title: 'Unlink wallet',
+                          description: 'This wallet will no longer sign in to your account.',
+                          actionLabel: 'Unlink wallet',
+                          onConfirm: () => mutate('Wallet removed.', () => unlinkWalletAddress(account.accountId)),
+                        })
+                      }}
+                      type="button"
+                      variant="ghost"
+                    >
+                      Unlink
+                    </Button>
+                  ) : (
+                    <Button onClick={() => void connectWallet()} type="button" variant="secondary">
+                      Connect
+                    </Button>
+                  ),
+                },
+              ]
+            : []),
+        ]}
       />
     </section>
   )
@@ -1395,6 +1444,41 @@ async function enrollPasskey(name: string) {
   return verifyPasskeyRegistration({ response: credential, name: name || undefined })
 }
 
+async function enrollWallet(enabledChains: number[]) {
+  const ethereum = window.ethereum
+  if (!ethereum) throw new Error('No wallet provider was found in this browser.')
+
+  const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
+  const walletAddress = readFirstString(accounts)
+  if (!walletAddress) throw new Error('No wallet account was selected.')
+
+  const chainValue = await ethereum.request({ method: 'eth_chainId' })
+  const chainId = readChainId(chainValue)
+  if (!enabledChains.includes(chainId)) {
+    throw new Error(`This wallet network is not enabled. Switch to chain ${enabledChains[0]}.`)
+  }
+
+  const { nonce } = await requestWalletNonce({ walletAddress, chainId })
+  const message = createSiweMessage({
+    address: walletAddress as `0x${string}`,
+    chainId,
+    domain: window.location.host,
+    nonce,
+    statement: 'Link this wallet to FlareAuth.',
+    uri: window.location.origin,
+    version: '1',
+  })
+  const signature = readString(
+    await ethereum.request({
+      method: 'personal_sign',
+      params: [message, walletAddress],
+    }),
+  )
+  if (!signature) throw new Error('Wallet did not return a signature.')
+
+  return linkWalletAddress({ message, signature, walletAddress, chainId })
+}
+
 async function createPasskeyCredential(optionsResponse: unknown) {
   if (!navigator.credentials?.create) {
     throw new Error('Passkey registration is not supported by this browser.')
@@ -1481,6 +1565,17 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function readString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function readFirstString(value: unknown) {
+  return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : null
+}
+
+function readChainId(value: unknown) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && value.startsWith('0x')) return Number.parseInt(value, 16)
+  if (typeof value === 'string') return Number(value)
+  throw new Error('Wallet did not return a chain ID.')
 }
 
 function readRequiredString(value: unknown, field: string) {

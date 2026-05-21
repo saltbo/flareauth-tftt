@@ -53,12 +53,19 @@ export const configzConfigResponseSchema = z.object({
   }),
   signIn: configzMethodSchema,
   builtInProviders: z.object({
+    email: z.object({
+      enabled: z.boolean(),
+    }),
     phone: z.object({
       enabled: z.boolean(),
     }),
     web3Wallet: z.object({
       enabled: z.boolean(),
       chains: z.array(z.number().int().positive()),
+      allowSignUp: z.boolean(),
+    }),
+    passkey: z.object({
+      allowSignUp: z.boolean(),
     }),
     oneTap: z.object({
       enabled: z.boolean(),

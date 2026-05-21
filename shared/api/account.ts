@@ -23,10 +23,21 @@ export const accountPasswordChangeSchema = z.object({
   revokeOtherSessions: z.boolean().optional(),
 })
 
+export const accountWalletAddressLinkSchema = z.object({
+  message: z.string().min(1),
+  signature: z.string().min(1),
+  walletAddress: z
+    .string()
+    .regex(/^0[xX][a-fA-F0-9]{40}$/i)
+    .length(42),
+  chainId: z.number().int().positive(),
+})
+
 export type AccountProfileUpdateInput = z.infer<typeof accountProfileUpdateSchema>
 export type AccountEmailChangeInput = z.infer<typeof accountEmailChangeSchema>
 export type AccountEmailChangeConfirmInput = z.infer<typeof accountEmailChangeConfirmSchema>
 export type AccountPasswordChangeInput = z.infer<typeof accountPasswordChangeSchema>
+export type AccountWalletAddressLinkInput = z.infer<typeof accountWalletAddressLinkSchema>
 
 export type AccountProfileResponse = {
   user: {

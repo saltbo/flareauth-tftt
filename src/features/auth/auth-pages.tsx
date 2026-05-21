@@ -18,6 +18,7 @@ import { ProviderIcon } from '@/components/provider-icon'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Field, TextInput } from '@/components/ui/field'
 import { Status } from '@/components/ui/status'
+import { ApiRequestError } from '@/lib/api'
 import {
   requestEmailOtp,
   requestEmailOtpPasswordReset,
@@ -221,9 +222,17 @@ export function SignInPage() {
 
   async function onWalletSubmit() {
     await submitRequest(setSubmit, async () => {
-      const response = await signInWithEthereum(config?.builtInProviders.web3Wallet.chains ?? [1], callback)
-      navigateAfterAuth(response, callback)
-      return 'Signed in with wallet. Redirecting to the requested application.'
+      try {
+        const response = await signInWithEthereum(config?.builtInProviders.web3Wallet.chains ?? [1], callback)
+        navigateAfterAuth(response, callback)
+        return 'Signed in with wallet. Redirecting to the requested application.'
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.status === 403) {
+          redirectToMissingEmailSignUp()
+          return 'Redirecting to sign-in help.'
+        }
+        throw error
+      }
     })
   }
 
@@ -526,7 +535,7 @@ export function SignUpPage() {
   const authContext = authRequestContext('sign-up')
   const callback = callbackURL()
   const socialProviders = config?.identityProviders ?? []
-  const signupEnabled = config?.signIn.signupEnabled !== false
+  const signupEnabled = config?.signIn.signupEnabled !== false && config?.signIn.passwordEnabled !== false
   const resetCaptcha = () => resetCaptchaState(config, setCaptchaToken, setCaptchaResetKey)
 
   async function onSubmit(event: FormEvent) {
@@ -725,8 +734,8 @@ function SignUpDisabled({ signInAction }: { signInAction: ReactNode }) {
   return (
     <>
       <div className="authCardHeader">
-        <h2>Sign up is not available</h2>
-        <p>This deployment is not accepting new self-service accounts.</p>
+        <h2>Password sign up is not available</h2>
+        <p>Use sign in to continue with an enabled passwordless or social method.</p>
       </div>
       <div className="authLinks">{signInAction}</div>
     </>
@@ -1098,7 +1107,9 @@ function readCallbackState(search: string): { loading: false; message: string; h
     return {
       loading: false,
       message: 'Sign-in could not continue.',
-      error: params.get('error_description') ?? error,
+      error: missingEmailSignUpErrors.has(error)
+        ? missingEmailSignUpMessage
+        : (params.get('error_description') ?? error),
     }
   }
 
@@ -1162,7 +1173,11 @@ export function SignInMethodButtons({
       onProviderClick(provider)
       return
     }
-    const response = await signInWithSocial({ provider: provider.providerId, callbackURL: callback })
+    const response = await signInWithSocial({
+      provider: provider.providerId,
+      callbackURL: callback,
+      errorCallbackURL: `${window.location.origin}/auth/callback`,
+    })
     const redirectUrl = readRedirectUrl(response, { allowExternal: true })
     if (redirectUrl) window.location.assign(redirectUrl)
   }
@@ -1216,6 +1231,15 @@ export function SignInMethodButtons({
       ))}
     </fieldset>
   )
+}
+
+const missingEmailSignUpErrors = new Set(['email_not_found', 'email_is_missing', 'missing_email_signup'])
+const missingEmailSignUpMessage =
+  'You do not have an account yet. This sign-in method did not provide account information. Sign in with another method first, then link this method to your account so you can use it next time.'
+
+function redirectToMissingEmailSignUp() {
+  const params = new URLSearchParams({ error: 'missing_email_signup', error_description: missingEmailSignUpMessage })
+  window.location.assign(`/auth/callback?${params.toString()}`)
 }
 
 export function SignInCardBody({

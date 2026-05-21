@@ -10,6 +10,7 @@ import { loadAuthConnectorConfig } from '../server/modules/connectors/service'
 import { createOnboardingRepository } from '../server/modules/onboarding/repository'
 import { createSecurityRepository } from '../server/modules/security/repository'
 import { createUserRepository } from '../server/modules/users/repository'
+import { createWalletRepository } from '../server/modules/wallets/repository'
 import { managementBuiltInProviderSettingsSchema } from '../shared/api/management'
 import { type Env, type RuntimeConfig, validateEnv } from '../shared/env'
 
@@ -28,6 +29,7 @@ export default {
     return createApp(auth, {
       trustedOrigins: config.trustedOrigins,
       userRepository: createUserRepository(db),
+      walletRepository: createWalletRepository(db),
       securityRepository,
       onboardingRepository: createOnboardingRepository(env.DB),
       securityPolicy,
@@ -88,8 +90,10 @@ function mergeBuiltInProviders(
   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return defaults
   const input = stored as Partial<Record<keyof typeof defaultBuiltInProviders, unknown>>
   return {
+    email: mergeProvider(defaults.email, input.email),
     phone: mergeProvider(defaults.phone, input.phone),
     web3Wallet: mergeProvider(defaults.web3Wallet, input.web3Wallet),
+    passkey: mergeProvider(defaults.passkey, input.passkey),
     oneTap: mergeProvider(defaults.oneTap, input.oneTap),
   }
 }

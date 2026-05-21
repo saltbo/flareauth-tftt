@@ -73,8 +73,6 @@ export const connectorTemplates: ConnectorTemplate[] = [
       'providerMetadata.redirectURI',
       'providerMetadata.pkce',
       'providerMetadata.requireIssuerValidation',
-      'providerMetadata.disableImplicitSignUp',
-      'providerMetadata.disableSignUp',
       'providerMetadata.overrideUserInfo',
     ],
     defaultScopes: ['openid', 'email', 'profile'],
