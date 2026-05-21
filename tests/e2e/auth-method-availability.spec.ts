@@ -20,6 +20,10 @@ test('hosted sign-in does not show an empty-method warning when Phone is the onl
     data: {
       signIn: { passwordEnabled: false, emailOtpEnabled: false, socialLoginEnabled: false },
       builtInProviders: {
+        email: {
+          ...signInSettings.builtInProviders.email,
+          enabled: false,
+        },
         phone: {
           ...signInSettings.builtInProviders.phone,
           enabled: true,
@@ -52,7 +56,10 @@ test('hosted sign-in does not show an empty-method warning when Phone is the onl
         emailOtpEnabled: signInSettings.signIn.emailOtpEnabled,
         socialLoginEnabled: signInSettings.signIn.socialLoginEnabled,
       },
-      builtInProviders: { phone: signInSettings.builtInProviders.phone },
+      builtInProviders: {
+        email: signInSettings.builtInProviders.email,
+        phone: signInSettings.builtInProviders.phone,
+      },
     },
   })
 

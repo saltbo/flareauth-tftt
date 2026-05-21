@@ -42,7 +42,10 @@ test('disabled hosted auth providers block their native auth endpoints', async (
   const web3Nonce = await page.request.post('/api/auth/siwe/nonce', {
     data: { address: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266' },
   })
-  expect(web3Nonce.status()).toBe(404)
+  expect(web3Nonce.status()).toBe(403)
+  await expect(web3Nonce.json()).resolves.toMatchObject({
+    error: { message: 'Web3 wallet authentication is disabled.' },
+  })
 
   const passkey = await page.request.post('/api/auth/passkey/generate-authenticate-options', {
     data: {},
