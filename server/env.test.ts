@@ -60,6 +60,9 @@ describe('validateEnv', () => {
       securityPolicy: {
         mfa: {
           mode: 'optional',
+          authenticatorAppEnabled: true,
+          emailOtpEnabled: false,
+          backupCodesEnabled: true,
         },
         passkeys: {
           enabled: true,
@@ -114,6 +117,9 @@ describe('validateEnv', () => {
     ).toEqual({
       mfa: {
         mode: 'required',
+        authenticatorAppEnabled: true,
+        emailOtpEnabled: false,
+        backupCodesEnabled: true,
       },
       passkeys: {
         enabled: false,

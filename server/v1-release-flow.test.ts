@@ -671,6 +671,7 @@ function createConnectorServiceDouble() {
     displayName: 'Okta',
     enabled: true,
     clientId: 'okta-client',
+    clientSecretConfigured: true,
     clientSecret: 'secret://okta',
     issuer: null,
     authorizationEndpoint: 'https://idp.example.com/oauth2/v1/authorize',
@@ -719,7 +720,12 @@ function userHeaders() {
 
 function securityPolicy(): SecurityPolicy {
   return {
-    mfa: { mode: 'optional' },
+    mfa: {
+      mode: 'optional',
+      authenticatorAppEnabled: true,
+      emailOtpEnabled: false,
+      backupCodesEnabled: true,
+    },
     passkeys: {
       enabled: true,
       rpId: 'auth.example.com',
