@@ -83,7 +83,6 @@ test('email OTP, verification, and password reset hit real auth endpoints', asyn
   await expect(page.getByText('Email verified.')).toBeVisible()
 
   await page.goto('/forgot-password')
-  await page.getByRole('button', { name: 'OTP code' }).click()
   await page.getByLabel('Email').fill('otp-user@example.com')
   await page.getByRole('button', { name: 'Send reset code' }).click()
   const resetOtp = latestVerificationValue('otp-user@example.com')

@@ -221,7 +221,6 @@ The migration intentionally drops the old spike provider tables instead of tryin
 | Organization | Include | Use Better Auth `organization()` with `teams.enabled: false`; schema and UI are separate follow-up work. |
 | Two-Factor | Include | Use `twoFactor()` after account settings and recovery UX are implemented. |
 | Passkey | Include | Use `@better-auth/passkey`; add passkey table and client plugin with WebAuthn origin rules. |
-| Magic Link | Include | Requires Cloudflare-native email delivery before enabling. |
 | Email OTP | Include | Requires Cloudflare-native email delivery before enabling. |
 | Username | Include | Add username fields and policy before enabling. |
 | Generic OAuth/social | Include | Use `genericOAuth()` for configured social/custom upstream providers. |

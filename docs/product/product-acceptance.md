@@ -24,8 +24,8 @@ FlareAuth follows a full identity-provider product model instead of a demo-page 
 ### Included In 1.0
 
 - Public product entry with deployment status and setup routing.
-- Hosted sign-in, sign-up, password recovery, email verification, magic-link,
-  email OTP, password sign-in, social connector entry points, OIDC consent, and
+- Hosted sign-in, sign-up, password recovery, email verification, email OTP,
+  password sign-in, social connector entry points, OIDC consent, and
   sign-out.
 - OIDC provider integration through discovery, authorization code with PKCE,
   token, JWKS, userinfo, and end-session endpoints.
@@ -78,7 +78,7 @@ FlareAuth 1.0 is production ready only when all of these are true:
 | Route | 1.0 requirement | Gate |
 | --- | --- | --- |
 | `/` | Public product entry with API platform status and setup-aware CTA. | Redirects to `/onboarding` while first admin is required. |
-| `/sign-in` | Hosted sign-in page with enabled identifiers, password, magic link, email OTP, social connectors, and sign-up link. | Redirects to `/onboarding` while first admin is required. |
+| `/sign-in` | Hosted sign-in page with enabled identifiers, password, email OTP, social connectors, and sign-up link. | Redirects to `/onboarding` while first admin is required. |
 | `/sign-up` | Hosted sign-up page with enabled identifiers and password requirements. | Redirects to `/onboarding` while first admin is required. |
 | `/forgot-password` | Hosted password recovery with email OTP request and reset completion. | Redirects to `/onboarding` while first admin is required. |
 | `/email-verification` | Hosted email verification request and OTP completion. | Redirects to `/onboarding` while first admin is required. |
@@ -160,7 +160,7 @@ claimed.
 | Applications | Name, slug, client ID, client type, description, homepage/icon, redirect URIs, post sign-out redirect URIs, CORS origins, grant types, scopes, PKCE, token endpoint auth method, secret metadata, first-party/trusted flags, disabled state. |
 | Connectors | Provider type, provider ID, display name, enabled state, client ID, secret binding, scopes, authorization URL, token URL, userinfo URL, icon/logo. |
 | Users | Search, identifiers, display name, avatar, role/admin state, banned state, email verification, password reset action, sessions, linked accounts, organizations, roles, MFA/passkeys. |
-| Sign-in experience | Password, sign-up, social login, magic link, email OTP, username, identifier-first, default application, default redirect URI, terms URI, privacy URI, support email, hosted copy. |
+| Sign-in experience | Password, sign-up, social login, email OTP, username, identifier-first, default application, default redirect URI, terms URI, privacy URI, support email, hosted copy. |
 | Branding | Product name, headline/description, logo URL, dark logo URL, favicon URL, primary color, dark primary color, background color, custom CSS, preview evidence. |
 | Security | MFA mode, TOTP enrollment, passkeys enabled, RP ID, RP name, WebAuthn origins, session expiration, session update age, fresh age, cookie cache, password policy readiness. |
 | Account Center | Profile edit permissions, email/password change, MFA field permission, passkey registration/management, linked account unlink, session list/revoke, authorized app list/revoke, sensitive-change verification. |
@@ -200,7 +200,7 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
     {
       "id": "email_delivery",
       "label": "Confirm email delivery",
-      "description": "Email binding and sender settings are needed for verification, OTP, magic link, and reset flows.",
+      "description": "Email binding and sender settings are needed for verification, OTP, and reset flows.",
       "status": "action_needed",
       "href": "/admin/deployment",
       "action": "Review deployment"
@@ -226,7 +226,7 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
 | Surface | Acceptance |
 | --- | --- |
 | Public home | Shows API platform status, links to hosted auth/setup routes, and never exposes admin-only data. |
-| Hosted sign-in | Renders only enabled methods, posts to Better Auth-native routes, preserves `return_to`, and supports password, magic link, email OTP, and social connector entry points. |
+| Hosted sign-in | Renders only enabled methods, posts to Better Auth-native routes, preserves `return_to`, and supports password, email OTP, and social connector entry points. |
 | Hosted sign-up | Creates an account through enabled identifiers and redirects into the authenticated product journey. |
 | Recovery and verification | Request and completion steps are separate, user-visible, reload-safe, and backed by configured email flows. |
 | OAuth consent | Shows client name, redirect URI context, requested scopes, approve/deny actions, and records consent against the application. |

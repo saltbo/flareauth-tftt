@@ -605,7 +605,7 @@ describe('hosted auth pages', () => {
     )
   })
 
-  it('preserves app-specific recovery context in password reset email links', async () => {
+  it('preserves app-specific recovery context while requesting OTP password reset codes', async () => {
     window.history.pushState(
       null,
       '',
@@ -621,19 +621,16 @@ describe('hosted auth pages', () => {
 
     render(<ForgotPasswordPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'OTP code' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Email link' }))
+    expect(await screen.findByRole('heading', { name: 'Recover access for client.example.com.' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Email link' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'OTP code' })).toBeNull()
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset email' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }))
 
     await waitFor(() => {
       expect(requests).toContainEqual({
-        url: '/api/auth/request-password-reset',
-        body: {
-          email: 'jane@example.com',
-          redirectTo:
-            'http://localhost:3000/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
-        },
+        url: '/api/auth/email-otp/request-password-reset',
+        body: { email: 'jane@example.com' },
       })
     })
   })
@@ -861,18 +858,10 @@ describe('hosted auth pages', () => {
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('new-password')
 
     cleanup()
-    window.history.pushState(null, '', '/forgot-password?token=reset-token')
-    render(<ForgotPasswordPage />)
-
-    expect((await screen.findByLabelText('New password')).getAttribute('autocomplete')).toBe('new-password')
-
-    cleanup()
     window.history.pushState(null, '', '/forgot-password')
     render(<ForgotPasswordPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'OTP code' }))
-    expect(document.querySelector('.segmented')?.children).toHaveLength(2)
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
+    fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'jane@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }))
 
     expect((await screen.findByLabelText('New password')).getAttribute('autocomplete')).toBe('new-password')
@@ -1186,7 +1175,10 @@ describe('hosted auth pages', () => {
 
     render(<ForgotPasswordPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'OTP code' }))
+    expect(await screen.findByRole('heading', { name: 'Reset with an OTP code' })).toBeTruthy()
+    expect(screen.queryByText('Choose a recovery method')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Email link' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'OTP code' })).toBeNull()
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }))
 
@@ -1207,78 +1199,6 @@ describe('hosted auth pages', () => {
       expect(requests).toContainEqual({
         url: '/api/auth/email-otp/reset-password',
         body: { email: 'jane@example.com', otp: '123456', password: 'new-password' },
-      })
-    })
-  })
-
-  it('returns from OTP password reset to recovery method selection', async () => {
-    vi.spyOn(window, 'fetch').mockImplementation((input) => {
-      const url = String(input)
-      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
-      return Promise.resolve(jsonResponse({ success: true }))
-    })
-
-    render(<ForgotPasswordPage />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'OTP code' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }))
-
-    expect(await screen.findByLabelText('One-time code')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('One-time code'), { target: { value: '123456' } })
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Change recovery method' }))
-
-    expect(screen.queryByLabelText('One-time code')).toBeNull()
-    expect(screen.queryByLabelText('New password')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Send reset code' })).toBeTruthy()
-  })
-
-  it('requests password reset email links through native auth', async () => {
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
-      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-      return Promise.resolve(jsonResponse({ success: true }))
-    })
-
-    render(<ForgotPasswordPage />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'OTP code' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Email link' }))
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jane@example.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send reset email' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/auth/request-password-reset',
-        body: { email: 'jane@example.com', redirectTo: 'http://localhost:3000/forgot-password' },
-      })
-    })
-  })
-
-  it('renders token password reset with a username field for password managers', async () => {
-    window.history.pushState(null, '', '/forgot-password?token=token-1')
-    const requests: Array<{ url: string; body: unknown }> = []
-    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
-      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-      return Promise.resolve(jsonResponse({ success: true }))
-    })
-
-    render(<ForgotPasswordPage />)
-
-    expect((await screen.findByLabelText('New password')).getAttribute('autocomplete')).toBe('new-password')
-    expect(document.querySelector('input[autocomplete="username"]')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
-
-    await waitFor(() => {
-      expect(requests).toContainEqual({
-        url: '/api/auth/reset-password',
-        body: { token: 'token-1', newPassword: 'new-password' },
       })
     })
   })

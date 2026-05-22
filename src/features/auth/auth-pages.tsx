@@ -22,10 +22,8 @@ import { ApiRequestError } from '@/lib/api'
 import {
   requestEmailOtp,
   requestEmailOtpPasswordReset,
-  requestPasswordReset,
   requestPhoneOtp,
   requestWalletNonce,
-  resetPassword,
   resetPasswordWithEmailOtp,
   signInWithEmailOtp,
   signInWithOneTap,
@@ -852,22 +850,12 @@ export function ForgotPasswordPage() {
   const [password, setPassword] = useState('')
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaResetKey, setCaptchaResetKey] = useState(0)
-  const [resetMethod, setResetMethod] = useState<'email' | 'otp'>('email')
   const [otpRequested, setOtpRequested] = useState(false)
-  const token = new URLSearchParams(window.location.search).get('token')
-  const otpResetEnabled = config?.signIn.emailOtpEnabled === true
   const authContext = authRequestContext('recovery')
   const resetCaptcha = () => resetCaptchaState(config, setCaptchaToken, setCaptchaResetKey)
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     await submitRequest(setSubmit, async () => {
-      if (token) {
-        await resetPassword({
-          token,
-          newPassword: password,
-        })
-        return 'Password reset. You can sign in with the new password.'
-      }
       if (otpRequested && otp && password) {
         await resetPasswordWithEmailOtp({
           email,
@@ -876,25 +864,13 @@ export function ForgotPasswordPage() {
         })
         return 'Password reset. You can sign in with the new password.'
       }
-      if (resetMethod === 'otp' && otpResetEnabled) {
-        try {
-          await requestEmailOtpPasswordReset({
-            email,
-            captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
-          })
-          setOtpRequested(true)
-          return 'Password reset code sent.'
-        } finally {
-          resetCaptcha()
-        }
-      }
       try {
-        await requestPasswordReset({
+        await requestEmailOtpPasswordReset({
           email,
-          redirectTo: `${window.location.origin}${authPageHref('/forgot-password')}`,
           captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
         })
-        return 'Password reset email sent.'
+        setOtpRequested(true)
+        return 'Password reset code sent.'
       } finally {
         resetCaptcha()
       }
@@ -905,54 +881,29 @@ export function ForgotPasswordPage() {
       config={config}
       eyebrow="Account recovery"
       title={authContext.title ?? tt('Recover your password.')}
-      description={
-        authContext.description ?? tt('Request a reset email or finish the reset with a token or one-time code.')
-      }
+      description={authContext.description ?? tt('Request a one-time code and set a new password for your account.')}
     >
       <div className="authCardHeader">
-        <h2>{token || otpRequested ? tt('Set a new password') : tt('Choose a recovery method')}</h2>
+        <h2>{otpRequested ? tt('Set a new password') : tt('Reset with an OTP code')}</h2>
         <p>
-          {token || otpRequested
+          {otpRequested
             ? tt('Enter the new password for this account.')
-            : tt('Use a reset link or a one-time code sent to your email.')}
+            : tt('We will send a one-time code to your email address.')}
         </p>
       </div>
       <form className="formStack" onSubmit={onSubmit}>
-        {otpResetEnabled && !token ? (
-          <div className="segmented" role="tablist" aria-label={tt('Password reset method')}>
-            <button
-              className={resetMethod === 'email' ? 'active' : ''}
-              onClick={() => setResetMethod('email')}
-              type="button"
-            >
-              {' '}
-              {tt('Email link')}{' '}
-            </button>
-            <button
-              className={resetMethod === 'otp' ? 'active' : ''}
-              onClick={() => setResetMethod('otp')}
-              type="button"
-            >
-              {' '}
-              {tt('OTP code')}{' '}
-            </button>
-          </div>
-        ) : null}
-        {!token ? (
-          <Field label={tt('Email')}>
-            <TextInput
-              autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              type="email"
-              value={email}
-            />
-          </Field>
-        ) : null}
-        {!token && !otpRequested ? (
-          <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} />
-        ) : null}
-        {otpResetEnabled && resetMethod === 'otp' && otpRequested && !token ? (
+        <Field label={tt('Email')}>
+          <TextInput
+            autoComplete="email"
+            onChange={(event) => setEmail(event.target.value)}
+            readOnly={otpRequested}
+            required
+            type="email"
+            value={email}
+          />
+        </Field>
+        {!otpRequested ? <CaptchaTokenField key={captchaResetKey} config={config} onChange={setCaptchaToken} /> : null}
+        {otpRequested ? (
           <Field label={tt('One-time code')}>
             <TextInput
               autoComplete="one-time-code"
@@ -962,8 +913,8 @@ export function ForgotPasswordPage() {
             />
           </Field>
         ) : null}
-        {token || otpRequested ? <input autoComplete="username" hidden readOnly type="text" value={email} /> : null}
-        {token || otpRequested ? (
+        {otpRequested ? <input autoComplete="username" hidden readOnly type="text" value={email} /> : null}
+        {otpRequested ? (
           <Field label={tt('New password')}>
             <PasswordInput
               autoComplete="new-password"
@@ -975,27 +926,11 @@ export function ForgotPasswordPage() {
           </Field>
         ) : null}
         <Button disabled={submit.loading} type="submit">
-          {token || otpRequested
-            ? tt('Reset password')
-            : resetMethod === 'otp' && otpResetEnabled
-              ? tt('Send reset code')
-              : tt('Send reset email')}
+          {otpRequested ? tt('Reset password') : tt('Send reset code')}
         </Button>
       </form>
       <SubmitStatus state={submit} />
       <div className="authLinks">
-        {otpRequested && !token ? (
-          <button
-            onClick={() => {
-              setOtpRequested(false)
-              setOtp('')
-              setPassword('')
-            }}
-            type="button"
-          >
-            <ArrowLeft size={16} /> {tt('Change recovery method')}{' '}
-          </button>
-        ) : null}
         <a href={authPageHref('/sign-in')}>{tt('Back to sign in')}</a>
       </div>
     </AuthLayout>
