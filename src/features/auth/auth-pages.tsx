@@ -883,12 +883,6 @@ export function ForgotPasswordPage() {
       title={authContext.title ?? tt('Recover your password.')}
       description={authContext.description ?? tt('Request a one-time code and set a new password for your account.')}
     >
-      {otpRequested ? (
-        <div className="authCardHeader">
-          <h2>{tt('Set a new password')}</h2>
-          <p>{tt('Enter the new password for this account.')}</p>
-        </div>
-      ) : null}
       <form className="formStack" onSubmit={onSubmit}>
         <Field label={tt('Email')}>
           <TextInput

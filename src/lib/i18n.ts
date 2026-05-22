@@ -829,8 +829,6 @@ Object.assign(zhFlatTranslations, {
   'Use this when you need to rotate your hosted sign-in password.': '需要轮换托管登录密码时使用此项。',
   'Web3 wallet': 'Web3 钱包',
   or: '或',
-  'Set a new password': '设置新密码',
-  'Enter the new password for this account.': '输入此账户的新密码。',
   'Verify this email link': '验证此邮箱链接',
   'Complete verification with this secure link.': '使用此安全链接完成验证。',
   'Send a verification email or enter a code.': '发送验证邮件或输入验证码。',
