@@ -6,6 +6,8 @@ import {
   Boxes,
   Building2,
   Cable,
+  Check,
+  ChevronRight,
   Code2,
   Fingerprint,
   Gauge,
@@ -29,6 +31,9 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getAccountProfile } from '@/lib/api/account'
@@ -260,7 +265,7 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
         <DropdownMenuGroup>
           <ConsoleAccountSummary profile={profile} />
           <ConsolePreferenceMenu />
-          <hr className="my-2 border-border" />
+          <hr className="my-1 border-border" />
           <a
             className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
             href="/profile"
@@ -292,9 +297,8 @@ function ConsolePreferenceMenu() {
   const { setTheme, theme } = useTheme()
   const language = normalizeLanguage(i18n.language)
   return (
-    <fieldset className="consolePreferenceMenu">
-      <legend className="sr-only">{tt('Preferences')}</legend>
-      <ConsolePreferenceRow
+    <>
+      <ConsolePreferenceSubmenu
         icon={<Languages aria-hidden="true" className="size-4" />}
         label={tt('common.language')}
         options={[
@@ -310,7 +314,7 @@ function ConsolePreferenceMenu() {
           },
         ]}
       />
-      <ConsolePreferenceRow
+      <ConsolePreferenceSubmenu
         icon={
           theme === 'dark' ? (
             <Moon aria-hidden="true" className="size-4" />
@@ -332,10 +336,10 @@ function ConsolePreferenceMenu() {
           },
         ]}
       />
-    </fieldset>
+    </>
   )
 }
-function ConsolePreferenceRow({
+function ConsolePreferenceSubmenu({
   icon,
   label,
   options,
@@ -345,25 +349,29 @@ function ConsolePreferenceRow({
   options: Array<{ active: boolean; label: string; onSelect: () => void }>
 }) {
   return (
-    <div className="consolePreferenceRow">
-      <div className="consolePreferenceLabel">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="consolePreferenceOptions">
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="consoleSubmenuTrigger">
+        <span className="flex min-w-0 items-center gap-2">
+          {icon}
+          <span className="truncate">{label}</span>
+        </span>
+        <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="consoleSubmenuContent bg-popover text-popover-foreground">
         {options.map((option) => (
-          <button
-            aria-pressed={option.active}
-            className={cn('consolePreferenceOption', option.active && 'isActive')}
+          <DropdownMenuItem
+            className="consoleSubmenuItem"
             key={option.label}
             onClick={option.onSelect}
-            type="button"
+            role="menuitemradio"
+            aria-checked={option.active}
           >
+            <Check aria-hidden="true" className={cn('size-4', !option.active && 'invisible')} />
             {option.label}
-          </button>
+          </DropdownMenuItem>
         ))}
-      </div>
-    </div>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }
 function ConsoleAvatar({ profile }: { profile: AccountProfileResponse['user'] | null }) {

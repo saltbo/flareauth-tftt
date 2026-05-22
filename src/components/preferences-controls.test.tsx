@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PreferencesControls } from '@/components/preferences-controls'
 import { i18n, normalizeLanguage } from '@/lib/i18n'
 import { ThemeProvider, useTheme } from '@/lib/theme'
@@ -65,6 +65,25 @@ describe('theme preference fallback', () => {
 
     expect(screen.getByText('dark')).toBeTruthy()
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+  })
+
+  it('uses the system color scheme when no theme is stored', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+      }),
+    )
+
+    render(
+      <ThemeProvider>
+        <ThemeProbe />
+      </ThemeProvider>,
+    )
+
+    expect(screen.getByText('dark')).toBeTruthy()
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+    vi.unstubAllGlobals()
   })
 
   it('applies theme updates when useTheme is used without a provider', async () => {

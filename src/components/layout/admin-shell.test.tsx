@@ -87,10 +87,18 @@ describe('AdminShell', () => {
 
     expect(await screen.findByText('Admin User')).toBeTruthy()
     expect(screen.getByText('admin@example.com')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'EN' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: '中文' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'Light' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Dark' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('menuitem', { name: /Language/ }).getAttribute('aria-haspopup')).toBe('menu')
+    expect(screen.getByRole('menuitem', { name: /Theme/ }).getAttribute('aria-haspopup')).toBe('menu')
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Language/ }))
+
+    expect(screen.getByRole('menuitemradio', { name: 'EN' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('menuitemradio', { name: '中文' }).getAttribute('aria-checked')).toBe('false')
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Theme/ }))
+
+    expect(screen.getByRole('menuitemradio', { name: 'Light' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('menuitemradio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByRole('menuitem', { name: 'Profile' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile')

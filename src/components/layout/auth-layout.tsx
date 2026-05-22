@@ -1,7 +1,6 @@
 import type { ConfigzConfigResponse } from '@shared/api/configz'
 import { ArrowLeft } from 'lucide-react'
 import { type CSSProperties, createElement, type ReactNode, useEffect } from 'react'
-import { PreferencesControls } from '@/components/preferences-controls'
 import { tt } from '@/lib/i18n'
 
 type AuthLayoutProps = {
@@ -42,7 +41,6 @@ export function AuthLayout({
           {backLabel ?? tt('auth.back')}
         </a>
       ) : null}
-      <PreferencesControls className="authPreferences" />
       <AuthCardFrame
         brand={icon ? <div className="authMessageIcon">{icon}</div> : <BrandIdentity config={config} />}
         description={description}

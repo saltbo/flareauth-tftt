@@ -120,6 +120,8 @@ describe('AuthLayout', () => {
     expect(screen.getByText('Acme ID')).toBeTruthy()
     expect(screen.getByText('Hosted sign-in')).toBeTruthy()
     expect(screen.getByText('Form')).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: 'Language' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Theme' })).toBeNull()
   })
 
   it('returns default brand style when config is not loaded', () => {

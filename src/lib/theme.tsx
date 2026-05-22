@@ -37,7 +37,9 @@ export function useTheme() {
 
 function readStoredTheme(): Theme {
   const stored = window.localStorage.getItem(themeStorageKey)
-  return stored === 'dark' ? 'dark' : 'light'
+  if (stored === 'dark' || stored === 'light') return stored
+  if (!window.matchMedia) return 'light'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 function applyTheme(theme: Theme) {

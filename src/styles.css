@@ -218,12 +218,6 @@ textarea {
   font: inherit;
 }
 
-.authPreferences {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-}
-
 .consolePreferences {
   display: inline-flex;
 }
@@ -403,60 +397,26 @@ textarea {
   padding: 6px 6px 10px;
 }
 
-.consolePreferenceMenu {
-  display: grid;
+.consoleSubmenuTrigger {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dropdownSubContent {
+  display: none;
+}
+
+.dropdownSub:hover > .dropdownSubContent,
+.dropdownSub:focus-within > .dropdownSubContent {
+  display: block;
+}
+
+.consoleSubmenuContent {
+  min-width: 132px;
+}
+
+.consoleSubmenuItem {
   gap: 8px;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-}
-
-.consolePreferenceRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.consolePreferenceLabel {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.consolePreferenceOptions {
-  display: inline-grid;
-  grid-auto-flow: column;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--muted-color);
-}
-
-.consolePreferenceOption {
-  min-width: 44px;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 5px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.consolePreferenceOption:hover {
-  color: var(--foreground);
-}
-
-.consolePreferenceOption.isActive {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgb(20 20 19 / 8%);
 }
 
 .shell {
@@ -2375,11 +2335,6 @@ main:not(.shell):not(.authShell) h1 {
   .authBackLink {
     top: 14px;
     left: 14px;
-  }
-
-  .authPreferences {
-    top: 14px;
-    right: 14px;
   }
 
   .consolePreferences {
