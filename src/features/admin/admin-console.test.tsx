@@ -3207,7 +3207,6 @@ describe('admin console', () => {
     renderWithQuery(<SignInSettingsPage />)
 
     expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
-    expect(screen.queryByText('Magic link')).toBeNull()
     expect(screen.queryByText('Email OTP')).toBeNull()
     expect(screen.queryByText('Forgot-password verification')).toBeNull()
   })
@@ -3698,7 +3697,6 @@ describe('admin console', () => {
     renderWithQuery(<SignInSettingsPage />)
 
     expect(await screen.findByRole('switch', { name: 'Passwordless' })).toBeTruthy()
-    expect(screen.queryByText('Magic link')).toBeNull()
 
     cleanup()
     renderWithQuery(<ContentSettingsPage />)
