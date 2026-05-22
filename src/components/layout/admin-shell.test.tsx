@@ -102,6 +102,8 @@ describe('AdminShell', () => {
     expect(screen.getByRole('menuitem', { name: 'Profile' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+    const menuItems = screen.getAllByRole('menuitem').map((item) => item.textContent)
+    expect(menuItems).toEqual(['Profile', 'Language', 'Theme', 'Sign out'])
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))

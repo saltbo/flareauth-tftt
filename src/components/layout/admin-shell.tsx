@@ -264,8 +264,6 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
       <DropdownMenuContent className="w-72 bg-popover p-2 text-popover-foreground">
         <DropdownMenuGroup>
           <ConsoleAccountSummary profile={profile} />
-          <ConsolePreferenceMenu />
-          <hr className="my-1 border-border" />
           <a
             className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
             href="/profile"
@@ -273,6 +271,9 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
           >
             {tt('common.profile')}
           </a>
+          <hr className="my-1 border-border" />
+          <ConsolePreferenceMenu />
+          <hr className="my-1 border-border" />
           <DropdownMenuItem onClick={() => void onSignOut()}>{tt('common.signOut')}</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
