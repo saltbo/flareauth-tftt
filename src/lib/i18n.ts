@@ -210,6 +210,7 @@ const zhFlatTranslations: Record<string, string> = {
   Required: '必填',
   Resend: '重新发送',
   'Resend code': '重新发送验证码',
+  'Resend code in {{seconds}}s': '{{seconds}} 秒后重新发送验证码',
   Resource: '资源',
   Retry: '重试',
   Revoke: '撤销',

@@ -142,6 +142,7 @@ const consentResponse = {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   delete window.turnstile
   delete window.ethereum
@@ -1188,6 +1189,7 @@ describe('hosted auth pages', () => {
         body: { email: 'jane@example.com' },
       })
     })
+    expect((screen.getByRole('button', { name: /Resend code in \d+s/ }) as HTMLButtonElement).disabled).toBe(true)
 
     fireEvent.change(await screen.findByLabelText('One-time code'), { target: { value: '123456' } })
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password' } })

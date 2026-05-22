@@ -48,6 +48,7 @@ type SubmitState = {
 }
 type SignInMode = 'password' | 'otp' | 'phone'
 type SignInStep = 'credential' | 'otp-code'
+const passwordResetResendCooldownSeconds = 60
 declare global {
   interface Window {
     turnstile?: {
@@ -851,8 +852,28 @@ export function ForgotPasswordPage() {
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const [otpRequested, setOtpRequested] = useState(false)
+  const [resendSeconds, setResendSeconds] = useState(0)
   const authContext = authRequestContext('recovery')
   const resetCaptcha = () => resetCaptchaState(config, setCaptchaToken, setCaptchaResetKey)
+  useEffect(() => {
+    if (resendSeconds <= 0) return
+    const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000)
+    return () => window.clearTimeout(timer)
+  }, [resendSeconds])
+  async function requestResetCode() {
+    try {
+      await requestEmailOtpPasswordReset({
+        email,
+        captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
+      })
+      setOtp('')
+      setOtpRequested(true)
+      setResendSeconds(passwordResetResendCooldownSeconds)
+      return 'Password reset code sent.'
+    } finally {
+      resetCaptcha()
+    }
+  }
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     await submitRequest(setSubmit, async () => {
@@ -864,16 +885,7 @@ export function ForgotPasswordPage() {
         })
         return 'Password reset. You can sign in with the new password.'
       }
-      try {
-        await requestEmailOtpPasswordReset({
-          email,
-          captchaToken: config?.captcha?.enabled ? captchaToken : undefined,
-        })
-        setOtpRequested(true)
-        return 'Password reset code sent.'
-      } finally {
-        resetCaptcha()
-      }
+      return requestResetCode()
     })
   }
   return (
@@ -904,6 +916,16 @@ export function ForgotPasswordPage() {
               value={otp}
             />
           </Field>
+        ) : null}
+        {otpRequested ? (
+          <button
+            className="authInlineAction"
+            disabled={submit.loading || resendSeconds > 0}
+            onClick={() => submitRequest(setSubmit, requestResetCode)}
+            type="button"
+          >
+            {resendSeconds > 0 ? tt('Resend code in {{seconds}}s', { seconds: resendSeconds }) : tt('Resend code')}
+          </button>
         ) : null}
         {otpRequested ? <input autoComplete="username" hidden readOnly type="text" value={email} /> : null}
         {otpRequested ? (
