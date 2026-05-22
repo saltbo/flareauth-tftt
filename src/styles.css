@@ -397,9 +397,35 @@ textarea {
   padding: 6px 6px 10px;
 }
 
+.consoleAccountMenuItem {
+  display: flex;
+  min-height: 36px;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.consoleAccountMenuItem:hover {
+  background: var(--muted-color);
+}
+
+.consoleAccountMenuItemDanger {
+  color: var(--destructive);
+}
+
+.consoleAccountMenuItemDanger:hover {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+}
+
 .consoleSubmenuTrigger {
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .dropdownSubContent {

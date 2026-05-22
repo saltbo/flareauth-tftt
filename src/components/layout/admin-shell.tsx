@@ -14,6 +14,7 @@ import {
   KeyRound,
   Languages,
   LockKeyhole,
+  LogOut,
   Menu,
   Moon,
   Network,
@@ -21,6 +22,7 @@ import {
   Shield,
   ShieldCheck,
   Sun,
+  UserRound,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -264,17 +266,20 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
       <DropdownMenuContent className="w-72 bg-popover p-2 text-popover-foreground">
         <DropdownMenuGroup>
           <ConsoleAccountSummary profile={profile} />
-          <a
-            className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
-            href="/profile"
-            role="menuitem"
-          >
-            {tt('common.profile')}
+          <a className="consoleAccountMenuItem" href="/profile" role="menuitem">
+            <UserRound aria-hidden="true" className="size-4 text-muted-foreground" />
+            <span className="truncate">{tt('common.profile')}</span>
           </a>
           <hr className="my-1 border-border" />
           <ConsolePreferenceMenu />
           <hr className="my-1 border-border" />
-          <DropdownMenuItem onClick={() => void onSignOut()}>{tt('common.signOut')}</DropdownMenuItem>
+          <DropdownMenuItem
+            className="consoleAccountMenuItem consoleAccountMenuItemDanger"
+            onClick={() => void onSignOut()}
+          >
+            <LogOut aria-hidden="true" className="size-4" />
+            <span className="truncate">{tt('common.signOut')}</span>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -351,7 +356,7 @@ function ConsolePreferenceSubmenu({
 }) {
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="consoleSubmenuTrigger">
+      <DropdownMenuSubTrigger className="consoleAccountMenuItem consoleSubmenuTrigger">
         <span className="flex min-w-0 items-center gap-2">
           {icon}
           <span className="truncate">{label}</span>
