@@ -10,17 +10,20 @@ import {
   Fingerprint,
   Gauge,
   KeyRound,
+  Languages,
   LockKeyhole,
   Menu,
+  Moon,
   Network,
   Settings,
   Shield,
   ShieldCheck,
+  Sun,
   UsersRound,
   X,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
-import { PreferencesControls } from '@/components/preferences-controls'
+import { useTranslation } from 'react-i18next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +33,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getAccountProfile } from '@/lib/api/account'
 import { signOut } from '@/lib/auth-client'
-import { tt } from '@/lib/i18n'
+import { normalizeLanguage, tt } from '@/lib/i18n'
+import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
 type ConsoleNavItem = {
@@ -252,12 +256,11 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
       <DropdownMenuTrigger aria-label={tt('console.accountMenu')} className="size-9 rounded-full p-0">
         <ConsoleAvatar profile={profile} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-64">
+      <DropdownMenuContent className="w-72 bg-popover p-2 text-popover-foreground">
         <DropdownMenuGroup>
-          <div className="consoleAccountMenuPreferences">
-            <PreferencesControls className="consoleMenuPreferences" />
-          </div>
-          <hr className="my-1 border-border" />
+          <ConsoleAccountSummary profile={profile} />
+          <ConsolePreferenceMenu />
+          <hr className="my-2 border-border" />
           <a
             className="flex min-h-8 w-full items-center rounded-sm px-2 text-left text-sm hover:bg-muted"
             href="/profile"
@@ -269,6 +272,98 @@ function ConsoleAccountMenu({ profile }: { profile: AccountProfileResponse['user
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+function ConsoleAccountSummary({ profile }: { profile: AccountProfileResponse['user'] | null }) {
+  return (
+    <div className="consoleAccountMenuSummary">
+      <ConsoleAvatar profile={profile} />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold">
+          {profile?.displayName || profile?.name || tt('common.profile')}
+        </p>
+        {profile?.email ? <p className="truncate text-xs text-muted-foreground">{profile.email}</p> : null}
+      </div>
+    </div>
+  )
+}
+function ConsolePreferenceMenu() {
+  const { i18n } = useTranslation()
+  const { setTheme, theme } = useTheme()
+  const language = normalizeLanguage(i18n.language)
+  return (
+    <fieldset className="consolePreferenceMenu">
+      <legend className="sr-only">{tt('Preferences')}</legend>
+      <ConsolePreferenceRow
+        icon={<Languages aria-hidden="true" className="size-4" />}
+        label={tt('common.language')}
+        options={[
+          {
+            active: language === 'en',
+            label: tt('EN'),
+            onSelect: () => void i18n.changeLanguage('en'),
+          },
+          {
+            active: language === 'zh',
+            label: '中文',
+            onSelect: () => void i18n.changeLanguage('zh'),
+          },
+        ]}
+      />
+      <ConsolePreferenceRow
+        icon={
+          theme === 'dark' ? (
+            <Moon aria-hidden="true" className="size-4" />
+          ) : (
+            <Sun aria-hidden="true" className="size-4" />
+          )
+        }
+        label={tt('common.theme')}
+        options={[
+          {
+            active: theme === 'light',
+            label: tt('common.light'),
+            onSelect: () => setTheme('light'),
+          },
+          {
+            active: theme === 'dark',
+            label: tt('common.dark'),
+            onSelect: () => setTheme('dark'),
+          },
+        ]}
+      />
+    </fieldset>
+  )
+}
+function ConsolePreferenceRow({
+  icon,
+  label,
+  options,
+}: {
+  icon: ReactNode
+  label: string
+  options: Array<{ active: boolean; label: string; onSelect: () => void }>
+}) {
+  return (
+    <div className="consolePreferenceRow">
+      <div className="consolePreferenceLabel">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="consolePreferenceOptions">
+        {options.map((option) => (
+          <button
+            aria-pressed={option.active}
+            className={cn('consolePreferenceOption', option.active && 'isActive')}
+            key={option.label}
+            onClick={option.onSelect}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 function ConsoleAvatar({ profile }: { profile: AccountProfileResponse['user'] | null }) {
