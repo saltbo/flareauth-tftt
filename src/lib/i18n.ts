@@ -273,8 +273,6 @@ const zhFlatTranslations: Record<string, string> = {
   'Start with your identity.': '从你的身份开始。',
   'Recover your password.': '恢复你的密码。',
   'Request a one-time code and set a new password for your account.': '请求一次性验证码并为你的账户设置新密码。',
-  'Reset with an OTP code': '使用 OTP 验证码重置',
-  'We will send a one-time code to your email address.': '我们会向你的邮箱发送一次性验证码。',
   'Request failed.': '请求失败。',
   'Request failed': '请求失败',
   'Invalid form input.': '表单输入无效。',

@@ -1175,7 +1175,7 @@ describe('hosted auth pages', () => {
 
     render(<ForgotPasswordPage />)
 
-    expect(await screen.findByRole('heading', { name: 'Reset with an OTP code' })).toBeTruthy()
+    expect(await screen.findByLabelText('Email')).toBeTruthy()
     expect(screen.queryByText('Choose a recovery method')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Email link' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'OTP code' })).toBeNull()
