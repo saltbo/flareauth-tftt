@@ -55,6 +55,40 @@ describe('createApp', () => {
     })
   })
 
+  it('serves OpenID metadata at the issuer-path well-known route', async () => {
+    const getOpenIdConfig = vi.fn().mockResolvedValue({
+      issuer: 'https://auth.example.com/api/auth',
+      authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
+      jwks_uri: 'https://auth.example.com/api/auth/jwks',
+      userinfo_endpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',
+      response_types_supported: ['code'],
+      scopes_supported: ['openid', 'profile', 'email'],
+      subject_types_supported: ['public'],
+      id_token_signing_alg_values_supported: ['EdDSA'],
+    })
+    const auth = {
+      api: {
+        getOAuthServerConfig: vi.fn(),
+        getOpenIdConfig,
+        getSession: vi.fn().mockResolvedValue(null),
+      },
+      handler: async () => new Response(null, { status: 204 }),
+    }
+
+    const response = await createApp(auth).request('/.well-known/openid-configuration/api/auth')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      issuer: 'https://auth.example.com/api/auth',
+      userinfo_endpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',
+    })
+    expect(getOpenIdConfig).toHaveBeenCalledWith({
+      request: expect.any(Request),
+      asResponse: false,
+    })
+  })
+
   it('returns consistent JSON errors from the boundary', async () => {
     const response = await createApp(createAuthMock()).request('/api/missing', {
       headers: {

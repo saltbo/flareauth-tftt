@@ -229,6 +229,7 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
   }
 
   app.get('/api/auth/.well-known/openid-configuration', (c) => oauthProviderOpenIdConfigMetadata(auth)(c.req.raw))
+  app.get('/.well-known/openid-configuration/api/auth', (c) => oauthProviderOpenIdConfigMetadata(auth)(c.req.raw))
   app.on(['GET', 'POST'], '/api/auth/*', async (c) => {
     if (options.onboardingRepository) {
       await requireOnboardingComplete(options.onboardingRepository)
