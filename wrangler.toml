@@ -6,9 +6,7 @@ workers_dev = true
 preview_urls = true
 
 [vars]
-BETTER_AUTH_URL = "https://id.tftt.cc"
-TRUSTED_ORIGINS = "https://id.tftt.cc"
-EMAIL_FROM = "noreply@tftt.cc"
+EMAIL_FROM = "noreply@example.com"
 EMAIL_FROM_NAME = "FlareAuth"
 
 [assets]
@@ -19,7 +17,7 @@ run_worker_first = ["/api/*", "/.well-known/*"]
 
 [[send_email]]
 name = "EMAIL"
-allowed_sender_addresses = ["noreply@tftt.cc"]
+allowed_sender_addresses = ["noreply@example.com"]
 
 [[r2_buckets]]
 binding = "ASSET_BUCKET"
@@ -34,10 +32,6 @@ migrations_dir = "./migrations"
 [[queues.producers]]
 binding = "EMAIL_QUEUE"
 queue = "flareauth-email"
-
-[[routes]]
-pattern = "id.tftt.cc"
-custom_domain = true
 
 [triggers]
 crons = ["*/15 * * * *"]

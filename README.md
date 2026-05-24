@@ -128,6 +128,7 @@ product apps can register FlareAuth as a generic OAuth/OIDC provider. See
 
 - [Tenancy model](docs/architecture/tenancy.md)
 - [Cloudflare deployment](docs/deploy/cloudflare.md)
+- [Deployment upgrades](docs/deploy/upgrades.md)
 - [Fresh deployment setup](docs/deploy/setup.md)
 - [Review environment acceptance](docs/deploy/acceptance.md)
 - [Product acceptance map](docs/product/product-acceptance.md)

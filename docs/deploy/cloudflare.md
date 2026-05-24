@@ -67,6 +67,10 @@ Deploy Button reads `.dev.vars.example` and prompts operators to fill required
 secrets and environment values. Set `BETTER_AUTH_URL` to the production auth
 origin after assigning a custom domain.
 
+Deploy Button creates a deployment repository for the product instance. Keep
+instance values in that repository, not in the upstream FlareAuth template. See
+[Deployment upgrades](upgrades.md) for the upstream sync workflow.
+
 ## Email Routing
 
 Cloudflare Email Routing must be active for the sending domain before deployment mail can be sent.
@@ -80,7 +84,7 @@ Cloudflare Email Routing must be active for the sending domain before deployment
 ```toml
 [[send_email]]
 name = "EMAIL"
-allowed_sender_addresses = ["noreply@tftt.cc"]
+allowed_sender_addresses = ["noreply@example.com"]
 ```
 
 The `allowed_sender_addresses` value must match a verified address for the product domain.
