@@ -116,7 +116,7 @@ import type { OnboardingRepository } from './modules/onboarding/repository'
 import type { SecurityRepository } from './modules/security/repository'
 import type { UserRepository } from './modules/users/repository'
 import type { WalletRepository } from './modules/wallets/repository'
-import { managementOpenApi, managementOpenApiLinkHeader, managementOpenApiPath } from './openapi/management'
+import { managementOpenApiForRequest, managementOpenApiLinkHeader, managementOpenApiPath } from './openapi/management'
 import { accountRoutes } from './routes/account'
 import { adminApiResourcesRoute } from './routes/admin/api-resources'
 import { adminApplicationsRoute } from './routes/admin/applications'
@@ -646,7 +646,7 @@ function mountCoreApiRoutes(app: Hono, auth: AuthHandler, options: AppOptions) {
     .use('/api/management/*', managementOpenApiDiscoveryHeader())
     .use('/api/management', managementBearerAuth(auth))
     .use('/api/management/*', managementBearerAuth(auth))
-    .get(managementOpenApiPath, (c) => c.json(managementOpenApi))
+    .get(managementOpenApiPath, (c) => c.json(managementOpenApiForRequest(c.req.url)))
     .route('/api/management', createManagementAssetRoutes(options.assetServiceFactory))
     .route(
       '/api/management',
@@ -672,6 +672,7 @@ function mountCoreApiRoutes(app: Hono, auth: AuthHandler, options: AppOptions) {
 function managementOpenApiDiscoveryHeader() {
   return async (c: Context, next: () => Promise<void>) => {
     await next()
+    if (c.req.path === managementOpenApiPath) return
     c.header('Link', managementOpenApiLinkHeader)
   }
 }

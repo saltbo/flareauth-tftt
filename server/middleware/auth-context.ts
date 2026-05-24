@@ -30,6 +30,7 @@ export interface AuthContext {
 }
 
 export interface SessionReader {
+  handler?: (request: Request) => Promise<Response>
   api: {
     getSession: (context: { headers: Headers; asResponse: false }) => Promise<AuthSessionResult | null>
     oauth2UserInfo?: (context: { headers: Headers; asResponse: false }) => Promise<OAuthUserInfo>
@@ -79,16 +80,7 @@ export function managementBearerAuth(auth: SessionReader): MiddlewareHandler {
       return
     }
 
-    if (!auth.api.oauth2UserInfo) {
-      throw unauthorized('Invalid bearer token.')
-    }
-
-    let userInfo: OAuthUserInfo
-    try {
-      userInfo = await auth.api.oauth2UserInfo({ headers: c.req.raw.headers, asResponse: false })
-    } catch {
-      throw unauthorized('Invalid bearer token.')
-    }
+    const userInfo = await readOAuthUserInfo(auth, c)
 
     const scopes = scopeList(userInfo.scope)
     const clientId = userInfo.client_id ?? null
@@ -115,6 +107,29 @@ export function managementBearerAuth(auth: SessionReader): MiddlewareHandler {
     })
 
     await next()
+  }
+}
+
+async function readOAuthUserInfo(auth: SessionReader, c: Context) {
+  if (auth.handler) {
+    const url = new URL('/api/auth/oauth2/userinfo', c.req.url)
+    try {
+      const response = await auth.handler(new Request(url, { headers: c.req.raw.headers }))
+      if (!response.ok) throw unauthorized('Invalid bearer token.')
+      return (await response.json()) as OAuthUserInfo
+    } catch {
+      throw unauthorized('Invalid bearer token.')
+    }
+  }
+
+  if (!auth.api.oauth2UserInfo) {
+    throw unauthorized('Invalid bearer token.')
+  }
+
+  try {
+    return await auth.api.oauth2UserInfo({ headers: c.req.raw.headers, asResponse: false })
+  } catch {
+    throw unauthorized('Invalid bearer token.')
   }
 }
 

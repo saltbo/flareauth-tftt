@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
+import type { ListApplicationsResponse } from '../../../shared/api/applications'
 import { assignRoleRequestSchema } from '../../../shared/api/authorization'
 import {
   type ManagementAccountCenterSettingsResponse,
@@ -80,7 +81,7 @@ export type ManagementConfigzServiceFactory = (c: Context<{ Bindings: ConfigzBin
 }
 
 export type ManagementApplicationServiceFactory = (c: Context<{ Bindings: ApplicationBindings }>) => {
-  list: (query: { limit: number; offset: number }) => Promise<{ pagination: { total: number } }>
+  list: (query: { limit: number; offset: number }) => Promise<ListApplicationsResponse>
   revokeConsent: (consentId: string, userId: string) => Promise<void>
 }
 
@@ -207,10 +208,10 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
 
     app.get('/readiness', async (c) => {
       const [applications, config] = await Promise.all([
-        applicationServiceFactory(c).list({ limit: 1, offset: 0 }),
+        applicationServiceFactory(c).list({ limit: 100, offset: 0 }),
         configzServiceFactory(c).getConfig(),
       ])
-      const hasOidcApplication = applications.pagination.total > 0
+      const hasOidcApplication = applications.applications.some((application) => !application.systemManaged)
       const identityProviderCount =
         'identityProviders' in config && Array.isArray(config.identityProviders) ? config.identityProviders.length : 0
       const hasSocialSignInMethod = config.signIn.socialLoginEnabled && identityProviderCount > 0

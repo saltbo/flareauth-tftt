@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import managementOpenApi from '../../docs/api/management.openapi.json'
 import {
   listManagementConnectorsResponseSchema,
   managementCollectionRoutes,
@@ -10,6 +9,7 @@ import type { SecurityPolicy } from '../../shared/api/security'
 import { createApp } from '../app'
 import type { SecurityRepository } from '../modules/security/repository'
 import type { UserRepository } from '../modules/users/repository'
+import { managementOpenApi, managementOpenApiForRequest } from '../openapi/management'
 
 describe('management routes', () => {
   beforeEach(() => {
@@ -36,6 +36,14 @@ describe('management routes', () => {
           authorizationUrl: '/api/auth/oauth2/authorize',
           tokenUrl: '/api/auth/oauth2/token',
         },
+      },
+    })
+    expect(managementOpenApi['x-cli-config']).toEqual({
+      security: 'managementOAuth2',
+      params: {
+        client_id: 'flareauth-cli',
+        scopes: 'openid,profile,email,offline_access,management:read,management:write',
+        redirect_url: 'http://localhost:8484/callback',
       },
     })
 
@@ -83,9 +91,10 @@ describe('management routes', () => {
 
     expect(contract.status).toBe(200)
     expect(contract.headers.get('content-type')).toContain('application/json')
-    expect(contract.headers.get('link')).toContain('</api/management/openapi.json>; rel="service-desc"')
-    expect(contract.headers.get('link')).toContain('</api/management/openapi.json>; rel="describedby"')
-    await expect(contract.json()).resolves.toEqual(managementOpenApi)
+    expect(contract.headers.get('link')).toBeNull()
+    await expect(contract.json()).resolves.toEqual(
+      managementOpenApiForRequest('http://localhost/api/management/openapi.json'),
+    )
 
     expect(protectedResponse.status).toBe(401)
     expect(protectedResponse.headers.get('link')).toContain('</api/management/openapi.json>; rel="service-desc"')
@@ -156,6 +165,32 @@ describe('management routes', () => {
       }),
       headers: expect.any(Headers),
     })
+  })
+
+  it('accepts Management API Bearer tokens verified through the OAuth userinfo route handler', async () => {
+    const auth = createAuthMock()
+    auth.handler = vi.fn().mockResolvedValue(
+      Response.json({
+        sub: 'admin-1',
+        email: 'admin-1@example.com',
+        role: 'admin',
+        client_id: 'flareauth-cli',
+        scope: 'openid management:read management:write',
+      }),
+    )
+
+    const response = await createApp(auth, { userRepository: createUserRepositoryMock() }).request(
+      '/api/management/users?limit=10&offset=20',
+      { headers: bearerHeaders('valid-admin-token') },
+    )
+
+    expect(response.status).toBe(200)
+    expect(auth.handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http://localhost/api/auth/oauth2/userinfo',
+      }),
+    )
+    expect(auth.api.oauth2UserInfo).not.toHaveBeenCalled()
   })
 
   it('rejects non-admin Management API Bearer tokens with 403', async () => {
@@ -1048,6 +1083,31 @@ describe('management routes', () => {
     expect(body.required.every((item: { status: string }) => item.status === 'complete')).toBe(true)
   })
 
+  it('does not count the system CLI client as the tenant OIDC application for readiness', async () => {
+    const app = createApp(createAuthMock(), {
+      applicationServiceFactory: () => ({
+        list: vi.fn().mockResolvedValue({
+          applications: [
+            { ...applicationFixture(), id: 'app_flareauth_cli', clientId: 'flareauth-cli', systemManaged: true },
+          ],
+          pagination: { limit: 100, offset: 0, total: 1, hasMore: false, nextOffset: null },
+        }),
+        revokeConsent: vi.fn().mockResolvedValue(undefined),
+      }),
+      configzServiceFactory: createConfigzServiceMock(),
+    })
+
+    const readiness = await app.request('/api/management/readiness', { headers: adminHeaders() })
+
+    expect(readiness.status).toBe(200)
+    const body = managementReadinessResponseSchema.parse(await readiness.json())
+    expect(body.admin).toEqual({
+      setupRequired: true,
+      setupHref: '/console/onboarding',
+      missing: ['oidc_application'],
+    })
+  })
+
   it('does not count social sign-in as ready without a configured provider or connector', async () => {
     const app = createApp(createAuthMock(), {
       applicationServiceFactory: () => ({
@@ -1385,7 +1445,7 @@ describe('management routes', () => {
 })
 
 function createAuthMock() {
-  return {
+  const auth = {
     api: {
       getOAuthServerConfig: vi.fn(),
       getOpenIdConfig: vi.fn(),
@@ -1420,8 +1480,12 @@ function createAuthMock() {
       changeEmail: vi.fn().mockResolvedValue({ status: true }),
       changePassword: vi.fn().mockResolvedValue({ status: true }),
     },
-    handler: async () => new Response(null, { status: 204 }),
+    handler: vi.fn(async (request: Request) => {
+      if (!auth.api.oauth2UserInfo) return new Response(null, { status: 404 })
+      return Response.json(await auth.api.oauth2UserInfo({ headers: request.headers, asResponse: false }))
+    }),
   }
+  return auth
 }
 
 function createUserRepositoryMock(): UserRepository {
@@ -1677,6 +1741,7 @@ const managementOpenApiOperationKey = 'GET /openapi.json'
 const methodsWithJsonRequestBody = new Set(['POST', 'PUT', 'PATCH'])
 const operationsWithoutRequestBody = new Set([
   'POST /applications/{param}/client-secrets',
+  'POST /users/{param}/password-reset-requests',
   'POST /users/{param}/unban',
   'POST /webhooks/endpoints/{param}/secrets',
   'POST /webhooks/requests/{param}/retries',

@@ -71,7 +71,8 @@
     { "id": "admin-create-api-resource", "name": "Admin API resources page creates an API resource" },
     { "id": "admin-authorization-inventory", "name": "Admin authorization pages list organizations, roles, and API resources" },
     { "id": "admin-branding-settings", "name": "Admin updates branding settings and hosted auth renders them" },
-    { "id": "admin-deployment-settings", "name": "Admin deployment page shows Cloudflare runtime settings" }
+    { "id": "admin-deployment-settings", "name": "Admin deployment page shows Cloudflare runtime settings" },
+    { "id": "management-restish-oauth-crud", "name": "Restish OAuth token manages applications through the Management API" }
   ],
   "waivers": []
 }

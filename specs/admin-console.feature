@@ -155,3 +155,9 @@ Feature: Admin Console
   Scenario: Deployment page shows Cloudflare runtime settings
     When I open deployment settings
     Then Cloudflare runtime configuration is visible
+
+  @journey:management-restish-oauth-crud
+  Scenario: Restish manages applications through the Management API
+    Given I authenticate the Restish CLI through the built-in OAuth client
+    When I create, update, list, and delete an application with Restish
+    Then the Management API applies each application change

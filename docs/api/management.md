@@ -14,7 +14,7 @@ The runtime OpenAPI 3.1 contract is served at:
 /api/management/openapi.json
 ```
 
-Management API responses include Restish-compatible discovery links:
+Protected Management API responses include Restish-compatible discovery links:
 
 ```text
 Link: </api/management/openapi.json>; rel="service-desc"; type="application/openapi+json", </api/management/openapi.json>; rel="describedby"; type="application/openapi+json"
@@ -23,7 +23,27 @@ Link: </api/management/openapi.json>; rel="service-desc"; type="application/open
 Restish can load the contract directly:
 
 ```bash
-restish api configure flareauth /api/management/openapi.json
+restish api configure flareauth https://auth.example.com/api/management
+restish api sync flareauth
+```
+
+Restish discovers `/api/management/openapi.json` from the `service-desc` link relation. The OpenAPI document response itself intentionally does not include a self-referential discovery link.
+
+Generated Restish commands are available after sync, for example:
+
+```bash
+restish flareauth list-applications
+restish flareauth get-application app_123
+```
+
+For resource-path workflows, use Restish generic verbs:
+
+```bash
+restish get flareauth/applications
+restish get flareauth/applications/app_123
+restish post flareauth/applications < app.json
+restish patch flareauth/applications/app_123 < patch.json
+restish delete flareauth/applications/app_123
 ```
 
 The older `/api/admin/*` routes remain available for the operator UI and compatibility, but `/api/management/*` is the public v1.0 contract.
@@ -172,4 +192,4 @@ Uploaded assets are returned with a same-origin public URL at `/api/assets/{asse
 
 `missing` currently contains `oidc_application` when no OIDC client exists. Future readiness checks should add explicit enum values rather than overloading this field with display copy.
 
-The maintained OpenAPI contract lives in [management.openapi.json](./management.openapi.json). Contract tests compare the mounted Hono Management route table to this document so newly implemented Management endpoints fail tests until OpenAPI coverage is added.
+The maintained OpenAPI contract is generated at runtime from `server/openapi/management.ts` with `@hono/zod-openapi` route configs and the shared Zod schemas in `shared/api/*`. Contract tests compare the mounted Hono Management route table to the generated document so newly implemented Management endpoints fail tests until OpenAPI coverage is added.
