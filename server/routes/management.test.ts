@@ -337,6 +337,60 @@ describe('management routes', () => {
     expect(auth.api.createUser).not.toHaveBeenCalled()
   })
 
+  it('uses repository-backed user mutations for Management API Bearer tokens', async () => {
+    const auth = createAuthMock()
+    auth.api.oauth2UserInfo.mockResolvedValue({
+      sub: 'admin-1',
+      email: 'admin-1@example.com',
+      role: 'admin',
+      client_id: 'flareauth-cli',
+      scope: 'openid management:read management:write',
+    })
+    const users = createUserRepositoryMock()
+    const app = createApp(auth, { userRepository: users })
+    const headers = bearerHeaders('write-token')
+
+    const created = await app.request('/api/management/users', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        email: 'new-user@example.com',
+        displayName: 'New User',
+        password: 'Sup3rSecurePass!',
+        role: 'user',
+      }),
+    })
+    const updated = await app.request('/api/management/users/user-1', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ displayName: 'Updated User' }),
+    })
+    const deleted = await app.request('/api/management/users/user-1', {
+      method: 'DELETE',
+      headers,
+    })
+    const selfDelete = await app.request('/api/management/users/admin-1', {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect(created.status).toBe(201)
+    await expect(created.json()).resolves.toEqual({ user: { id: 'user-1' } })
+    expect(updated.status).toBe(200)
+    await expect(updated.json()).resolves.toEqual({ user: { id: 'user-1' } })
+    expect(deleted.status).toBe(204)
+    expect(selfDelete.status).toBe(400)
+    expect(users.createManagedUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'new-user@example.com' }))
+    expect(users.updateManagedUser).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ displayName: 'Updated User' }),
+    )
+    expect(users.deleteManagedUser).toHaveBeenCalledWith('user-1')
+    expect(auth.api.createUser).not.toHaveBeenCalled()
+    expect(auth.api.adminUpdateUser).not.toHaveBeenCalled()
+    expect(auth.api.removeUser).not.toHaveBeenCalled()
+  })
+
   it('accepts CLI Bearer tokens when admin access comes from OAuth roles claims', async () => {
     const auth = createAuthMock()
     auth.api.oauth2UserInfo.mockResolvedValue({

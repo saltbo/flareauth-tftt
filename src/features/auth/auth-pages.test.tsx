@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AuthCallbackPage,
@@ -210,6 +211,7 @@ describe('hosted auth pages', () => {
 
   it('renders a product-focused sign-in form and social connectors from configz', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
+    const user = userEvent.setup()
 
     render(<SignInPage />)
 
@@ -231,9 +233,9 @@ describe('hosted auth pages', () => {
     expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Continue with Example SSO' })).toBeTruthy()
     expect(document.querySelector('.authMethodDivider')?.textContent).toBe('or')
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with Email' }))
+    await user.click(screen.getByRole('button', { name: 'Continue with Email' }))
     expect(await screen.findByRole('button', { name: 'Send code' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    await user.click(screen.getByRole('button', { name: 'Back to sign in' }))
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
     expect(screen.getByText('Powered by Acme ID')).toBeTruthy()
     expect(screen.queryByText('Authenticator verification')).toBeNull()
