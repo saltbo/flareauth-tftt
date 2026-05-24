@@ -23,7 +23,10 @@ instead of adding product-level tenant predicates inside one D1 database. See
 Cloudflare Deploy Button reads `wrangler.toml`, clones the repository into the
 operator's GitHub/GitLab account, provisions supported resources, fills generated
 resource IDs into the cloned repository, configures Workers Builds, and deploys
-the Worker. Use the button for each product auth realm.
+the Worker. Use the button for each product auth realm. The button should only
+need the `BETTER_AUTH_SECRET` from `.dev.vars.example` during the initial flow.
+The template declares D1 and R2 by binding name only so Cloudflare can create
+and bind those resources automatically.
 
 If you are creating resources manually instead, create one production and one
 staging resource set per product:
@@ -52,8 +55,8 @@ wrangler secret put BETTER_AUTH_SECRET
 Checklist:
 
 - `BETTER_AUTH_SECRET`: 32+ bytes from `openssl rand -base64 32`.
-- `BETTER_AUTH_URL`: production issuer origin, for example `https://auth.example.com`.
-- `TRUSTED_ORIGINS`: comma-separated product and preview origins.
+- `BETTER_AUTH_URL`: optional production issuer origin, for example `https://auth.example.com`. When omitted, FlareAuth uses the request origin.
+- `TRUSTED_ORIGINS`: optional comma-separated product and preview origins. When omitted, FlareAuth trusts the resolved issuer origin.
 - OAuth provider credentials configured in the admin console or management API.
 - Management API credentials for any product automation.
 - Cloudflare account credentials for deployments, D1 migrations, R2, Queues, and Email Routing.
@@ -64,8 +67,9 @@ Set a fresh `BETTER_AUTH_SECRET` for every product deployment and every
 environment. Do not reuse one secret across independent auth realms.
 
 Deploy Button reads `.dev.vars.example` and prompts operators to fill required
-secrets and environment values. Set `BETTER_AUTH_URL` to the production auth
-origin after assigning a custom domain.
+secrets. Keep this file minimal. Instance domains and trusted origins can be
+configured after the deployment repository is created, or omitted when the
+deployment uses a single custom domain.
 
 Deploy Button creates a deployment repository for the product instance. Keep
 instance values in that repository, not in the upstream FlareAuth template. See
@@ -88,6 +92,10 @@ allowed_sender_addresses = ["noreply@example.com"]
 ```
 
 The `allowed_sender_addresses` value must match a verified address for the product domain.
+
+For the first Deploy Button pass, leave the template sender in place if needed.
+After the deployment repository is created, update `EMAIL_FROM` and
+`allowed_sender_addresses` to the verified product sender, then redeploy.
 
 ## Storage
 

@@ -33,6 +33,11 @@ Keep instance configuration in the deployment repository:
 
 Commit those instance settings in the deployment repository only.
 
+`BETTER_AUTH_URL` and `TRUSTED_ORIGINS` are optional for a single-domain
+deployment because FlareAuth can derive them from the request origin. Set them
+only when the deployment needs a canonical issuer that differs from the incoming
+host or when extra trusted origins are required.
+
 ## Upgrade From Upstream
 
 Prefer tagged releases for production upgrades:
