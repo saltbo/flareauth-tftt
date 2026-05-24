@@ -15,6 +15,12 @@ The selected provider is configured in `server/auth.ts` with:
 - Hashed client secrets and hashed stored OAuth tokens.
 - Better Auth `/token` disabled so the OAuth token boundary is `/oauth2/token`.
 
+FlareAuth v1.0 is intentionally a single user pool auth realm. Multiple OIDC
+applications can share the same provider instance, but they share users,
+administrators, login methods, connector configuration, and security policy.
+Products that need separate user pools use separate FlareAuth deployments. See
+[Tenancy Model](tenancy.md).
+
 The issuer is the Better Auth mounted issuer, not the bare site origin:
 
 ```text

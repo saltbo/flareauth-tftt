@@ -75,6 +75,7 @@ export function createAuth(
   options: {
     builtInProviders?: ManagementSignInSettingsResponse['builtInProviders']
     twoFactorEmailOtpEnabled?: boolean
+    validAudiences?: string[]
   } = {},
 ) {
   const authorization = new AuthorizationService(createDrizzleAuthorizationRepository(db))
@@ -312,6 +313,7 @@ export function createAuth(
         loginPage: '/sign-in',
         consentPage: '/oauth/consent',
         scopes: oauthScopes,
+        validAudiences: options.validAudiences,
         customAccessTokenClaims: (input) => buildOAuthAccessTokenClaims(authorization, input),
         customUserInfoClaims: ({ user, scopes, jwt }) => {
           const clientId = readString(jwt, 'client_id') ?? readString(jwt, 'azp')

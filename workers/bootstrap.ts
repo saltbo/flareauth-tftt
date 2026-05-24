@@ -51,6 +51,7 @@ async function ensureSystemClients(rawDb: D1Database, db: ReturnType<typeof crea
 async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
   const db = createDb(env.DB)
   const connectors = await loadAuthConnectorConfig(createConnectorRepository(db))
+  const validAudiences = await loadValidAudiences(env.DB, config.baseURL)
   const storedBuiltInProviders = (await createDrizzleConfigzRepository(db).getSettings())?.metadata?.builtInProviders
   const builtInProviders = managementBuiltInProviderSettingsSchema.parse(
     mergeBuiltInProviders(defaultBuiltInProviders, storedBuiltInProviders),
@@ -64,6 +65,7 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
     JSON.stringify(config.securityPolicy),
     JSON.stringify(builtInProviders ?? {}),
     connectors.cacheKey,
+    validAudiences.join(','),
   ].join('\n')
 
   if (!cachedAuth || cachedKey !== cacheKey || cachedDb !== env.DB || cachedEmail !== env.EMAIL) {
@@ -83,6 +85,7 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
       {
         builtInProviders,
         twoFactorEmailOtpEnabled: config.securityPolicy.mfa.emailOtpEnabled,
+        validAudiences,
       },
     )
     cachedKey = cacheKey
@@ -91,6 +94,13 @@ async function getAuth(env: Env, config: RuntimeConfig): Promise<Auth> {
   }
 
   return cachedAuth
+}
+
+async function loadValidAudiences(db: D1Database, baseURL: string) {
+  const result = await db
+    .prepare('SELECT audience FROM api_resource WHERE enabled = 1 ORDER BY audience')
+    .all<{ audience: string }>()
+  return [baseURL, ...result.results.map((row) => row.audience)]
 }
 
 function mergeBuiltInProviders(

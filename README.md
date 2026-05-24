@@ -9,6 +9,14 @@
 
 Cloudflare-native identity provider built on Better Auth.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
+
+FlareAuth is a single user pool auth realm. One deployment can host multiple
+OIDC applications when products intentionally share accounts and administrators.
+Products that need separate user pools, issuers, administrators, or login policy
+should run separate FlareAuth deployments. See
+[Tenancy Model](docs/architecture/tenancy.md).
+
 ## Stack
 
 - Cloudflare Workers and Assets
@@ -55,10 +63,18 @@ The repository uses one Cloudflare Worker and separate staging/production Cloudf
 - Production Queue `flareauth-email`
 - Staging Queue `flareauth-email-staging`
 
+For another product auth realm, use the Deploy to Cloudflare button again. The
+button clones this repository into the operator's GitHub/GitLab account,
+provisions the required Worker resources from `wrangler.toml`, and configures
+Workers Builds for that product instance.
+
+Use a separate cloned repository, Worker, D1 database, R2 bucket, queue, domain,
+and `BETTER_AUTH_SECRET` for each product that needs an independent user pool.
+
 Deploy production manually:
 
 ```bash
-npm run deploy:prod
+npm run deploy
 ```
 
 Cloudflare Dashboard should own deployments for this repository.
@@ -110,6 +126,7 @@ product apps can register FlareAuth as a generic OAuth/OIDC provider. See
 
 ## Deployment Docs
 
+- [Tenancy model](docs/architecture/tenancy.md)
 - [Cloudflare deployment](docs/deploy/cloudflare.md)
 - [Fresh deployment setup](docs/deploy/setup.md)
 - [Review environment acceptance](docs/deploy/acceptance.md)

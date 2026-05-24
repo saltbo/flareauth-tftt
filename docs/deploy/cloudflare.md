@@ -2,9 +2,31 @@
 
 FlareAuth runs as a Cloudflare Worker with Assets, D1, R2, Email Routing, Queue, and Cron bindings.
 
+Deploy a new product auth realm from the repository button:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
+
+## Auth Realm Boundary
+
+One FlareAuth deployment is one auth realm with one user pool and one issuer.
+Register multiple OIDC applications in the same deployment only when those
+products intentionally share accounts, administrators, login methods, security
+policy, connectors, and email settings.
+
+Products that need separate user pools or administrators should use separate
+FlareAuth deployments. Keep the deployment boundary as the isolation boundary
+instead of adding product-level tenant predicates inside one D1 database. See
+[Tenancy Model](../architecture/tenancy.md).
+
 ## Required Resources
 
-Create one production and one staging resource set per product:
+Cloudflare Deploy Button reads `wrangler.toml`, clones the repository into the
+operator's GitHub/GitLab account, provisions supported resources, fills generated
+resource IDs into the cloned repository, configures Workers Builds, and deploys
+the Worker. Use the button for each product auth realm.
+
+If you are creating resources manually instead, create one production and one
+staging resource set per product:
 
 ```bash
 wrangler d1 create flareauth-db
@@ -15,7 +37,9 @@ wrangler queues create flareauth-email
 wrangler queues create flareauth-email-staging
 ```
 
-Update `database_id` in `wrangler.toml` and `wrangler.preview.toml` after creating D1 databases.
+Update `database_id` in `wrangler.toml` and `wrangler.preview.toml` after
+creating D1 databases manually. Deploy Button handles this resource provisioning
+step for button-created deployments.
 
 ## Secrets And Vars
 
@@ -36,6 +60,13 @@ Checklist:
 - `EMAIL_FROM` and `EMAIL_FROM_NAME` in Wrangler vars.
 - `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME`, and `WEBAUTHN_ORIGINS` when passkeys are enabled across custom domains and previews.
 
+Set a fresh `BETTER_AUTH_SECRET` for every product deployment and every
+environment. Do not reuse one secret across independent auth realms.
+
+Deploy Button reads `.dev.vars.example` and prompts operators to fill required
+secrets and environment values. Set `BETTER_AUTH_URL` to the production auth
+origin after assigning a custom domain.
+
 ## Email Routing
 
 Cloudflare Email Routing must be active for the sending domain before deployment mail can be sent.
@@ -49,7 +80,7 @@ Cloudflare Email Routing must be active for the sending domain before deployment
 ```toml
 [[send_email]]
 name = "EMAIL"
-allowed_sender_addresses = ["noreply@agent-kanban.dev"]
+allowed_sender_addresses = ["noreply@tftt.cc"]
 ```
 
 The `allowed_sender_addresses` value must match a verified address for the product domain.
@@ -84,4 +115,10 @@ Production:
 npm run db:migrate:prod
 ```
 
-Run migrations before deployment. `npm run deploy:prod` runs production migrations, builds, and deploys.
+Run migrations before deployment. `npm run deploy` runs remote D1 migrations
+through the `DB` binding, builds, and deploys. Using the binding name keeps the
+script compatible with Deploy Button generated database names.
+
+Sources:
+
+- [Cloudflare Deploy to Cloudflare buttons](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
