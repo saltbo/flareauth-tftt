@@ -395,6 +395,10 @@ function createAssetServiceMock() {
 function createUserRepositoryMock() {
   return {
     getUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    listManagedUsers: vi.fn().mockResolvedValue(createPage()),
+    createManagedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    updateManagedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    deleteManagedUser: vi.fn().mockResolvedValue(undefined),
     updateProfile: vi.fn().mockResolvedValue({ id: 'user-1' }),
     assertAccountAvatarReference: vi.fn().mockResolvedValue(undefined),
     assertAdminAvatarReference: vi.fn().mockResolvedValue(undefined),

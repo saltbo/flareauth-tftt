@@ -52,3 +52,4 @@ export const adminPasswordResetSchema = z.object({
 
 export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>
+export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>

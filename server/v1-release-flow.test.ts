@@ -637,6 +637,10 @@ function createUserRepositoryDouble(): UserRepository {
   }
   return {
     getUser: vi.fn().mockResolvedValue(profile),
+    listManagedUsers: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
+    createManagedUser: vi.fn().mockResolvedValue(profile),
+    updateManagedUser: vi.fn().mockResolvedValue(profile),
+    deleteManagedUser: vi.fn().mockResolvedValue(undefined),
     updateProfile: vi.fn().mockResolvedValue(profile),
     assertAccountAvatarReference: vi.fn().mockResolvedValue(undefined),
     assertAdminAvatarReference: vi.fn().mockResolvedValue(undefined),

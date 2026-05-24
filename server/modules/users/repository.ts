@@ -1,9 +1,12 @@
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, like, type SQL } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import type { AccountProfileUpdateInput } from '../../../shared/api/account'
 import type { PaginatedResult, PaginationInput } from '../../../shared/api/pagination'
+import type { AdminCreateUserInput, AdminUpdateUserInput, AdminUserListQuery } from '../../../shared/api/users'
 import type { Database } from '../../db/client'
 import { account, application, applicationConsent, session, uploadedAsset, user } from '../../db/schema'
 import { badRequest, notFound } from '../../lib/errors'
+import { hashPassword } from '../../lib/password'
 
 export interface UserProfile {
   id: string
@@ -53,6 +56,10 @@ export interface ConsentedApplication {
 
 export interface UserRepository {
   getUser(userId: string): Promise<UserProfile>
+  listManagedUsers(query: AdminUserListQuery): Promise<PaginatedResult<UserProfile>>
+  createManagedUser(input: AdminCreateUserInput): Promise<UserProfile>
+  updateManagedUser(userId: string, input: AdminUpdateUserInput): Promise<UserProfile>
+  deleteManagedUser(userId: string): Promise<void>
   updateProfile(userId: string, input: AccountProfileUpdateInput): Promise<UserProfile>
   assertAccountAvatarReference(userId: string, avatarAssetId: string | null | undefined): Promise<void>
   assertAdminAvatarReference(avatarAssetId: string | null | undefined): Promise<void>
@@ -66,6 +73,76 @@ export function createUserRepository(db: Database): UserRepository {
   return {
     async getUser(userId) {
       return findUser(db, userId)
+    },
+
+    async listManagedUsers(query) {
+      const where = managedUserWhere(query)
+      const orderColumn = managedUserSortColumn(query.sortBy)
+      const order = query.sortDirection === 'asc' ? asc(orderColumn) : desc(orderColumn)
+      const rows = where
+        ? await db.select().from(user).where(where).orderBy(order).limit(query.limit).offset(query.offset)
+        : await db.select().from(user).orderBy(order).limit(query.limit).offset(query.offset)
+
+      return {
+        items: rows.map(mapUser),
+        total: await countUsers(db, where),
+        limit: query.limit,
+        offset: query.offset,
+      }
+    },
+
+    async createManagedUser(input) {
+      const userId = crypto.randomUUID()
+      const now = new Date()
+      const statements: [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]] = [
+        db.insert(user).values({
+          id: userId,
+          name: input.displayName,
+          username: input.username ?? null,
+          email: input.email.toLowerCase(),
+          emailVerified: false,
+          role: roleValue(input.role),
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ]
+
+      if (input.password) {
+        statements.push(
+          db.insert(account).values({
+            id: crypto.randomUUID(),
+            accountId: userId,
+            providerId: 'credential',
+            userId,
+            password: await hashPassword(input.password),
+            createdAt: now,
+            updatedAt: now,
+          }),
+        )
+      }
+
+      await db.batch(statements)
+      return findUser(db, userId)
+    },
+
+    async updateManagedUser(userId, input) {
+      const update = managedUserUpdate(input)
+      if (Object.keys(update).length === 0) {
+        throw badRequest('No user fields were provided.')
+      }
+
+      const [updated] = await db.update(user).set(update).where(eq(user.id, userId)).returning()
+      if (!updated) {
+        throw notFound('User not found.')
+      }
+
+      return mapUser(updated)
+    },
+
+    async deleteManagedUser(userId) {
+      const existing = await findUser(db, userId)
+      await db.delete(session).where(eq(session.userId, existing.id))
+      await db.delete(user).where(eq(user.id, existing.id))
     },
 
     async updateProfile(userId, input) {
@@ -198,6 +275,55 @@ async function findUser(db: Database, userId: string): Promise<UserProfile> {
   }
 
   return mapUser(row)
+}
+
+function managedUserWhere(query: AdminUserListQuery) {
+  const conditions: SQL[] = []
+
+  if (query.search) {
+    const column = query.searchField === 'name' ? user.name : user.email
+    conditions.push(like(column, `%${query.search}%`))
+  }
+
+  if (query.role !== undefined) {
+    conditions.push(eq(user.role, query.role))
+  }
+
+  if (query.banned !== undefined) {
+    conditions.push(eq(user.banned, query.banned))
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined
+}
+
+function managedUserSortColumn(sortBy: AdminUserListQuery['sortBy']) {
+  if (sortBy === 'updatedAt') return user.updatedAt
+  if (sortBy === 'email') return user.email
+  if (sortBy === 'name') return user.name
+  return user.createdAt
+}
+
+async function countUsers(db: Database, where: SQL | undefined): Promise<number> {
+  const [row] = where
+    ? await db.select({ value: count() }).from(user).where(where)
+    : await db.select({ value: count() }).from(user)
+  return row?.value ?? 0
+}
+
+function managedUserUpdate(input: AdminUpdateUserInput) {
+  return {
+    ...(input.email !== undefined ? { email: input.email.toLowerCase() } : {}),
+    ...(input.emailVerified !== undefined ? { emailVerified: input.emailVerified } : {}),
+    ...(input.displayName !== undefined ? { name: input.displayName } : {}),
+    ...(input.username !== undefined ? { username: input.username } : {}),
+    ...(input.avatarAssetId !== undefined ? { avatarAssetId: input.avatarAssetId } : {}),
+    ...(input.role !== undefined ? { role: roleValue(input.role) } : {}),
+  }
+}
+
+function roleValue(role: string | string[] | undefined) {
+  if (Array.isArray(role)) return role.join(',')
+  return role
 }
 
 async function assertAccountAvatarReference(

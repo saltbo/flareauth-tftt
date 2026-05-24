@@ -141,7 +141,8 @@ describe('management routes', () => {
       scope: 'openid management:read management:write',
     })
 
-    const response = await createApp(auth, { userRepository: createUserRepositoryMock() }).request(
+    const users = createUserRepositoryMock()
+    const response = await createApp(auth, { userRepository: users }).request(
       '/api/management/users?limit=10&offset=20',
       { headers: bearerHeaders('valid-admin-token') },
     )
@@ -158,13 +159,8 @@ describe('management routes', () => {
       headers: expect.any(Headers),
       asResponse: false,
     })
-    expect(auth.api.listUsers).toHaveBeenCalledWith({
-      query: expect.objectContaining({
-        limit: 10,
-        offset: 20,
-      }),
-      headers: expect.any(Headers),
-    })
+    expect(users.listManagedUsers).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 20 }))
+    expect(auth.api.listUsers).not.toHaveBeenCalled()
   })
 
   it('accepts Management API Bearer tokens verified through the OAuth userinfo route handler', async () => {
@@ -353,15 +349,14 @@ describe('management routes', () => {
       },
     })
 
-    const response = await createApp(auth, { userRepository: createUserRepositoryMock() }).request(
-      '/api/management/users',
-      {
-        headers: bearerHeaders('roles-admin-token'),
-      },
-    )
+    const users = createUserRepositoryMock()
+    const response = await createApp(auth, { userRepository: users }).request('/api/management/users', {
+      headers: bearerHeaders('roles-admin-token'),
+    })
 
     expect(response.status).toBe(200)
-    expect(auth.api.listUsers).toHaveBeenCalledOnce()
+    expect(users.listManagedUsers).toHaveBeenCalledOnce()
+    expect(auth.api.listUsers).not.toHaveBeenCalled()
   })
 
   it('does not promote Management permission strings without an admin role claim', async () => {
@@ -1491,6 +1486,10 @@ function createAuthMock() {
 function createUserRepositoryMock(): UserRepository {
   return {
     getUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    listManagedUsers: vi.fn().mockImplementation((page) => Promise.resolve(createPage(page))),
+    createManagedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    updateManagedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+    deleteManagedUser: vi.fn().mockResolvedValue(undefined),
     updateProfile: vi.fn().mockResolvedValue({ id: 'user-1' }),
     assertAccountAvatarReference: vi.fn().mockResolvedValue(undefined),
     assertAdminAvatarReference: vi.fn().mockResolvedValue(undefined),

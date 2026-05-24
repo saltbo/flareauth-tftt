@@ -12,11 +12,13 @@ Feature: Admin Console
     When I open /admin
     Then the dashboard shows tenant health from real management APIs
 
+  @journey:management-openapi-discovery
   Scenario: Management API contract is discoverable
     When a Management API client requests service discovery
     Then /api/management/openapi.json returns the OpenAPI 3.1 contract
     And Management API responses advertise the contract with Restish-compatible Link headers
 
+  @journey:management-restish-oauth-auth
   Scenario: Restish authenticates to the Management API with PKCE
     Given the system-managed FlareAuth CLI OAuth client exists
     When Restish signs in through Authorization Code with PKCE

@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/api/users'
 import { badRequest } from '../../../lib/errors'
 import { requireAdmin } from '../../../middleware/admin'
+import { getAuthContext } from '../../../middleware/auth-context'
 import { validateEmailPolicy, validatePasswordPolicy } from '../../../modules/security/policy'
 import type { SecurityRepository } from '../../../modules/security/repository'
 import type { UserRepository } from '../../../modules/users/repository'
@@ -35,6 +36,16 @@ export function adminUserRoutes(
 
   app.get('/', async (c) => {
     const query = readQuery(c, adminUserListQuerySchema)
+
+    if (getAuthContext(c).bearer) {
+      const page = await users.listManagedUsers(query)
+      return c.json(
+        listManagementUsersResponseSchema.parse({
+          users: page.items,
+          pagination: paginationMetadata(page),
+        }),
+      )
+    }
 
     try {
       const response = await authApi.listUsers({
@@ -73,6 +84,10 @@ export function adminUserRoutes(
           username: body.username ?? null,
         })
       }
+    }
+
+    if (getAuthContext(c).bearer) {
+      return c.json({ user: await users.createManagedUser(body) }, 201)
     }
 
     try {
@@ -172,6 +187,10 @@ export function adminUserRoutes(
     const body = await readJson(c, adminUpdateUserSchema)
     await users.assertAdminAvatarReference(body.avatarAssetId)
 
+    if (getAuthContext(c).bearer) {
+      return c.json({ user: await users.updateManagedUser(c.req.param('id'), body) })
+    }
+
     try {
       const user = await authApi.adminUpdateUser({
         body: {
@@ -228,8 +247,18 @@ export function adminUserRoutes(
   app.delete('/:id/ban', unbanUser)
 
   app.delete('/:id', async (c) => {
+    const userId = c.req.param('id')
+    if (getAuthContext(c).bearer) {
+      const actor = getAuthContext(c).user
+      if (actor?.id === userId) {
+        throw badRequest('You cannot remove yourself.')
+      }
+      await users.deleteManagedUser(userId)
+      return c.body(null, 204)
+    }
+
     try {
-      return c.json(await authApi.removeUser({ body: { userId: c.req.param('id') }, headers: c.req.raw.headers }))
+      return c.json(await authApi.removeUser({ body: { userId }, headers: c.req.raw.headers }))
     } catch (error) {
       throw toBoundaryError(error)
     }
