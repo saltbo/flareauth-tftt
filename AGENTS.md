@@ -18,11 +18,40 @@ Better Auth, Drizzle, React, Vite, Vitest, Biome, Wrangler, and Cloudflare D1.
 - Keep errors surfaced through the existing boundary handling instead of adding
   scattered try/catch blocks.
 
+## Workflow: Specs First
+
+Product-facing behavior starts in `specs/`. For new or changed product
+behavior:
+
+1. Update or add the relevant `.feature` scenario first.
+2. Add the journey id to `tests/e2e/journey-coverage.json` when browser
+   verification is required.
+3. Attach the same journey id from the narrowest Playwright test with
+   `attachCoverage(...)`.
+4. Run `npm run spec:check`.
+
+If implementation reveals a new user-facing behavior, update the spec before
+continuing.
+
+Spec index:
+
+- `specs/platform-onboarding.feature`: fresh deployment, first admin bootstrap,
+  route access, and health smoke.
+- `specs/hosted-auth.feature`: hosted sign-in, sign-up, recovery, OIDC context,
+  consent, and callback behavior.
+- `specs/account-center.feature`: profile, credentials, MFA, passkeys, sessions,
+  linked accounts, and authorized apps.
+- `specs/connectors-and-methods.feature`: connector-driven hosted method
+  availability and native endpoint enforcement.
+- `specs/admin-console.feature`: Console applications, users, connectors,
+  security, authorization, branding, content, and deployment settings.
+
 ## Checks
 
 Use the narrowest meaningful command for the change:
 
 - Typecheck: `npm run typecheck`
+- Spec coverage: `npm run spec:check`
 - Tests: `npm test`
 - Lint: `npm run lint`
 - Format/fix: `npm run lint:fix`

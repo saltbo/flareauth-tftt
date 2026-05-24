@@ -27,10 +27,15 @@ npm run typecheck
 npm run lint
 npm test
 npm run test:coverage
+npm run spec:check
 npm run test:e2e
 ```
 
 Code coverage is uploaded from CI to Codecov. Browser E2E status is reported by the E2E workflow; the suite enforces complete declared journey coverage from `tests/e2e/journey-coverage.json`.
+Product behavior specs live in [`specs`](specs). Browser E2E tests are the
+automation adapter for those specs, and `npm run spec:check` verifies that spec
+journeys, declared coverage, and Playwright `attachCoverage(...)` calls stay in
+sync.
 
 Check Cloudflare binding coverage before review:
 
