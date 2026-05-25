@@ -14,4 +14,11 @@ describe('Workers Assets routing', () => {
     expect(runWorkerFirst?.[1]).toContain('"/api/*"')
     expect(runWorkerFirst?.[1]).toContain('"/.well-known/*"')
   })
+
+  it.each(wranglerConfigs)('routes removed admin paths to the Worker 404 in %s', (_path, config) => {
+    const runWorkerFirst = config.match(/run_worker_first\s*=\s*\[([^\]]+)\]/)
+
+    expect(runWorkerFirst?.[1]).toContain('"/admin"')
+    expect(runWorkerFirst?.[1]).toContain('"/admin/*"')
+  })
 })
