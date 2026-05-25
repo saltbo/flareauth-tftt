@@ -57,7 +57,11 @@ Checklist:
 
 - `BETTER_AUTH_SECRET`: 32+ bytes from `openssl rand -base64 32`.
 - `BETTER_AUTH_URL`: optional production issuer origin, for example `https://auth.example.com`. When omitted, FlareAuth uses the request origin.
-- `TRUSTED_ORIGINS`: optional comma-separated product and preview origins. When omitted, FlareAuth trusts the resolved issuer origin.
+- `TRUSTED_ORIGINS`: optional comma-separated first-party FlareAuth origins,
+  such as admin console, account center, and deployment preview origins. When
+  omitted, FlareAuth trusts the resolved issuer origin. Configure OAuth/OIDC
+  application browser origins in each Application's CORS origins setting instead
+  of putting every product origin here.
 - OAuth provider credentials configured in the admin console or management API.
 - Management API credentials for any product automation.
 - Cloudflare account credentials for deployments, D1 migrations, R2, Queues, and Email Routing.

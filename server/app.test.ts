@@ -154,6 +154,80 @@ describe('createApp', () => {
     expect(response.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
+  it('allows application CORS origins on OAuth discovery without deployment-level trust', async () => {
+    const auth = createAuthMock()
+    auth.api.getOpenIdConfig.mockResolvedValue({
+      issuer: 'https://auth.example.com/api/auth',
+      authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
+      jwks_uri: 'https://auth.example.com/api/auth/jwks',
+      userinfo_endpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',
+    })
+    const response = await createApp(auth, {
+      trustedOrigins: ['https://tenant.example.com'],
+      applicationServiceFactory: applicationCorsFactory(['https://app.example.com']),
+    }).request('/api/auth/.well-known/openid-configuration', {
+      headers: {
+        origin: 'https://app.example.com',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example.com')
+    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
+  it('allows application CORS origins for OAuth token preflight', async () => {
+    const auth = createAuthMock()
+    const response = await createApp(auth, {
+      trustedOrigins: ['https://tenant.example.com'],
+      applicationServiceFactory: applicationCorsFactory(['https://app.example.com']),
+    }).request('/api/auth/oauth2/token', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://app.example.com',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    })
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example.com')
+    expect(response.headers.get('access-control-allow-methods')).toContain('POST')
+    expect(auth.handler).not.toHaveBeenCalled()
+  })
+
+  it('rejects unconfigured origins for OAuth client endpoints', async () => {
+    const response = await createApp(createAuthMock(), {
+      trustedOrigins: ['https://tenant.example.com'],
+      applicationServiceFactory: applicationCorsFactory(['https://app.example.com']),
+    }).request('/api/auth/oauth2/token', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://evil.example.com',
+      },
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'forbidden', message: 'Origin is not trusted for this issuer.' },
+    })
+  })
+
+  it('keeps first-party API routes restricted to deployment-level trusted origins', async () => {
+    const response = await createApp(createAuthMock(), {
+      trustedOrigins: ['https://tenant.example.com'],
+      userRepository: createUserRepositoryMock(),
+      applicationServiceFactory: applicationCorsFactory(['https://app.example.com']),
+    }).request('/api/account/profile', {
+      headers: {
+        origin: 'https://app.example.com',
+        'x-user-id': 'user-1',
+      },
+    })
+
+    expect(response.status).toBe(403)
+  })
+
   it('blocks password auth endpoints when hosted password auth is disabled', async () => {
     const auth = createAuthMock()
     const configzService = createConfigzServiceMock({
@@ -366,6 +440,58 @@ function createConfigzServiceMock(overrides: Record<string, unknown> = {}) {
       },
       ...overrides,
     }),
+  }
+}
+
+function applicationCorsFactory(origins: string[]) {
+  return () => ({
+    list: vi.fn().mockResolvedValue({
+      applications: [
+        applicationResponse({ corsOrigins: origins }),
+        applicationResponse({ disabled: true, corsOrigins: ['https://disabled.example.com'] }),
+      ],
+      pagination: { limit: 100, offset: 0, total: 2, hasMore: false, nextOffset: null },
+    }),
+    revokeConsent: vi.fn(),
+  })
+}
+
+function applicationResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'app-1',
+    slug: 'customer-portal',
+    name: 'Customer Portal',
+    description: null,
+    homepageUrl: 'https://app.example.com',
+    iconUrl: null,
+    clientId: 'client-1',
+    clientType: 'public_spa',
+    public: true,
+    firstParty: false,
+    trusted: false,
+    systemManaged: false,
+    disabled: false,
+    disabledReason: null,
+    redirectUris: ['https://app.example.com/callback'],
+    postLogoutRedirectUris: [],
+    corsOrigins: [],
+    customData: {},
+    allowedGrantTypes: ['authorization_code'],
+    allowedScopes: ['openid'],
+    requirePkce: true,
+    tokenEndpointAuthMethod: 'none',
+    secretMetadata: [],
+    oidc: {
+      issuer: 'https://auth.example.com/api/auth',
+      authorizationEndpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      tokenEndpoint: 'https://auth.example.com/api/auth/oauth2/token',
+      jwksUri: 'https://auth.example.com/api/auth/jwks',
+      userInfoEndpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',
+      endSessionEndpoint: 'https://auth.example.com/api/auth/oauth2/logout',
+    },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
   }
 }
 
