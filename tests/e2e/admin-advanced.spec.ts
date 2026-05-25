@@ -30,7 +30,7 @@ test('signed-out Console routes redirect before management API data loads', asyn
   await attachCoverage(testInfo, ['admin-signed-out-redirect'])
 })
 
-test('Console route-backed navigation and compatibility redirects use persistent pages', async ({ page }, testInfo) => {
+test('Console route-backed navigation uses persistent pages', async ({ page }, testInfo) => {
   await signIn(page)
   await createOidcApplication(page, 'Navigation Bootstrap')
 
@@ -54,8 +54,6 @@ test('Console route-backed navigation and compatibility redirects use persistent
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
   }
 
-  await page.goto('/admin/applications')
-  await expect(page).toHaveURL(/\/console\/applications$/)
   await attachCoverage(testInfo, ['admin-route-backed-navigation', 'admin-sign-in-experience-routes'])
 })
 

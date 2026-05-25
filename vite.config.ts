@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
       exclude: [
         'server/auth.ts',
         'src/features/account/account-center.tsx',
-        'src/features/admin/admin-console.tsx',
+        'src/features/console/console.tsx',
         'src/features/auth/auth-pages.tsx',
       ],
       thresholds: {

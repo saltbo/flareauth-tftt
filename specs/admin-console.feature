@@ -9,7 +9,7 @@ Feature: Admin Console
 
   @journey:admin-dashboard
   Scenario: Admin dashboard loads tenant health
-    When I open /admin
+    When I open /console
     Then the dashboard shows tenant health from real management APIs
 
   @journey:management-openapi-discovery
@@ -51,7 +51,6 @@ Feature: Admin Console
   Scenario: Console navigation exposes persistent route-backed pages
     When I use Console navigation
     Then each visible product page has a canonical route
-    And compatibility redirects land on persistent pages
 
   @journey:admin-application-inventory
   Scenario: Applications page lists OIDC clients and status controls

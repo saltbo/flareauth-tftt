@@ -64,7 +64,7 @@ test('account center revokes other sessions and authorized application access', 
   const secondPage = await secondContext.newPage()
   await signIn(secondPage)
 
-  await page.reload()
+  await page.goto('/connections')
   await expect(page.getByText('Authorized App E2E')).toBeVisible()
   await page
     .getByRole('article')
@@ -74,6 +74,7 @@ test('account center revokes other sessions and authorized application access', 
   await page.getByRole('dialog').getByRole('button', { name: 'Revoke access' }).click()
   await expect(page.getByText('Application access revoked.')).toBeVisible()
 
+  await page.goto('/security')
   await page.getByRole('button', { name: 'Revoke other sessions' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Revoke sessions' }).click()
   await expect(page.getByText('Other sessions revoked.')).toBeVisible()
@@ -84,9 +85,10 @@ test('account center revokes other sessions and authorized application access', 
 
 test('TOTP enrollment verifies a real code and passkey enrollment completes with WebAuthn', async ({ page }, testInfo) => {
   await signIn(page)
+  await page.goto('/security')
 
   await page.getByRole('button', { name: 'Enroll authenticator app' }).click()
-  await page.getByLabel('Password').fill(admin.password)
+  await page.getByRole('dialog').getByLabel('Password').fill(admin.password)
   await page.getByRole('dialog').getByRole('button', { name: 'Enroll authenticator app' }).click()
   const secretText = await page.locator('.setupPanel code').first().textContent()
   const secret = readTotpSecret(secretText ?? '')
@@ -113,6 +115,7 @@ test('TOTP enrollment verifies a real code and passkey enrollment completes with
   await page.getByLabel('Authenticator code').fill(totp(secret))
   await page.getByRole('button', { name: 'Verify code' }).click()
   await page.waitForURL('**/profile')
+  await page.goto('/security')
 
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('WebAuthn.enable')

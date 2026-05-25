@@ -12,14 +12,24 @@ import { username } from 'better-auth/plugins/username'
 import { verifyMessage } from 'viem'
 import { parseSiweMessage, validateSiweMessage } from 'viem/siwe'
 import {
-  type ApplicationOidcClaims,
-  defaultApplicationOidcClaims,
   managementApplicationScopes,
   systemCliClientId,
   userConfigurableApplicationScopes,
 } from '../shared/api/applications'
 import type { ManagementSignInSettingsResponse } from '../shared/api/management'
 import type { SecurityPolicy } from '../shared/api/security'
+import {
+  buildOAuthAccessTokenClaims,
+  buildOAuthIdTokenClaims,
+  buildOAuthUserInfoClaims,
+  createNonce,
+  hasManagementScope,
+  readString,
+  readUserRole,
+  sendPasswordChangedNotification,
+  sendSmsOtp,
+  siweDomain,
+} from './auth-helpers'
 import { betterAuthTranslations } from './auth-i18n'
 import type { Database } from './db/client'
 import * as schema from './db/schema'
@@ -30,8 +40,11 @@ import { createDrizzleAgentRepository } from './modules/agents/repository'
 import { AgentService } from './modules/agents/service'
 import { createDrizzleApplicationRepository } from './modules/applications/drizzle-repository'
 import { createDrizzleAuthorizationRepository } from './modules/authorization/drizzle-repository'
-import { AuthorizationService, type AuthorizationTokenClaimInput } from './modules/authorization/service'
+import { AuthorizationService } from './modules/authorization/service'
 import type { AuthConnectorConfig } from './modules/connectors/service'
+
+export { buildOAuthAccessTokenClaims, buildOAuthIdTokenClaims, buildOAuthUserInfoClaims } from './auth-helpers'
+
 import { createUserRepository } from './modules/users/repository'
 
 const oauthScopes = ['openid', 'profile', 'email', 'offline_access', ...managementApplicationScopes]
@@ -368,233 +381,3 @@ export function createAuth(
 }
 
 export type Auth = ReturnType<typeof createAuth>
-
-function siweDomain(baseURL: string, configuredDomain: string) {
-  if (configuredDomain.trim()) return configuredDomain.trim()
-  return new URL(baseURL).host
-}
-
-function createNonce() {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function sendPasswordChangedNotification(emailSender: TransactionalEmailSender, email: string) {
-  void emailSender
-    .send({
-      to: email,
-      template: {
-        type: 'security-notification',
-        title: 'Your password was changed',
-        body: 'Your FlareAuth password was changed. If this was not you, reset your password immediately.',
-      },
-    })
-    .catch((error: unknown) => {
-      console.error('Failed to send password changed notification.', error)
-    })
-}
-
-async function sendSmsOtp(
-  config: ManagementSignInSettingsResponse['builtInProviders']['phone'] | undefined,
-  phoneNumber: string,
-  code: string,
-) {
-  if (!config) throw new Error('Phone provider is not configured.')
-
-  if (config.smsProvider === 'twilio') {
-    if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFromNumber) {
-      throw new Error('Twilio SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      To: phoneNumber,
-      From: config.twilioFromNumber,
-      Body: `Your verification code is ${code}`,
-    })
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${config.twilioAccountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${btoa(`${config.twilioAccountSid}:${config.twilioAuthToken}`)}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body,
-      },
-    )
-    if (!response.ok) throw new Error('Twilio SMS delivery failed.')
-    return
-  }
-
-  if (config.smsProvider === 'vonage') {
-    if (!config.vonageApiKey || !config.vonageApiSecret || !config.vonageFrom) {
-      throw new Error('Vonage SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      api_key: config.vonageApiKey,
-      api_secret: config.vonageApiSecret,
-      to: phoneNumber,
-      from: config.vonageFrom,
-      text: `Your verification code is ${code}`,
-    })
-    const response = await fetch('https://rest.nexmo.com/sms/json', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    })
-    if (!response.ok) throw new Error('Vonage SMS delivery failed.')
-    const payload = (await response.json()) as { messages?: Array<{ status?: string }> }
-    if (payload.messages?.[0]?.status !== '0') throw new Error('Vonage SMS delivery failed.')
-    return
-  }
-
-  if (config.smsProvider === 'messagebird') {
-    if (!config.messageBirdAccessKey || !config.messageBirdOriginator) {
-      throw new Error('MessageBird SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      originator: config.messageBirdOriginator,
-      recipients: phoneNumber,
-      body: `Your verification code is ${code}`,
-    })
-    const response = await fetch('https://rest.messagebird.com/messages', {
-      method: 'POST',
-      headers: {
-        Authorization: `AccessKey ${config.messageBirdAccessKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body,
-    })
-    if (!response.ok) throw new Error('MessageBird SMS delivery failed.')
-    return
-  }
-
-  throw new Error(`Unsupported SMS provider: ${config.smsProvider}`)
-}
-
-export async function buildOAuthUserInfoClaims(
-  authorization: Pick<AuthorizationService, 'buildTokenClaims'>,
-  applications: {
-    findByClientId(clientId: string): Promise<{ id: string; oidcClaims: ApplicationOidcClaims } | null>
-  },
-  input: {
-    clientId?: string
-    user: unknown
-    scopes: Iterable<string>
-    jwt: Record<string, unknown>
-  },
-): Promise<Record<string, unknown>> {
-  if (!input.clientId) return {}
-  const application = await applications.findByClientId(input.clientId)
-  if (!application) return {}
-  return authorization.buildTokenClaims({
-    userId: readUserId(input.user),
-    applicationId: application.id,
-    organizationId:
-      readAuthorizationString(input.jwt, 'organization_id') ?? readJwtString(input.jwt, 'organization_id'),
-    resource: readString(input.jwt, 'aud'),
-    scopes: [...input.scopes],
-    destination: 'userinfo',
-    claimSelection: application.oidcClaims.userInfo,
-  })
-}
-
-export async function buildOAuthAccessTokenClaims(
-  authorization: Pick<AuthorizationService, 'buildTokenClaims'>,
-  input: {
-    user?: ({ id?: string } & Record<string, unknown>) | null
-    scopes: Iterable<string>
-    resource?: string
-    referenceId?: string
-    metadata?: Record<string, unknown>
-  },
-): Promise<Record<string, unknown>> {
-  const oidcClaims = readOidcClaims(input.metadata)
-  const claims = await authorization.buildTokenClaims({
-    userId: input.user?.id,
-    applicationId: readString(input.metadata, 'applicationId'),
-    organizationId: input.referenceId,
-    resource: input.resource,
-    scopes: [...input.scopes],
-    destination: 'access_token',
-    claimSelection: oidcClaims.accessToken,
-  } satisfies AuthorizationTokenClaimInput)
-  return claims
-}
-
-export async function buildOAuthIdTokenClaims(
-  authorization: Pick<AuthorizationService, 'buildTokenClaims'>,
-  input: {
-    user?: ({ id?: string } & Record<string, unknown>) | null
-    scopes?: Iterable<string>
-    metadata?: Record<string, unknown>
-  },
-): Promise<Record<string, unknown>> {
-  const applicationId = readString(input.metadata, 'applicationId')
-  const oidcClaims = readOidcClaims(input.metadata)
-  return {
-    ...(applicationId ? { application_id: applicationId } : {}),
-    ...(await authorization.buildTokenClaims({
-      userId: input.user?.id,
-      applicationId,
-      scopes: input.scopes ? [...input.scopes] : [],
-      destination: 'id_token',
-      claimSelection: oidcClaims.idToken,
-    })),
-  }
-}
-
-function readOidcClaims(metadata: Record<string, unknown> | undefined): ApplicationOidcClaims {
-  const value = metadata?.oidcClaims
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return defaultApplicationOidcClaims
-  return {
-    accessToken: readClaimSelection((value as Record<string, unknown>).accessToken),
-    idToken: readClaimSelection((value as Record<string, unknown>).idToken),
-    userInfo: readClaimSelection((value as Record<string, unknown>).userInfo),
-  }
-}
-
-function readClaimSelection(value: unknown): ApplicationOidcClaims['accessToken'] {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
-  const input = value as Record<string, unknown>
-  return {
-    ...(input.authorization === true ? { authorization: true } : {}),
-    ...(input.scopes === true ? { scopes: true } : {}),
-    ...(input.roles === true ? { roles: true } : {}),
-    ...(input.permissions === true ? { permissions: true } : {}),
-    ...(input.organizationId === true ? { organizationId: true } : {}),
-    ...(input.organizationName === true ? { organizationName: true } : {}),
-  }
-}
-
-function readAuthorizationString(jwt: Record<string, unknown>, key: string) {
-  const authorization = jwt.authorization
-  if (typeof authorization !== 'object' || authorization === null || !(key in authorization)) return undefined
-  const value = (authorization as Record<string, unknown>)[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function readJwtString(jwt: Record<string, unknown>, key: string) {
-  const value = jwt[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function readString(metadata: Record<string, unknown> | undefined, key: string) {
-  const value = metadata?.[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function readUserId(user: unknown) {
-  return typeof user === 'object' && user !== null && 'id' in user && typeof user.id === 'string' ? user.id : undefined
-}
-
-function hasManagementScope(scopes: Iterable<string>) {
-  for (const scope of scopes) {
-    if (managementApplicationScopes.includes(scope as (typeof managementApplicationScopes)[number])) return true
-  }
-  return false
-}
-
-function readUserRole(user: unknown) {
-  return typeof user === 'object' && user !== null && 'role' in user && typeof user.role === 'string' ? user.role : null
-}

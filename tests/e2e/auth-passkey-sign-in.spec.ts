@@ -21,6 +21,7 @@ test('Profile passkey enrollment can be used for hosted passkey sign-in', async 
     },
   })
 
+  await page.goto('/security')
   await page.getByRole('button', { name: 'Add passkey' }).click()
   await page.getByLabel('Passkey name').fill('Hosted Sign-in Passkey')
   await page.getByRole('dialog').getByRole('button', { name: 'Add passkey' }).click()

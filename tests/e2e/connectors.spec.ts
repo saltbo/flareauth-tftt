@@ -17,6 +17,7 @@ test('unavailable connectors are not exposed to sign-in or account linking', asy
   await expect(page.getByRole('button', { name: /E2E OAuth/i })).toHaveCount(0)
 
   await signIn(page)
+  await page.goto('/connections')
   await expect(page.getByText('No sign-in connectors are available.')).toBeVisible()
   await expect(page.getByText('Provider not found')).toHaveCount(0)
   await attachCoverage(testInfo, ['public-sign-in', 'linked-account-unlink'])
@@ -45,6 +46,7 @@ test('available OAuth connectors render with icons and link through the real bac
   })
 
   await signIn(page)
+  await page.goto('/connections')
   const linkResponse = page.waitForResponse(
     (response) => response.url().includes('/api/auth/oauth2/link') && response.request().method() === 'POST',
   )

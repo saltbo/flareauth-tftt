@@ -32,7 +32,8 @@ test('account center lists and revokes delegated agent grants', async ({ page },
   seedAgentAccess(userId as string)
 
   await signIn(page)
-  await expect(page.getByRole('heading', { name: 'Delegated agents' })).toBeVisible()
+  await page.goto('/connections')
+  await expect(page.getByRole('region', { name: 'Delegated agents' })).toBeVisible()
   await expect(page.getByText('E2E Desktop Agent')).toBeVisible()
   await expect(page.getByText(/E2E Agent Host/)).toBeVisible()
   const grantRow = page.locator('.itemRow').filter({ hasText: 'account.profile.read' })

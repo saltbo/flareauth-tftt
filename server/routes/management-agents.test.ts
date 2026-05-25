@@ -7,41 +7,63 @@ afterEach(() => {
 })
 
 describe('management agent routes', () => {
-  it('reads and revokes delegated AgentAuth inventory from the management surface', async () => {
+  it('reads delegated AgentAuth protocol inventory from the agent module', async () => {
     const service = {
-      listHosts: vi.fn().mockResolvedValue(page([{ id: 'host-1', status: 'active' }])),
-      listAgents: vi.fn().mockResolvedValue(page([{ id: 'agent-1', name: 'Desktop Agent', status: 'active' }])),
-      listCapabilityGrants: vi.fn().mockResolvedValue(page([{ id: 'grant-1', capability: 'account.profile.read' }])),
-      listApprovalRequests: vi.fn().mockResolvedValue(page([{ id: 'approval-1', method: 'device_authorization' }])),
-      revokeAgent: vi.fn().mockResolvedValue(undefined),
-      revokeHost: vi.fn().mockResolvedValue(undefined),
-      revokeCapabilityGrant: vi.fn().mockResolvedValue(undefined),
+      listHosts: vi
+        .fn()
+        .mockResolvedValue(page([{ id: 'host-1', status: 'active', enrollmentTokenHash: 'enrollment-secret' }])),
+      listAgents: vi.fn().mockResolvedValue(page([{ id: 'agent-1', mode: 'delegated', status: 'pending' }])),
+      listCapabilityGrants: vi
+        .fn()
+        .mockResolvedValue(page([{ id: 'grant-1', capability: 'account.profile.read', status: 'pending' }])),
+      listApprovalRequests: vi.fn().mockResolvedValue(
+        page([
+          {
+            id: 'approval-1',
+            method: 'device_authorization',
+            status: 'pending',
+            userCodeHash: 'code-secret',
+            clientNotificationToken: 'notification-secret',
+          },
+        ]),
+      ),
     }
     vi.doMock('../modules/agents/context', () => ({
       createAgentService: () => service,
     }))
     const { managementAgentsRoute } = await import('./management/agents')
     const app = withAdminContext()
-    app.route('/management', managementAgentsRoute)
+    app.route('/', managementAgentsRoute)
 
-    const inventoryResponse = await app.request('/management/agents/protocol-inventory?limit=10&offset=20')
-    const agentResponse = await app.request('/management/agents/agent-1', { method: 'DELETE' })
-    const hostResponse = await app.request('/management/agent-hosts/host-1', { method: 'DELETE' })
-    const grantResponse = await app.request('/management/agent-capability-grants/grant-1', { method: 'DELETE' })
+    const response = await app.request('/agents/protocol-inventory?limit=10&offset=20')
 
-    expect(inventoryResponse.status).toBe(200)
-    await expect(inventoryResponse.json()).resolves.toMatchObject({
-      hosts: { items: [{ id: 'host-1', status: 'active' }] },
-      agents: { items: [{ id: 'agent-1', name: 'Desktop Agent', status: 'active' }] },
-      capabilityGrants: { items: [{ id: 'grant-1', capability: 'account.profile.read' }] },
-      approvalRequests: { items: [{ id: 'approval-1', method: 'device_authorization' }] },
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      hosts: {
+        items: [{ id: 'host-1', status: 'active' }],
+        pagination: { limit: 10, offset: 20, total: 1, hasMore: false, nextOffset: null },
+      },
+      agents: {
+        items: [{ id: 'agent-1', mode: 'delegated', status: 'pending' }],
+        pagination: { limit: 10, offset: 20, total: 1, hasMore: false, nextOffset: null },
+      },
+      capabilityGrants: {
+        items: [{ id: 'grant-1', capability: 'account.profile.read', status: 'pending' }],
+        pagination: { limit: 10, offset: 20, total: 1, hasMore: false, nextOffset: null },
+      },
+      approvalRequests: {
+        items: [{ id: 'approval-1', method: 'device_authorization', status: 'pending' }],
+        pagination: { limit: 10, offset: 20, total: 1, hasMore: false, nextOffset: null },
+      },
     })
-    expect(agentResponse.status).toBe(204)
-    expect(hostResponse.status).toBe(204)
-    expect(grantResponse.status).toBe(204)
-    expect(service.revokeAgent).toHaveBeenCalledWith('agent-1')
-    expect(service.revokeHost).toHaveBeenCalledWith('host-1')
-    expect(service.revokeCapabilityGrant).toHaveBeenCalledWith('grant-1')
+    expect(service.listHosts).toHaveBeenCalledWith({ limit: 10, offset: 20 })
+    expect(service.listAgents).toHaveBeenCalledWith({ limit: 10, offset: 20 })
+    expect(service.listCapabilityGrants).toHaveBeenCalledWith({ limit: 10, offset: 20 })
+    expect(service.listApprovalRequests).toHaveBeenCalledWith({ limit: 10, offset: 20 })
+    const body = JSON.stringify(await (await app.request('/agents/protocol-inventory?limit=10&offset=20')).json())
+    expect(body).not.toContain('enrollment-secret')
+    expect(body).not.toContain('code-secret')
+    expect(body).not.toContain('notification-secret')
   })
 })
 

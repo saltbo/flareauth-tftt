@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AccountRoute } from './account'
+import { AccountProfileRoute } from './account'
 import { AgentApproveRoute } from './agent-approve'
 import { AuthCallbackRoute } from './auth-callback'
 import { EmailVerificationRoute } from './email-verification'
@@ -9,8 +9,9 @@ import { OAuthConsentRoute } from './oauth/consent'
 import { SignUpRoute } from './sign-up'
 
 vi.mock('@/features/account/account-center', () => ({
-  AccountCenter: () => <div>Account center route</div>,
-  AccountCenterPage: () => <div>Account center route</div>,
+  AccountConnectionsPage: () => <div>Account center route</div>,
+  AccountProfilePage: () => <div>Account center route</div>,
+  AccountSecurityPage: () => <div>Account center route</div>,
 }))
 
 vi.mock('@/features/auth/auth-pages', () => ({
@@ -22,6 +23,10 @@ vi.mock('@/features/auth/auth-pages', () => ({
 
 vi.mock('@/features/auth/consent-page', () => ({
   ConsentPage: () => <div>Consent route</div>,
+}))
+
+vi.mock('@/features/agents/agent-approval', () => ({
+  AgentApproval: () => <div>Agent approval route</div>,
 }))
 
 vi.mock('@/lib/auth-client', () => ({
@@ -40,7 +45,7 @@ describe('route wrappers', () => {
         <ForgotPasswordRoute />
         <EmailVerificationRoute />
         <AuthCallbackRoute />
-        <AccountRoute />
+        <AccountProfileRoute />
         <AgentApproveRoute />
         <OAuthConsentRoute />
       </>,
@@ -51,7 +56,7 @@ describe('route wrappers', () => {
     expect(screen.getByText('Email verification route')).toBeTruthy()
     expect(screen.getByText('Auth callback route')).toBeTruthy()
     expect(screen.getByText('Account center route')).toBeTruthy()
-    expect(screen.getByText('Approve account access')).toBeTruthy()
+    expect(screen.getByText('Agent approval route')).toBeTruthy()
     expect(screen.getByText('Consent route')).toBeTruthy()
   })
 })

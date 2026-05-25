@@ -1,0 +1,264 @@
+import { relations } from 'drizzle-orm'
+import { agent, agentCapabilityGrant, agentHost, approvalRequest, uploadedAsset } from './agent-tables'
+import {
+  account,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthRefreshToken,
+  passkey,
+  session,
+  twoFactor,
+  user,
+} from './auth-tables'
+import {
+  apiPermission,
+  apiResource,
+  apiScope,
+  application,
+  applicationClientSecret,
+  applicationConsent,
+  applicationRoleAssignment,
+  invitation,
+  member,
+  memberRoleAssignment,
+  organization,
+  role,
+  rolePermission,
+  userRoleAssignment,
+} from './authorization-tables'
+
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+  passkeys: many(passkey),
+  twoFactors: many(twoFactor),
+  oauthClients: many(oauthClient),
+  oauthRefreshTokens: many(oauthRefreshToken),
+  oauthAccessTokens: many(oauthAccessToken),
+  oauthConsents: many(oauthConsent),
+  ownedApplications: many(application),
+  organizationMemberships: many(member),
+  roleAssignments: many(userRoleAssignment),
+  agentHosts: many(agentHost),
+  agents: many(agent),
+  grantedAgentCapabilities: many(agentCapabilityGrant, { relationName: 'grantedAgentCapabilities' }),
+  deniedAgentCapabilities: many(agentCapabilityGrant, { relationName: 'deniedAgentCapabilities' }),
+  agentApprovalRequests: many(approvalRequest),
+}))
+
+export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
+  user: one(user, {
+    fields: [twoFactor.userId],
+    references: [user.id],
+  }),
+}))
+
+export const passkeyRelations = relations(passkey, ({ one }) => ({
+  user: one(user, {
+    fields: [passkey.userId],
+    references: [user.id],
+  }),
+}))
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}))
+
+export const agentHostRelations = relations(agentHost, ({ one, many }) => ({
+  user: one(user, {
+    fields: [agentHost.userId],
+    references: [user.id],
+  }),
+  agents: many(agent),
+  approvalRequests: many(approvalRequest),
+}))
+
+export const agentRelations = relations(agent, ({ one, many }) => ({
+  user: one(user, {
+    fields: [agent.userId],
+    references: [user.id],
+  }),
+  host: one(agentHost, {
+    fields: [agent.hostId],
+    references: [agentHost.id],
+  }),
+  grants: many(agentCapabilityGrant),
+  approvalRequests: many(approvalRequest),
+}))
+
+export const agentCapabilityGrantRelations = relations(agentCapabilityGrant, ({ one }) => ({
+  agent: one(agent, {
+    fields: [agentCapabilityGrant.agentId],
+    references: [agent.id],
+  }),
+  grantedByUser: one(user, {
+    fields: [agentCapabilityGrant.grantedBy],
+    references: [user.id],
+    relationName: 'grantedAgentCapabilities',
+  }),
+  deniedByUser: one(user, {
+    fields: [agentCapabilityGrant.deniedBy],
+    references: [user.id],
+    relationName: 'deniedAgentCapabilities',
+  }),
+}))
+
+export const approvalRequestRelations = relations(approvalRequest, ({ one }) => ({
+  agent: one(agent, {
+    fields: [approvalRequest.agentId],
+    references: [agent.id],
+  }),
+  host: one(agentHost, {
+    fields: [approvalRequest.hostId],
+    references: [agentHost.id],
+  }),
+  user: one(user, {
+    fields: [approvalRequest.userId],
+    references: [user.id],
+  }),
+}))
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}))
+
+export const organizationRelations = relations(organization, ({ many, one }) => ({
+  logoAsset: one(uploadedAsset, {
+    fields: [organization.logoAssetId],
+    references: [uploadedAsset.id],
+  }),
+  members: many(member),
+  invitations: many(invitation),
+  applications: many(application),
+  roles: many(role),
+}))
+
+export const organizationMemberRelations = relations(member, ({ one, many }) => ({
+  organization: one(organization, {
+    fields: [member.organizationId],
+    references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [member.userId],
+    references: [user.id],
+  }),
+  roleAssignments: many(memberRoleAssignment),
+}))
+
+export const applicationRelations = relations(application, ({ one, many }) => ({
+  oauthClient: one(oauthClient, {
+    fields: [application.oauthClientId],
+    references: [oauthClient.clientId],
+  }),
+  ownerUser: one(user, {
+    fields: [application.ownerUserId],
+    references: [user.id],
+  }),
+  ownerOrganization: one(organization, {
+    fields: [application.ownerOrganizationId],
+    references: [organization.id],
+  }),
+  logoAsset: one(uploadedAsset, {
+    fields: [application.logoAssetId],
+    references: [uploadedAsset.id],
+  }),
+  clientSecrets: many(applicationClientSecret),
+  consents: many(applicationConsent),
+  roleAssignments: many(applicationRoleAssignment),
+}))
+
+export const apiResourceRelations = relations(apiResource, ({ many }) => ({
+  scopes: many(apiScope),
+  permissions: many(apiPermission),
+  roles: many(role),
+}))
+
+export const apiScopeRelations = relations(apiScope, ({ one, many }) => ({
+  resource: one(apiResource, {
+    fields: [apiScope.resourceId],
+    references: [apiResource.id],
+  }),
+  permissions: many(apiPermission),
+}))
+
+export const apiPermissionRelations = relations(apiPermission, ({ one, many }) => ({
+  resource: one(apiResource, {
+    fields: [apiPermission.resourceId],
+    references: [apiResource.id],
+  }),
+  scope: one(apiScope, {
+    fields: [apiPermission.scopeId],
+    references: [apiScope.id],
+  }),
+  rolePermissions: many(rolePermission),
+}))
+
+export const roleRelations = relations(role, ({ one, many }) => ({
+  resource: one(apiResource, {
+    fields: [role.resourceId],
+    references: [apiResource.id],
+  }),
+  organization: one(organization, {
+    fields: [role.organizationId],
+    references: [organization.id],
+  }),
+  application: one(application, {
+    fields: [role.applicationId],
+    references: [application.id],
+  }),
+  permissions: many(rolePermission),
+  userAssignments: many(userRoleAssignment),
+  applicationAssignments: many(applicationRoleAssignment),
+  memberAssignments: many(memberRoleAssignment),
+}))
+
+export const rolePermissionRelations = relations(rolePermission, ({ one }) => ({
+  role: one(role, {
+    fields: [rolePermission.roleId],
+    references: [role.id],
+  }),
+  permission: one(apiPermission, {
+    fields: [rolePermission.permissionId],
+    references: [apiPermission.id],
+  }),
+}))
+
+export const userRoleAssignmentRelations = relations(userRoleAssignment, ({ one }) => ({
+  role: one(role, {
+    fields: [userRoleAssignment.roleId],
+    references: [role.id],
+  }),
+  user: one(user, {
+    fields: [userRoleAssignment.userId],
+    references: [user.id],
+  }),
+}))
+
+export const applicationRoleAssignmentRelations = relations(applicationRoleAssignment, ({ one }) => ({
+  role: one(role, {
+    fields: [applicationRoleAssignment.roleId],
+    references: [role.id],
+  }),
+  application: one(application, {
+    fields: [applicationRoleAssignment.applicationId],
+    references: [application.id],
+  }),
+}))
+
+export const memberRoleAssignmentRelations = relations(memberRoleAssignment, ({ one }) => ({
+  role: one(role, {
+    fields: [memberRoleAssignment.roleId],
+    references: [role.id],
+  }),
+  member: one(member, {
+    fields: [memberRoleAssignment.memberId],
+    references: [member.id],
+  }),
+}))

@@ -34,7 +34,6 @@
     { "id": "account-center", "name": "Account center loads profile, security, sessions, connections, and apps" },
     { "id": "account-section-routes", "name": "Account center sections use sibling route-backed pages" },
     { "id": "account-admin-console-entry", "name": "Admin users see a Console entry in the Account Center avatar menu" },
-    { "id": "account-deep-links", "name": "Legacy account section routes resolve to the top-level account page" },
     { "id": "sign-out", "name": "Account center signs out" },
     { "id": "profile-update", "name": "Account center updates profile" },
     { "id": "profile-avatar-upload", "name": "Account center uploads an avatar" },

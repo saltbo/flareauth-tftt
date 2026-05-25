@@ -49,34 +49,14 @@ test('profile edits are saved through real account APIs and dialog UI', async ({
   await page.getByLabel('Display name').fill('FlareAuth Admin E2E')
   await page.getByRole('button', { name: 'Save display name' }).click()
 
-  await expect(page.getByText('FlareAuth Admin E2E')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'FlareAuth Admin E2E' })).toBeVisible()
   await expect(page.getByText('Profile updated.')).toBeVisible()
   await attachCoverage(testInfo, ['profile-update'])
 })
 
-test('legacy account deep links resolve to sibling account center routes', async ({ page }, testInfo) => {
-  await signIn(page)
-
-  for (const [path, expected] of [
-    ['/account/profile', '/profile'],
-    ['/account/security', '/security'],
-    ['/account/linked-accounts', '/connections'],
-    ['/account/sessions', '/security'],
-    ['/linked-accounts', '/connections'],
-    ['/authorized-apps', '/connections'],
-    ['/agents', '/connections'],
-    ['/sessions', '/security'],
-  ] as const) {
-    await page.goto(path)
-    await expect(page).toHaveURL(new RegExp(`${expected}$`))
-    await expect(page.getByRole('heading', { name: admin.name })).toBeVisible()
-  }
-
-  await attachCoverage(testInfo, ['account-deep-links'])
-})
-
 test('account center changes password and signs out', async ({ page }, testInfo) => {
   await signIn(page)
+  await page.goto('/security')
 
   await page.getByRole('button', { name: 'Change password' }).click()
   await page.getByLabel('Current password').fill(admin.password)

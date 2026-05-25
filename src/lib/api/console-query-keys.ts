@@ -1,0 +1,17 @@
+export const consoleQueryKeys = {
+  dashboard: ['console', 'dashboard'] as const,
+  applications: ['console', 'applications'] as const,
+  users: ['console', 'users'] as const,
+  connectors: ['console', 'connectors'] as const,
+  signIn: ['console', 'sign-in-settings'] as const,
+  branding: ['console', 'branding-settings'] as const,
+  accountCenter: ['console', 'account-center-settings'] as const,
+  security: ['console', 'security-policy'] as const,
+  organizations: ['console', 'organizations'] as const,
+  roles: ['console', 'roles'] as const,
+  apiResources: ['console', 'api-resources'] as const,
+  webhookEndpoints: ['console', 'webhooks', 'endpoints'] as const,
+  webhookRequests: ['console', 'webhooks', 'requests'] as const,
+  readiness: ['console', 'readiness'] as const,
+  agents: ['console', 'agents'] as const,
+}

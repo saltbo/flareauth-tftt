@@ -24,11 +24,6 @@ Feature: Account Center
     When I open /profile
     Then the account avatar menu includes a Console entry
 
-  @journey:account-deep-links
-  Scenario: Legacy account deep links resolve to Account Center
-    When I open a legacy account section route
-    Then I land on the top-level Account Center page
-
   @journey:sign-out
   Scenario: Account Center signs out
     When I click Sign out

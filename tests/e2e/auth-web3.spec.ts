@@ -50,7 +50,8 @@ test('Web3 wallet sign-in requires an existing account binding', async ({ page }
   await expect(page.getByRole('alert')).toContainText('You do not have an account yet.')
 
   await signIn(page)
-  await page.goto('/profile')
+  await page.goto('/connections')
+  await expect(page).toHaveURL(/\/connections$/)
   const linkResponse = page.waitForResponse(
     (response) => response.url().includes('/api/account/wallet-addresses') && response.request().method() === 'POST',
   )
