@@ -35,6 +35,30 @@ describe('createAuth OAuth Provider metadata', () => {
     expect(metadata.token_endpoint_auth_methods_supported).not.toContain('none')
   })
 
+  it('passes mounted authorize query parameters to Better Auth', async () => {
+    const auth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy(),
+    )
+
+    const query = new URLSearchParams({
+      client_id: 'client-1',
+      redirect_uri: 'https://app.example.com/callback',
+      response_type: 'code',
+      scope: 'openid profile email',
+      state: 'state-1',
+      code_challenge: 'challenge-1',
+      code_challenge_method: 'S256',
+    })
+    const response = await createApp(auth).request(`/api/auth/oauth2/authorize?${query}`)
+
+    expect(response.headers.get('location') ?? (await response.text())).not.toContain('client_id is required')
+  })
+
   it('wires Better Auth email flows to the transactional email sender', async () => {
     const emailSender = createEmailSenderMock()
     const auth = createAuth(

@@ -2285,6 +2285,11 @@ main:not(.shell):not(.authShell) h1 {
   min-width: 0;
 }
 
+.consentSwitchButton {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .applicationSummary img {
   width: 44px;
   height: 44px;
@@ -2550,6 +2555,11 @@ main:not(.shell):not(.authShell) h1 {
 
   .consentStack .buttonRow .uiButton-secondary {
     width: 100%;
+  }
+
+  .consentSwitchButton {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

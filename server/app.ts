@@ -111,6 +111,7 @@ import { authContext, managementBearerAuth, type SessionReader } from './middlew
 import { trustedOriginCors } from './middleware/cors'
 import { requestContext } from './middleware/request-context'
 import { requireSecurityPolicy } from './middleware/security-policy'
+import { createApplicationService } from './modules/applications/context'
 import type { ConfigzBindings } from './modules/configz/context'
 import type { OnboardingRepository } from './modules/onboarding/repository'
 import type { SecurityRepository } from './modules/security/repository'
@@ -175,7 +176,10 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
 
   app.use('*', requestContext())
   app.use('*', accessLog())
-  app.use('/api/*', trustedOriginCors(options.trustedOrigins ?? []))
+  app.use(
+    '/api/*',
+    trustedOriginCors(options.trustedOrigins ?? [], { resolveAllowedOrigins: oauthClientCorsOrigins(options) }),
+  )
   app.use('/api/*', authContext(auth))
 
   if (options.securityRepository) {
@@ -248,6 +252,45 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
 
   return app
 }
+
+function oauthClientCorsOrigins(options: AppOptions) {
+  return async ({ path, context }: { path: string; context: Context }) => {
+    if (!isOAuthClientCorsPath(path)) return []
+
+    const serviceFactory = options.applicationServiceFactory ?? createApplicationService
+    const origins = new Set<string>()
+    let offset = 0
+
+    for (;;) {
+      const result = await serviceFactory(context as never).list({
+        limit: 100,
+        offset,
+      })
+      for (const application of result.applications) {
+        if (application.disabled) continue
+        for (const origin of application.corsOrigins) origins.add(origin)
+      }
+      if (!result.pagination.hasMore || result.pagination.nextOffset === null) break
+      offset = result.pagination.nextOffset
+    }
+
+    return [...origins]
+  }
+}
+
+function isOAuthClientCorsPath(path: string) {
+  return oauthClientCorsPaths.has(path)
+}
+
+const oauthClientCorsPaths = new Set([
+  '/api/auth/.well-known/openid-configuration',
+  '/api/auth/.well-known/oauth-authorization-server',
+  '/api/auth/jwks',
+  '/api/auth/oauth2/token',
+  '/api/auth/oauth2/userinfo',
+  '/api/auth/oauth2/revoke',
+  '/api/auth/oauth2/introspect',
+])
 
 async function requireHostedAuthMethodEnabled(c: Context, factory: ConfigzServiceFactory) {
   const path = c.req.path

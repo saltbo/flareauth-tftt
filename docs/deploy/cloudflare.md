@@ -57,7 +57,11 @@ Checklist:
 
 - `BETTER_AUTH_SECRET`: 32+ bytes from `openssl rand -base64 32`.
 - `BETTER_AUTH_URL`: optional production issuer origin, for example `https://auth.example.com`. When omitted, FlareAuth uses the request origin.
-- `TRUSTED_ORIGINS`: optional comma-separated product and preview origins. When omitted, FlareAuth trusts the resolved issuer origin.
+- `TRUSTED_ORIGINS`: optional comma-separated first-party FlareAuth origins,
+  such as admin console, account center, and deployment preview origins. When
+  omitted, FlareAuth trusts the resolved issuer origin. Configure OAuth/OIDC
+  application browser origins in each Application's CORS origins setting instead
+  of putting every product origin here.
 - OAuth provider credentials configured in the admin console or management API.
 - Management API credentials for any product automation.
 - Cloudflare account credentials for deployments, D1 migrations, R2, Queues, and Email Routing.
@@ -75,6 +79,12 @@ deployment uses a single custom domain.
 Deploy Button creates a deployment repository for the product instance. Keep
 instance values in that repository, not in the upstream FlareAuth template. See
 [Deployment upgrades](upgrades.md) for the upstream sync workflow.
+
+The upstream FlareAuth repository keeps `wrangler.toml` as the Deploy Button
+template. If upstream maintainers need to deploy their own production Worker,
+they should use `wrangler.production.toml` through `npm run deploy:self`. That
+configuration uses the Worker `workers.dev` origin and does not include a custom
+domain.
 
 ## Email Routing
 

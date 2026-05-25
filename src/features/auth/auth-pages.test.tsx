@@ -17,7 +17,7 @@ import {
   SignUpPage,
   safeAuthRedirect,
 } from './auth-pages'
-import { ConsentPage } from './consent-page'
+import { ConsentPage, signInWithReturnTo } from './consent-page'
 
 const configz = {
   onboarding: { required: false, href: '/onboarding' },
@@ -1098,6 +1098,7 @@ describe('hosted auth pages', () => {
     expect(await screen.findByRole('heading', { name: 'Client App' })).toBeTruthy()
     expect(screen.getByText('Signed in as')).toBeTruthy()
     expect(screen.getByText('Jane Stone')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Switch account' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Approve access' }))
 
     await waitFor(() => {
@@ -1107,6 +1108,34 @@ describe('hosted auth pages', () => {
           body: { clientId: 'client-1', scopes: ['openid', 'profile'] },
         },
       ])
+    })
+  })
+
+  it('signs out from OAuth consent before switching accounts', async () => {
+    window.history.pushState(
+      null,
+      '',
+      '/oauth/consent?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    )
+    expect(signInWithReturnTo()).toBe(
+      '/sign-in?return_to=%2Foauth%2Fconsent%3Fclient_id%3Dclient-1%26redirect_uri%3Dhttps%253A%252F%252Fclient.example.com%252Fcallback%26state%3Dstate-1',
+    )
+
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/configz')) return Promise.resolve(jsonResponse(configz))
+      if (url.startsWith('/api/oauth/consent')) return Promise.resolve(jsonResponse(consentResponse))
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    render(<ConsentPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Switch account' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual([{ url: '/api/auth/sign-out', body: {} }])
     })
   })
 

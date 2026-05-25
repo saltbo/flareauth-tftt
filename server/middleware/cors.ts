@@ -1,10 +1,14 @@
-import type { MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from 'hono'
 import { forbidden } from '../lib/errors'
 
 const corsMethods = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
 const corsHeaders = 'authorization,content-type'
 
-export function trustedOriginCors(trustedOrigins: string[]): MiddlewareHandler {
+interface TrustedOriginCorsOptions {
+  resolveAllowedOrigins?: (context: { path: string; context: Context }) => Promise<string[]>
+}
+
+export function trustedOriginCors(trustedOrigins: string[], options: TrustedOriginCorsOptions = {}): MiddlewareHandler {
   const allowedOrigins = new Set(trustedOrigins)
 
   return async (c, next) => {
@@ -15,13 +19,21 @@ export function trustedOriginCors(trustedOrigins: string[]): MiddlewareHandler {
       return
     }
 
-    if (!allowedOrigins.has(origin)) {
+    const dynamicOrigins = allowedOrigins.has(origin)
+      ? []
+      : await (options.resolveAllowedOrigins?.({ path: c.req.path, context: c }) ?? [])
+
+    if (!allowedOrigins.has(origin) && !dynamicOrigins.includes(origin)) {
       throw forbidden('Origin is not trusted for this issuer.')
     }
 
-    c.header('Access-Control-Allow-Origin', origin)
-    c.header('Access-Control-Allow-Credentials', 'true')
-    c.header('Vary', 'Origin')
+    const setCorsHeaders = () => {
+      c.header('Access-Control-Allow-Origin', origin)
+      c.header('Access-Control-Allow-Credentials', 'true')
+      c.header('Vary', 'Origin')
+    }
+
+    setCorsHeaders()
 
     if (c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Methods', corsMethods)
@@ -30,5 +42,6 @@ export function trustedOriginCors(trustedOrigins: string[]): MiddlewareHandler {
     }
 
     await next()
+    setCorsHeaders()
   }
 }
