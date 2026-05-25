@@ -25,15 +25,15 @@ operator's GitHub/GitLab account, provisions supported resources, fills generate
 resource IDs into the cloned repository, configures Workers Builds, and deploys
 the Worker. Use the button for each product auth realm. The button should only
 need the `BETTER_AUTH_SECRET` from `.dev.vars.example` during the initial flow.
-The template declares D1 and R2 by binding name only so Cloudflare can create
-and bind those resources automatically.
+The template keeps placeholder D1 and R2 resource fields so Cloudflare has
+configuration keys to replace in the cloned deployment repository.
 
 If you are creating resources manually instead, create one production and one
 staging resource set per product:
 
 ```bash
-wrangler d1 create flareauth-db
-wrangler d1 create flareauth-db-staging
+wrangler d1 create flareauth
+wrangler d1 create flareauth-staging
 wrangler r2 bucket create flareauth-assets
 wrangler r2 bucket create flareauth-assets-staging
 wrangler queues create flareauth-email
@@ -42,7 +42,8 @@ wrangler queues create flareauth-email-staging
 
 Update `database_id` in `wrangler.toml` and `wrangler.preview.toml` after
 creating D1 databases manually. Deploy Button handles this resource provisioning
-step for button-created deployments.
+step for button-created deployments by replacing the placeholder IDs in the
+cloned deployment repository, not in the upstream template.
 
 ## Secrets And Vars
 

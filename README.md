@@ -56,8 +56,8 @@ npm run deploy:check
 The repository uses one Cloudflare Worker and separate staging/production Cloudflare resources:
 
 - Worker `flareauth`
-- Production D1 `flareauth-db`
-- Staging preview D1 `flareauth-db-staging`
+- Production D1 `flareauth`
+- Staging preview D1 `flareauth-staging`
 - Production R2 `flareauth-assets`
 - Staging R2 `flareauth-assets-staging`
 - Production Queue `flareauth-email`
@@ -85,8 +85,8 @@ Connect the repository in Cloudflare Dashboard and use:
 - Build command: `npm run build`
 - Production Worker: `flareauth`
 - Preview deployments: enabled for pull requests and non-main branches
-- Production D1 binding `DB`: `flareauth-db`
-- Preview D1 binding `DB`: `flareauth-db-staging`
+- Production D1 binding `DB`: `flareauth`
+- Preview D1 binding `DB`: `flareauth-staging`
 - R2 binding `ASSET_BUCKET`: environment-specific avatar/logo storage
 - Email binding `EMAIL`: verified Cloudflare Email Routing sender
 - Queue binding `EMAIL_QUEUE`: environment-specific email queue

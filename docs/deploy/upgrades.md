@@ -29,7 +29,7 @@ Keep instance configuration in the deployment repository:
 - `EMAIL_FROM`
 - `[[send_email]].allowed_sender_addresses`
 - `[[routes]]` or Cloudflare Dashboard custom domain settings
-- generated D1, R2, Queue, and Worker names or IDs
+- generated D1 `database_id`, R2 bucket name, Queue name, and Worker name
 
 Commit those instance settings in the deployment repository only.
 
@@ -75,6 +75,11 @@ wrangler deploy
 
 Using the binding name keeps upgrades compatible with Deploy Button generated
 database names.
+
+Deploy Button should replace placeholder resource fields in the deployment
+repository. If a deployment repository still contains
+`00000000-0000-0000-0000-000000000000`, replace it with the generated D1
+database ID before running CI.
 
 ## Conflict Rules
 
