@@ -1,20 +1,28 @@
-# FlareAuth
-
 <p align="center">
-  <img src="assets/flareauth-logo.svg" alt="FlareAuth logo" width="112" height="112" />
+  <img src="assets/logo.png" alt="FlareAuth logo" width="132" height="132" />
 </p>
 
-[![CI](https://github.com/saltbo/flareauth/actions/workflows/ci.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/ci.yml)
-[![E2E](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml)
-[![License](https://img.shields.io/github/license/saltbo/flareauth.svg)](LICENSE)
-[![Coverage](https://codecov.io/gh/saltbo/flareauth/branch/main/graph/badge.svg)](https://codecov.io/gh/saltbo/flareauth)
-[![Node](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178c6.svg)](package.json)
+<h1 align="center">FlareAuth</h1>
 
-FlareAuth is a deployable identity platform for products that need hosted
-sign-in, account management, administration, and a standard OIDC provider.
+<p align="center">
+  Deployable identity infrastructure for hosted sign-in, account management,
+  administration, and standard OIDC.
+</p>
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
+<p align="center">
+  <a href="https://github.com/saltbo/flareauth/actions/workflows/ci.yml"><img src="https://github.com/saltbo/flareauth/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/saltbo/flareauth/actions/workflows/e2e.yml"><img src="https://github.com/saltbo/flareauth/actions/workflows/e2e.yml/badge.svg" alt="E2E" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/saltbo/flareauth.svg" alt="License" /></a>
+  <a href="https://codecov.io/gh/saltbo/flareauth"><img src="https://codecov.io/gh/saltbo/flareauth/branch/main/graph/badge.svg" alt="Coverage" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/node-%3E%3D24-339933.svg" alt="Node >=24" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/TypeScript-6.x-3178c6.svg" alt="TypeScript 6.x" /></a>
+</p>
+
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" />
+  </a>
+</p>
 
 ## What It Is
 
