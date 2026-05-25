@@ -71,13 +71,17 @@ Workers Builds for that product instance.
 Use a separate cloned repository, Worker, D1 database, R2 bucket, queue, domain,
 and `BETTER_AUTH_SECRET` for each product that needs an independent user pool.
 
-Deploy production manually:
+Deploy the upstream-maintained production Worker manually:
 
 ```bash
-npm run deploy
+npm run deploy:self
 ```
 
-Cloudflare Dashboard should own deployments for this repository.
+Keep `wrangler.toml` as the Deploy Button template. Upstream-maintained
+production deploys use `wrangler.production.toml` and the `workers.dev` origin.
+
+Cloudflare Dashboard should own deployments for deployment repositories created
+from this template.
 
 Connect the repository in Cloudflare Dashboard and use:
 

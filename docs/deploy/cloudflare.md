@@ -76,6 +76,12 @@ Deploy Button creates a deployment repository for the product instance. Keep
 instance values in that repository, not in the upstream FlareAuth template. See
 [Deployment upgrades](upgrades.md) for the upstream sync workflow.
 
+The upstream FlareAuth repository keeps `wrangler.toml` as the Deploy Button
+template. If upstream maintainers need to deploy their own production Worker,
+they should use `wrangler.production.toml` through `npm run deploy:self`. That
+configuration uses the Worker `workers.dev` origin and does not include a custom
+domain.
+
 ## Email Routing
 
 Cloudflare Email Routing must be active for the sending domain before deployment mail can be sent.
