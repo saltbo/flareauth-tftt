@@ -19,9 +19,13 @@ export function trustedOriginCors(trustedOrigins: string[]): MiddlewareHandler {
       throw forbidden('Origin is not trusted for this issuer.')
     }
 
-    c.header('Access-Control-Allow-Origin', origin)
-    c.header('Access-Control-Allow-Credentials', 'true')
-    c.header('Vary', 'Origin')
+    const setCorsHeaders = () => {
+      c.header('Access-Control-Allow-Origin', origin)
+      c.header('Access-Control-Allow-Credentials', 'true')
+      c.header('Vary', 'Origin')
+    }
+
+    setCorsHeaders()
 
     if (c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Methods', corsMethods)
@@ -30,5 +34,6 @@ export function trustedOriginCors(trustedOrigins: string[]): MiddlewareHandler {
     }
 
     await next()
+    setCorsHeaders()
   }
 }

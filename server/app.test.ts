@@ -139,6 +139,21 @@ describe('createApp', () => {
     expect(response.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
+  it('emits CORS response headers for raw auth handler responses', async () => {
+    const response = await createApp(createAuthMock(), { trustedOrigins: ['https://tenant.example.com'] }).request(
+      '/api/auth/session',
+      {
+        headers: {
+          origin: 'https://tenant.example.com',
+        },
+      },
+    )
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://tenant.example.com')
+    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
   it('blocks password auth endpoints when hosted password auth is disabled', async () => {
     const auth = createAuthMock()
     const configzService = createConfigzServiceMock({
