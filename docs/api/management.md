@@ -1,0 +1,195 @@
+# FlareAuth Management API
+
+Status: maintained contract for FlareAuth v1.0.
+
+The Management API is mounted at:
+
+```text
+/api/management
+```
+
+The runtime OpenAPI 3.1 contract is served at:
+
+```text
+/api/management/openapi.json
+```
+
+Protected Management API responses include Restish-compatible discovery links:
+
+```text
+Link: </api/management/openapi.json>; rel="service-desc"; type="application/openapi+json", </api/management/openapi.json>; rel="describedby"; type="application/openapi+json"
+```
+
+Restish can load the contract directly:
+
+```bash
+restish api configure flareauth https://auth.example.com/api/management
+restish api sync flareauth
+```
+
+Restish discovers `/api/management/openapi.json` from the `service-desc` link relation. The OpenAPI document response itself intentionally does not include a self-referential discovery link.
+
+Generated Restish commands are available after sync, for example:
+
+```bash
+restish flareauth list-applications
+restish flareauth get-application app_123
+```
+
+For resource-path workflows, use Restish generic verbs:
+
+```bash
+restish get flareauth/applications
+restish get flareauth/applications/app_123
+restish post flareauth/applications < app.json
+restish patch flareauth/applications/app_123 < patch.json
+restish delete flareauth/applications/app_123
+```
+
+The older `/api/admin/*` routes remain available for the operator UI and compatibility, but `/api/management/*` is the public v1.0 contract.
+
+Product applications should not use this API for sign-in, session, or profile
+integration. Products consume FlareAuth through standard OIDC discovery and
+authorization code with PKCE under `/api/auth/*`.
+
+## Authentication And Authorization
+
+Every protected Management API route accepts either an authenticated administrator browser session or a Bearer token issued to the built-in FlareAuth CLI OAuth client. Requests without valid authentication return `401`; authenticated users without admin or equivalent management authorization return `403`. The OpenAPI discovery document is public so API clients can discover the service before authenticating.
+
+The built-in CLI client is system-managed and stable:
+
+- `client_id`: `flareauth-cli`
+- Name: `FlareAuth CLI`
+- Client type: public native
+- Client secret: none
+- PKCE: required
+- Redirect URIs: `http://127.0.0.1:8484/callback`, `http://localhost:8484/callback`
+- Grant types: `authorization_code`, `refresh_token`
+- Management scopes: `management:read`, `management:write`
+
+Restish can use the Authorization Code + PKCE flow with its local callback server on port 8484. Request `openid offline_access management:read management:write` when configuring CLI access. The public client is only a login entrypoint: Management API authorization still comes from the authenticated user role or token authorization claims, so a non-admin user token receives `403`.
+
+## Error Shape
+
+All Management API errors use the same JSON envelope:
+
+```json
+{
+  "error": {
+    "code": "bad_request",
+    "message": "Invalid request.",
+    "requestId": "request-id"
+  }
+}
+```
+
+`code` is one of `bad_request`, `unauthorized`, `forbidden`, `not_found`, or `internal_error`.
+
+## Pagination
+
+Collection endpoints accept:
+
+- `limit`: integer, `1` to `100`.
+- `offset`: integer, `0` or greater.
+
+Collection responses include:
+
+```json
+{
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "total": 42,
+    "hasMore": true,
+    "nextOffset": 20
+  }
+}
+```
+
+`nextOffset` is `null` when there is no next page.
+
+## Resource Groups
+
+- Users: `/users`, `/users/{id}`, `/users/{id}/linked-accounts`, `/users/{id}/applications`, `/users/{id}/sessions`.
+- User account actions: `POST /users/password-reset-requests`, `PUT /users/{id}/ban`, `DELETE /users/{id}/ban`.
+- Applications: `/applications`, `/applications/{id}`, `/applications/{id}/redirect-uris`, `/applications/{id}/client-secrets`, `POST /applications/{id}/logo`.
+- Connectors: `GET /connectors`, `POST /connectors`, `GET /connectors/templates`, `GET /connectors/{id}`, `GET /connectors/{id}/readiness`, `PATCH /connectors/{id}`, `DELETE /connectors/{id}`.
+- Webhooks: `/webhooks/endpoints`, `/webhooks/endpoints/{id}`, `/webhooks/endpoints/{id}/secrets`, `/webhooks/requests`, `/webhooks/requests/{id}`, `/webhooks/requests/{id}/retries`.
+
+Application resources are OIDC clients. `POST /applications` returns the created application; confidential clients include `clientSecret` in that creation response only. `GET /applications/{id}` returns client metadata, redirect URIs, post sign-out redirect URIs, CORS origins, custom data, allowed grant types, allowed scopes, system-managed state, token endpoint auth method, and discovery endpoint URLs. `PATCH /applications/{id}` updates metadata, redirect/origin sets, custom data, and lifecycle fields including `disabled`; lifecycle transitions do not use action endpoints. `DELETE /applications/{id}` deletes the application and its provider client. System-managed applications such as `flareauth-cli` are not deletable through the Management API.
+
+Redirect URIs are replaced as a set with `PUT /applications/{id}/redirect-uris`:
+
+```json
+{
+  "redirectUris": ["https://app.example.com/callback"]
+}
+```
+
+Client secret endpoints are only for confidential clients. `GET /applications/{id}/client-secrets` returns secret metadata only. `POST /applications/{id}/client-secrets` rotates the active secret and returns the raw `clientSecret` exactly once in the response; list and detail responses never return raw secret material.
+
+Connector responses use the same stable connector contract as the admin connector API: provider type/id, display name, enabled flag, OAuth endpoints, client id, secret binding reference, scopes, and provider metadata. Secret values are not returned; `clientSecretBinding` is a reference to deployment-managed secret material.
+
+Connector `providerType` is restricted to `social` and `generic_oauth`, matching the values loaded into Better Auth. Connector templates provide labels, icons, default scopes, required fields, and endpoint hints for admin create flows. Enabled connector creation requires `clientId` and `clientSecretBinding`; disabled draft connectors may omit runtime credentials. Generic OAuth uses either issuer discovery or explicit endpoints; do not mix `issuer` with explicit endpoint URLs, and provide both `authorizationEndpoint` and `tokenEndpoint` when issuer discovery is not used. Updates can clear nullable configuration fields, but enabled connectors must remain loadable by Better Auth. `providerId` is globally unique because Better Auth uses it as the provider key.
+
+`GET /connectors/{id}/readiness` returns a configuration-readiness report for the saved connector. It checks stored configuration and runtime secret binding availability without returning raw secret values or contacting third-party providers.
+
+Webhook endpoints are persisted HTTPS destinations with an explicit event allowlist and enabled state. `POST /webhooks/endpoints` creates an endpoint and returns the raw `signingSecret` exactly once. `POST /webhooks/endpoints/{id}/secrets` rotates the signing secret and also returns the raw secret exactly once; list and detail responses only include the secret prefix. Webhook request history is exposed through `/webhooks/requests`; failed or pending requests can be requeued with `POST /webhooks/requests/{id}/retries`.
+- Sign-in settings: `/sign-in-settings`.
+- Branding settings: `/branding-settings`.
+- Readiness: `/readiness`.
+- Organizations: `/organizations`, `/organizations/{id}`, `POST /organizations/{id}/logo`, `/organizations/{id}/members`, `/organizations/{id}/invitations`.
+- Branding assets: `POST /branding/logo`, `POST /branding/favicon`.
+- Roles: `/roles`, `/roles/{id}`, `/roles/{id}/permissions`.
+- Role assignments: `/user-role-assignments`, `/application-role-assignments`, `/member-role-assignments`.
+- API resources and scopes: `/api-resources`, `/api-resources/{id}`, `/api-resources/{id}/scopes`, `/api-resources/{id}/permissions`.
+- Security administration: `/security/policy`, `/security/users/{id}`, `/security/users/{id}/passkeys`, `/security/users/{id}/passkeys/{passkeyId}`, `/security/users/{id}/sessions`, `/security/users/{id}/sessions/{sessionId}`.
+
+Roles and API resources are complete resource-style surfaces. `GET /api-resources/{id}` and `PATCH /api-resources/{id}` manage the protected API identifier, display name, audience, enabled state, and optional token-claim namespace. Scopes are child resources under `GET|POST /api-resources/{id}/scopes` and `PATCH|DELETE /api-resources/{id}/scopes/{scopeId}`. Permissions follow the same pattern under `/api-resources/{id}/permissions`; permissions can reference a scope from the same API resource.
+
+`GET /roles/{id}` returns role metadata. `GET /roles/{id}/permissions` returns the current permission set, and `PUT /roles/{id}/permissions` replaces that set with:
+
+```json
+{
+  "permissionIds": ["perm_123"]
+}
+```
+
+Role assignments are idempotent `POST` requests. `roleId` identifies the role, `subjectId` is the user id, application id, or organization member id for the selected assignment endpoint, and optional `tokenClaims` must not override reserved `authorization`, `roles`, `permissions`, or URL-namespaced claims.
+
+Security administrators can delete a user passkey with `DELETE /security/users/{id}/passkeys/{passkeyId}`, revoke all user sessions with `DELETE /security/users/{id}/sessions`, and revoke one user session with `DELETE /security/users/{id}/sessions/{sessionId}`.
+
+Compatibility action routes inherited from the admin UI surface remain
+documented in OpenAPI and marked deprecated where appropriate. New Management API
+consumers should prefer resource-shaped routes such as
+`POST /users/password-reset-requests`, `PUT /users/{id}/ban`,
+`DELETE /users/{id}/ban`, and the top-level role assignment resources.
+
+## Asset Uploads
+
+Asset uploads use `multipart/form-data` with a single `file` field. Application, organization, and branding uploads require an administrator session. Successful uploads return the asset metadata and assign the uploaded asset to the target resource.
+
+Supported files:
+
+- Application, organization, and branding logos: PNG, JPEG, or WebP up to 2 MB.
+- Favicons: PNG, WebP, ICO, or Microsoft icon up to 512 KB.
+
+Uploaded assets are returned with a same-origin public URL at `/api/assets/{assetId}`. The Worker serves that URL from the private R2 bucket with immutable cache headers.
+
+## Readiness
+
+`GET /readiness` returns protected Console setup state. The admin route guard uses this response to decide whether `/admin/*` should continue to the requested product route or redirect to `/admin/onboarding`.
+
+```json
+{
+  "admin": {
+    "setupRequired": true,
+    "setupHref": "/admin/onboarding",
+    "missing": ["oidc_application"]
+  }
+}
+```
+
+`missing` currently contains `oidc_application` when no OIDC client exists. Future readiness checks should add explicit enum values rather than overloading this field with display copy.
+
+The maintained OpenAPI contract is generated at runtime from `server/openapi/management.ts` with `@hono/zod-openapi` route configs and the shared Zod schemas in `shared/api/*`. Contract tests compare the mounted Hono Management route table to the generated document so newly implemented Management endpoints fail tests until OpenAPI coverage is added.
