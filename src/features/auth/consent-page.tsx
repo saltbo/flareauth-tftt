@@ -1,10 +1,11 @@
 import type { ConsentRequestResponse } from '@shared/api/applications'
-import { ArrowRight, CircleAlert, ShieldCheck, UserRound } from 'lucide-react'
+import { ArrowRight, CircleAlert, LogOut, ShieldCheck, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AuthLayout } from '@/components/layout/auth-layout'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Status } from '@/components/ui/status'
 import { createConsent, getConsentRequest } from '@/lib/api'
+import { signOut } from '@/lib/auth-client'
 import { tt } from '@/lib/i18n'
 import { useConfigz } from './hooks'
 export function ConsentPage() {
@@ -13,6 +14,7 @@ export function ConsentPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [switchingAccount, setSwitchingAccount] = useState(false)
   const search = window.location.search
   useEffect(() => {
     let active = true
@@ -46,6 +48,17 @@ export function ConsentPage() {
     } catch (approveError) {
       setError(approveError instanceof Error ? tt(approveError.message) : tt('Unable to approve consent.'))
       setSubmitting(false)
+    }
+  }
+  async function switchAccount() {
+    setSwitchingAccount(true)
+    setError(null)
+    try {
+      await signOut()
+      window.location.assign(signInWithReturnTo())
+    } catch (switchError) {
+      setError(switchError instanceof Error ? tt(switchError.message) : tt('Unable to switch accounts.'))
+      setSwitchingAccount(false)
     }
   }
   const messageState = error !== null || (!loading && !consent)
@@ -96,6 +109,15 @@ export function ConsentPage() {
                 <small>{consent.user.email}</small>
               ) : null}
             </div>
+            <Button
+              className="consentSwitchButton"
+              disabled={submitting || switchingAccount}
+              onClick={switchAccount}
+              type="button"
+              variant="ghost"
+            >
+              <LogOut size={16} /> {tt('Switch account')}
+            </Button>
           </div>
           <ul className="scopeList" aria-label={tt('Requested scopes')}>
             {consent.requestedScopes.map((scope) => (
@@ -124,6 +146,12 @@ export function ConsentPage() {
     </AuthLayout>
   )
 }
+
+export function signInWithReturnTo() {
+  const current = `${window.location.pathname}${window.location.search}`
+  return `/sign-in?return_to=${encodeURIComponent(current)}`
+}
+
 function scopeDescription(scope: string) {
   if (scope === 'openid') return tt('Confirm your identity with this provider.')
   if (scope === 'profile') return tt('Share basic profile details such as name and avatar.')

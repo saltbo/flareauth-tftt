@@ -100,6 +100,12 @@ Feature: Hosted authentication
     When I approve consent
     Then FlareAuth redirects to the client callback with an authorization result
 
+  @journey:oauth-consent-account-switch
+  Scenario: OAuth consent can switch accounts without losing the request
+    Given a third-party OIDC application requests scopes
+    When I switch accounts from the consent page
+    Then FlareAuth returns to the same consent request after sign-in
+
   @journey:oauth-consent-deny
   Scenario: OAuth consent denial returns safely to the client callback
     Given a third-party OIDC application requests scopes

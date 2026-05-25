@@ -119,6 +119,17 @@ test('OIDC application context, consent approve and deny, and callback route are
   await page.goto(`/oauth/consent?${consentSearch.toString()}`)
   await expect(page.getByRole('heading', { name: 'Review application access.' })).toBeVisible()
   await expect(page.getByText('Consent Client')).toBeVisible()
+  await page.getByRole('button', { name: 'Switch account' }).click()
+  await page.waitForURL(/\/sign-in/)
+  const returnTo = new URL(page.url()).searchParams.get('return_to')
+  expect(returnTo).toContain('/oauth/consent?')
+  expect(returnTo).toContain(`client_id=${thirdPartyApplication.clientId}`)
+  await page.getByRole('textbox', { name: 'Email or username' }).fill(admin.username)
+  await page.getByRole('textbox', { name: 'Password' }).fill(admin.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL(/\/oauth\/consent/)
+  await expect(page.getByRole('heading', { name: 'Review application access.' })).toBeVisible()
+  await expect(page.getByText('Consent Client')).toBeVisible()
   await page.getByRole('link', { name: 'Deny' }).click()
   await expect(page.getByRole('heading', { name: 'Client callback' })).toBeVisible()
 
@@ -132,6 +143,7 @@ test('OIDC application context, consent approve and deny, and callback route are
     'oidc-hosted-sign-in-context',
     'oidc-client-callback',
     'oauth-consent',
+    'oauth-consent-account-switch',
     'oauth-consent-deny',
   ])
 })

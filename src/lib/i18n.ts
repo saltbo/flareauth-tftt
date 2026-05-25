@@ -281,6 +281,7 @@ const zhFlatTranslations: Record<string, string> = {
   'Unable to load account center.': '无法加载账户中心。',
   'Unable to load consent request.': '无法加载授权请求。',
   'Unable to approve consent.': '无法批准授权。',
+  'Unable to switch accounts.': '无法切换账户。',
   'Onboarding failed.': '初始化失败。',
   'First-admin onboarding is already locked.': '首个管理员初始化已锁定。',
   'First admin created. Sign in to finish Console setup.': '首个管理员已创建。请登录以完成控制台设置。',
@@ -721,6 +722,7 @@ Object.assign(zhFlatTranslations, {
   'Signed delivery attempts are recorded here when webhook events are dispatched.':
     'Webhook 事件分发时，签名投递尝试会记录在此。',
   'Signed in as': '当前登录为',
+  'Switch account': '切换账户',
   'Signing in as': '正在以此身份登录',
   'Signing keys': '签名密钥',
   'Signing secret': '签名密钥',
