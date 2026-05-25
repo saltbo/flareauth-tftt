@@ -1,138 +1,116 @@
 # FlareAuth
 
-[![CI](https://github.com/saltbo/flareauth/actions/workflows/ci.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/ci.yml)
-[![E2E](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml)
 [![License](https://img.shields.io/github/license/saltbo/flareauth.svg)](LICENSE)
-[![Coverage](https://codecov.io/gh/saltbo/flareauth/branch/main/graph/badge.svg)](https://codecov.io/gh/saltbo/flareauth)
-[![Node](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178c6.svg)](package.json)
 
-Cloudflare-native identity provider built on Better Auth.
+FlareAuth is a deployable identity platform for products that need hosted
+sign-in, account management, administration, and a standard OIDC provider.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
 
-FlareAuth is a single user pool auth realm. One deployment can host multiple
-OIDC applications when products intentionally share accounts and administrators.
-Products that need separate user pools, issuers, administrators, or login policy
-should run separate FlareAuth deployments. See
-[Tenancy Model](docs/architecture/tenancy.md).
+## What It Is
 
-## Stack
+FlareAuth gives a product team its own auth realm: one user pool, one issuer, one
+admin console, and one hosted account center. Multiple applications can share
+the same realm when they should share accounts and administrators.
 
-- Cloudflare Workers and Assets
-- Cloudflare D1
-- Hono API
-- Better Auth with OIDC provider
-- React and Vite
-- Drizzle ORM
+For products that need separate users, administrators, issuer URLs, or sign-in
+policy, deploy another FlareAuth instance.
 
-## Commands
+## Highlights
 
-```bash
-npm install
-npm run dev
-npm run typecheck
-npm run lint
-npm test
-npm run test:coverage
-npm run spec:check
-npm run test:e2e
+- Hosted sign-in, sign-up, password recovery, and OAuth consent.
+- Account center for profile, credentials, sessions, MFA, passkeys, and linked
+  accounts.
+- Admin console for applications, users, connectors, security policy, branding,
+  organizations, roles, API resources, webhooks, and deployment readiness.
+- Standard OIDC integration for product applications.
+- Public Management API with generated OpenAPI contract.
+- Agent-operable administration through an installable FlareAuth skill.
+- Cloudflare Deploy Button setup for low-cost per-product deployments.
+
+## Core Capabilities
+
+### Hosted Auth
+
+Use FlareAuth as the identity provider for your product applications. Product
+apps integrate through standard OIDC discovery, authorization code with PKCE,
+token exchange, and callback handling.
+
+### Account Center
+
+Users can manage their profile, password, MFA, passkeys, active sessions, linked
+accounts, and authorized applications from the hosted account center.
+
+### Admin Console
+
+Administrators can configure product applications, login methods, external
+identity connectors, branding, security requirements, organizations, roles,
+API resources, webhooks, and deployment health.
+
+### Management API
+
+Every admin capability is available through the Management API. The OpenAPI
+contract is served by each deployment at:
+
+```text
+/api/management/openapi.json
 ```
 
-Code coverage is uploaded from CI to Codecov. Browser E2E status is reported by the E2E workflow; the suite enforces complete declared journey coverage from `tests/e2e/journey-coverage.json`.
-Product behavior specs live in [`specs`](specs). Browser E2E tests are the
-automation adapter for those specs, and `npm run spec:check` verifies that spec
-journeys, declared coverage, and Playwright `attachCoverage(...)` calls stay in
-sync.
+## Deploy
 
-Check Cloudflare binding coverage before review:
+Use the Deploy to Cloudflare button for each product auth realm:
 
-```bash
-npm run deploy:check
-```
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
 
-## Cloudflare Environments
+After deployment:
 
-The repository uses one Cloudflare Worker and separate staging/production Cloudflare resources:
+1. Open the deployed URL.
+2. Complete first-admin onboarding.
+3. Configure sign-in methods and product applications in the admin console.
+4. Point product applications at the deployment's OIDC discovery URL.
 
-- Worker `flareauth`
-- Production D1 `flareauth`
-- Staging preview D1 `flareauth-staging`
-- Production R2 `flareauth-assets`
-- Staging R2 `flareauth-assets-staging`
-- Production Queue `flareauth-email`
-- Staging Queue `flareauth-email-staging`
+For upgrade and operational details, see:
 
-For another product auth realm, use the Deploy to Cloudflare button again. The
-button clones this repository into the operator's GitHub/GitLab account,
-provisions the required Worker resources from `wrangler.toml`, and configures
-Workers Builds for that product instance.
-
-Use a separate cloned repository, Worker, D1 database, R2 bucket, queue, domain,
-and `BETTER_AUTH_SECRET` for each product that needs an independent user pool.
-
-Deploy the upstream-maintained production Worker manually:
-
-```bash
-npm run deploy:self
-```
-
-Keep `wrangler.toml` as the Deploy Button template. Upstream-maintained
-production deploys use `wrangler.production.toml` and the `workers.dev` origin.
-
-Cloudflare Dashboard should own deployments for deployment repositories created
-from this template.
-
-Connect the repository in Cloudflare Dashboard and use:
-
-- Production branch: `main`
-- Build command: `npm run build`
-- Production Worker: `flareauth`
-- Preview deployments: enabled for pull requests and non-main branches
-- Production D1 binding `DB`: `flareauth`
-- Preview D1 binding `DB`: `flareauth-staging`
-- R2 binding `ASSET_BUCKET`: environment-specific avatar/logo storage
-- Email binding `EMAIL`: verified Cloudflare Email Routing sender
-- Queue binding `EMAIL_QUEUE`: environment-specific email queue
-- Cron trigger: `*/15 * * * *`
-
-`npm run build` follows the same pattern as zpan: Cloudflare preview branch builds
-use the preview Wrangler config, while `main` and local builds use production
-config. Pull requests still run GitHub CI for typecheck, lint, tests, and build,
-but deployment and preview URLs come from Cloudflare Dashboard, not GitHub Actions.
-
-## Fresh Onboarding
-
-For a fresh deployment, create the resources, set secrets, run D1 migrations, deploy, then open `/onboarding` to create the first admin from the browser. The CLI helper uses the same onboarding API:
-
-```bash
-FLAREAUTH_URL=https://auth.example.com \
-FLAREAUTH_ADMIN_EMAIL=admin@example.com \
-FLAREAUTH_ADMIN_PASSWORD='replace-with-a-long-password' \
-npm run bootstrap:admin
-```
-
-First-admin onboarding is available only while the D1 database has no users. After the first admin exists, `/api/onboarding/status` returns `{ "required": false }` and `/api/onboarding/admin-users` is locked.
-
-Frontend runtime state is read from `/api/configz`. Hosted auth actions use Better Auth native `/api/auth/*` routes, and product applications should integrate with standard OIDC discovery plus authorization code with PKCE. If a consuming product also uses Better Auth, it can use Better Auth as an OIDC client; product apps do not need FlareAuth management or account APIs.
-
-## Product App Integration
-
-FlareAuth is consumed through standard OIDC, not a product-side FlareAuth SDK.
-Use `/api/auth/.well-known/openid-configuration`, then run authorization code
-with PKCE against the advertised authorize and token endpoints. Public clients
-must use PKCE S256 and the client auth method shown on their FlareAuth client
-record; Better Auth 1.6.10 does not advertise public-client `none` support in
-discovery metadata while unauthenticated dynamic registration is disabled.
-Confidential server clients authenticate at the token endpoint. Better Auth
-product apps can register FlareAuth as a generic OAuth/OIDC provider. See
-[Auth Provider Architecture](docs/architecture/auth-provider.md#product-application-integration).
-
-## Deployment Docs
-
-- [Tenancy model](docs/architecture/tenancy.md)
 - [Cloudflare deployment](docs/deploy/cloudflare.md)
 - [Deployment upgrades](docs/deploy/upgrades.md)
 - [Fresh deployment setup](docs/deploy/setup.md)
-- [Review environment acceptance](docs/deploy/acceptance.md)
+- [Tenancy model](docs/architecture/tenancy.md)
+
+## Use From An App
+
+Register an application in FlareAuth, configure its redirect URI, then use the
+deployment's OIDC discovery endpoint:
+
+```text
+/api/auth/.well-known/openid-configuration
+```
+
+Public browser and native clients should use authorization code with PKCE.
+Server-side confidential clients should authenticate at the token endpoint using
+the client credentials shown in the FlareAuth application record.
+
+Product applications do not need to call the Management API for normal user
+login. The Management API is for administration and automation.
+
+## Use From Agents
+
+Install the skill:
+
+```bash
+npx skills install saltbo/flareauth
+```
+
+Then tell your agent what to configure:
+
+```text
+Use FlareAuth to add a complete user system to this project.
+```
+
+The agent will ask for the FlareAuth deployment and application details it needs.
+
+## Documentation
+
+- [Management API](docs/api/management.md)
 - [Product acceptance map](docs/product/product-acceptance.md)
+- [Review environment acceptance](docs/deploy/acceptance.md)
+- [Auth provider architecture](docs/architecture/auth-provider.md)
