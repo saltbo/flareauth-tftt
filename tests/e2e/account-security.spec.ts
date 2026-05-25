@@ -21,7 +21,7 @@ test.beforeEach(async () => {
 test('account center updates avatar and requests email change through dialogs', async ({ page }, testInfo) => {
   await signIn(page)
 
-  await page.getByRole('button', { name: 'Edit profile' }).click()
+  await page.getByRole('button', { name: 'Change avatar' }).click()
   await page.getByLabel('Avatar image').setInputFiles({
     name: 'avatar.png',
     mimeType: 'image/png',
@@ -31,7 +31,7 @@ test('account center updates avatar and requests email change through dialogs', 
     ),
   })
   await expect(page.getByText('Avatar uploaded.')).toBeVisible()
-  await page.getByRole('button', { name: 'Save profile' }).click()
+  await page.getByRole('button', { name: 'Save avatar' }).click()
   await expect(page.getByText('Profile updated.')).toBeVisible()
 
   await page.getByRole('button', { name: 'Change email' }).click()

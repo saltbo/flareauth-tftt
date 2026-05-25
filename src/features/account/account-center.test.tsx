@@ -649,7 +649,7 @@ describe('account center', () => {
             method: 'POST',
             body: {
               provider: 'github',
-              callbackURL: 'http://localhost:3000/profile/linked-accounts',
+              callbackURL: 'http://localhost:3000/linked-accounts',
               errorCallbackURL: 'http://localhost:3000/profile',
             },
           },

@@ -7,42 +7,68 @@ test.beforeEach(async () => {
   await resetAndBootstrap()
 })
 
-test('account center loads profile, security, sessions, connections, and apps', async ({ page }, testInfo) => {
+test('account center loads account navigation and profile page', async ({ page }, testInfo) => {
   const failedProjectResponses = trackProjectErrors(page)
 
   await signIn(page)
 
   await expect(page).toHaveURL(/\/profile$/)
   await expect(page.getByRole('heading', { name: admin.name })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Account center' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Profile settings' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Security settings' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Social and app access' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Session management' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Revoke other sessions' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Security settings' })).toHaveCount(0)
   await expect(page.getByText('Provider not found')).toHaveCount(0)
   expect(failedProjectResponses).toEqual([])
   await attachCoverage(testInfo, ['password-sign-in', 'account-center'])
 })
 
+test('account center sections use sibling routes', async ({ page }, testInfo) => {
+  await signIn(page)
+
+  for (const [path, region] of [
+    ['/profile', 'Profile settings'],
+    ['/security', 'Security settings'],
+    ['/connections', 'Linked accounts'],
+  ] as const) {
+    await page.goto(path)
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+    await expect(page.getByRole('navigation', { name: 'Account center' })).toBeVisible()
+    await expect(page.getByRole('region', { name: region })).toBeVisible()
+  }
+  await page.getByRole('button', { name: 'Account menu' }).click()
+  await expect(page.getByRole('link', { name: 'Console' })).toHaveAttribute('href', '/console')
+
+  await attachCoverage(testInfo, ['account-section-routes', 'account-admin-console-entry'])
+})
+
 test('profile edits are saved through real account APIs and dialog UI', async ({ page }, testInfo) => {
   await signIn(page)
 
-  await page.getByRole('button', { name: 'Edit profile' }).click()
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Edit profile' })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit display name' }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Edit display name' })).toBeVisible()
   await page.getByLabel('Display name').fill('FlareAuth Admin E2E')
-  await page.getByRole('button', { name: 'Save profile' }).click()
+  await page.getByRole('button', { name: 'Save display name' }).click()
 
-  await expect(page.getByRole('heading', { name: 'FlareAuth Admin E2E' })).toBeVisible()
+  await expect(page.getByText('FlareAuth Admin E2E')).toBeVisible()
   await expect(page.getByText('Profile updated.')).toBeVisible()
   await attachCoverage(testInfo, ['profile-update'])
 })
 
-test('legacy account and profile deep links resolve to the account center', async ({ page }, testInfo) => {
+test('legacy account deep links resolve to sibling account center routes', async ({ page }, testInfo) => {
   await signIn(page)
 
-  for (const path of ['/account', '/account/security', '/profile/security', '/profile/linked-accounts', '/profile/sessions']) {
+  for (const [path, expected] of [
+    ['/account/profile', '/profile'],
+    ['/account/security', '/security'],
+    ['/account/linked-accounts', '/connections'],
+    ['/account/sessions', '/security'],
+    ['/linked-accounts', '/connections'],
+    ['/authorized-apps', '/connections'],
+    ['/agents', '/connections'],
+    ['/sessions', '/security'],
+  ] as const) {
     await page.goto(path)
-    await expect(page).toHaveURL(/\/profile$/)
+    await expect(page).toHaveURL(new RegExp(`${expected}$`))
     await expect(page.getByRole('heading', { name: admin.name })).toBeVisible()
   }
 

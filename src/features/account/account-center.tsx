@@ -1,15 +1,23 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
+  AppWindow,
   Bot,
+  Check,
+  ChevronRight,
   Fingerprint,
   KeyRound,
+  Languages,
   Laptop,
   Link2,
   LoaderCircle,
   LockKeyhole,
+  LogOut,
   Mail,
+  Moon,
   Pencil,
+  Settings,
   ShieldCheck,
+  Sun,
   Upload,
   UserRound,
   Wallet,
@@ -19,7 +27,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { createSiweMessage } from 'viem/siwe'
 import { BrandIdentity, brandingStyle } from '@/components/layout/auth-layout'
-import { PreferencesControls } from '@/components/preferences-controls'
 import { ProviderIcon } from '@/components/provider-icon'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +37,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Field, TextInput } from '@/components/ui/field'
 import { Status } from '@/components/ui/status'
 import { useConfigz } from '@/features/auth/hooks'
@@ -63,7 +79,8 @@ import {
   verifyTotp,
 } from '@/lib/api/account'
 import { requestWalletNonce, signOut } from '@/lib/auth-client'
-import { tt } from '@/lib/i18n'
+import { normalizeLanguage, tt } from '@/lib/i18n'
+import { useTheme } from '@/lib/theme'
 
 type UserProfile = {
   id: string
@@ -73,6 +90,7 @@ type UserProfile = {
   username: string | null
   avatarAssetId: string | null
   image: string | null
+  role: string | null
 }
 type LinkedAccount = {
   id: string
@@ -184,10 +202,12 @@ const emptyAccountData: AccountData = {
   security: null,
   passkeys: [],
 }
+export type AccountCenterSection = 'all' | 'profile' | 'security' | 'connections'
+
 export function AccountCenterPage() {
   return <AccountCenter />
 }
-export function AccountCenter() {
+export function AccountCenter({ section = 'all' }: { section?: AccountCenterSection }) {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const configState = useConfigz()
@@ -284,7 +304,11 @@ export function AccountCenter() {
       <div className="accountChrome">
         <div className="accountTopbar">
           <BrandIdentity config={config} />
-          <PreferencesControls />
+          <div className="accountTopbarActions">
+            {data.profile ? (
+              <AccountUserMenu profile={data.profile} onSignOut={() => void signOutFromAccount()} />
+            ) : null}
+          </div>
         </div>
         <section className="accountContent">
           {!data.profile ? (
@@ -302,117 +326,28 @@ export function AccountCenter() {
             </Status>
           ) : null}
           {!loading && data.profile ? (
-            <div className="accountSectionStack">
-              <section className="accountHero" aria-label={tt('Profile summary')}>
-                <div className="accountHeroIdentity">
-                  {data.profile.image ? (
-                    <img alt="" className="accountHeaderAvatar" src={data.profile.image} width="64" height="64" />
-                  ) : (
-                    <div className="accountHeaderAvatar" aria-hidden="true">
-                      <UserRound size={30} />
-                    </div>
-                  )}
-                  <div className="accountHeaderMeta">
-                    <p className="eyebrow">{t('common.profile')}</p>
-                    <h1>{data.profile.displayName}</h1>
-                    <p>{data.profile.email}</p>
-                  </div>
-                </div>
-                <div className="accountSummaryStrip">
-                  <StatusPill
-                    label={data.profile.emailVerified ? tt('Verified') : tt('Required')}
-                    value={tt('Email')}
-                  />
-                  <StatusPill label={data.security?.mfa.enabled ? tt('Enabled') : tt('Off')} value={tt('MFA')} />
-                  <StatusPill label={String(data.passkeys.length)} value={tt('Passkeys')} />
-                  <StatusPill label={String(data.sessions.length)} value={tt('Sessions')} />
-                </div>
-                <Button onClick={() => void signOutFromAccount()} variant="secondary">
-                  {t('account.signOut')}
-                </Button>
-              </section>
-              <div className="accountDashboardGrid">
-                {accountCenter.profileEditingEnabled || accountCenter.passwordChangeEnabled ? (
-                  <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Profile settings')}>
-                    <div className="accountPanelHeader">
-                      <PanelTitle
-                        description={tt('Profile information and sign-in identifiers.')}
-                        icon={<UserRound size={18} />}
-                        title={tt('Account details')}
-                      />
-                    </div>
-                    <ProfileSections accountCenter={accountCenter} profile={data.profile} mutate={mutate} />
-                  </section>
-                ) : null}
-                <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Security settings')}>
-                  <div className="accountPanelHeader">
-                    <PanelTitle
-                      description={tt('Credentials and second-factor controls.')}
-                      icon={<ShieldCheck size={18} />}
-                      title={tt('Sign-in security')}
-                    />
-                  </div>
-                  <SecuritySections
-                    confirm={setConfirmation}
-                    data={data}
-                    mutate={mutate}
-                    profileEmail={data.profile.email}
-                  />
-                </section>
-                {accountCenter.connectedAccountsEnabled ? (
-                  <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Social and app access')}>
-                    <div className="accountPanelHeader">
-                      <PanelTitle
-                        description={tt('Linked identities and authorized applications.')}
-                        icon={<Link2 size={18} />}
-                        title={tt('Connections and apps')}
-                      />
-                    </div>
-                    <ConnectionsSection
-                      accounts={data.linkedAccounts}
-                      confirm={setConfirmation}
-                      mutate={mutate}
-                      providers={config?.identityProviders ?? []}
-                      walletProvider={config?.builtInProviders.web3Wallet}
-                    />
-                    <ApplicationsSection applications={data.applications} confirm={setConfirmation} mutate={mutate} />
-                    <AgentsSection agents={data.agents} confirm={setConfirmation} mutate={mutate} />
-                  </section>
-                ) : null}
-                {accountCenter.sessionsViewEnabled ? (
-                  <section
-                    className="accountPanelGroup accountDashboardPanel accountDashboardPanelWide"
-                    aria-label={tt('Session management')}
-                  >
-                    <div className="accountPanelHeader">
-                      <PanelTitle
-                        action={
-                          <Button
-                            onClick={() =>
-                              setConfirmation({
-                                title: tt('Revoke other sessions'),
-                                description: tt('Every other active session for this account will be signed out.'),
-                                actionLabel: tt('Revoke sessions'),
-                                onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
-                              })
-                            }
-                            type="button"
-                            variant="secondary"
-                          >
-                            {' '}
-                            {tt('Revoke other sessions')}{' '}
-                          </Button>
-                        }
-                        description={tt('Devices currently signed in to this account.')}
-                        icon={<Laptop size={18} />}
-                        title={tt('Active sessions')}
-                      />
-                    </div>
-                    <SessionsSection confirm={setConfirmation} sessions={data.sessions} mutate={mutate} />
-                  </section>
-                ) : null}
+            section === 'all' ? (
+              <AccountAllSections
+                accountCenter={accountCenter}
+                config={config}
+                confirm={setConfirmation}
+                data={data}
+                mutate={mutate}
+                onSignOut={() => void signOutFromAccount()}
+              />
+            ) : (
+              <div className="accountWorkspace">
+                <AccountSidebar accountCenter={accountCenter} section={section} />
+                <AccountSectionPage
+                  accountCenter={accountCenter}
+                  config={config}
+                  confirm={setConfirmation}
+                  data={data}
+                  mutate={mutate}
+                  section={section}
+                />
               </div>
-            </div>
+            )
           ) : null}
         </section>
       </div>
@@ -431,16 +366,437 @@ const defaultAccountCenterSettings = {
   sessionsViewEnabled: true,
   dangerZoneEnabled: false,
 }
+function AccountUserMenu({ profile, onSignOut }: { profile: UserProfile; onSignOut: () => void }) {
+  const { i18n } = useTranslation()
+  const { setTheme, theme } = useTheme()
+  const language = normalizeLanguage(i18n.language)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger aria-label={tt('Account menu')} className="accountAvatarMenuTrigger">
+        {profile.image ? (
+          <img
+            alt=""
+            className="accountMenuAvatar accountMenuAvatarTrigger"
+            src={profile.image}
+            width="36"
+            height="36"
+          />
+        ) : (
+          <span className="accountMenuAvatar accountMenuAvatarTrigger" aria-hidden="true">
+            <UserRound size={18} />
+          </span>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="accountUserMenu" aria-label={tt('Account menu')}>
+        <div className="accountUserMenuHeader">
+          {profile.image ? (
+            <img
+              alt=""
+              className="accountMenuAvatar accountMenuHeaderAvatar"
+              src={profile.image}
+              width="40"
+              height="40"
+            />
+          ) : (
+            <span className="accountMenuAvatar accountMenuHeaderAvatar" aria-hidden="true">
+              <UserRound size={19} />
+            </span>
+          )}
+          <div>
+            <strong>{profile.displayName}</strong>
+            <span>{profile.email}</span>
+          </div>
+        </div>
+        <AccountPreferenceSubmenu
+          icon={<Languages aria-hidden="true" size={15} />}
+          label={tt('common.language')}
+          options={[
+            {
+              active: language === 'en',
+              label: tt('EN'),
+              onSelect: () => void i18n.changeLanguage('en'),
+            },
+            {
+              active: language === 'zh',
+              label: '中文',
+              onSelect: () => void i18n.changeLanguage('zh'),
+            },
+          ]}
+        />
+        <AccountPreferenceSubmenu
+          icon={theme === 'dark' ? <Moon aria-hidden="true" size={15} /> : <Sun aria-hidden="true" size={15} />}
+          label={tt('common.theme')}
+          options={[
+            {
+              active: theme === 'light',
+              label: tt('common.light'),
+              onSelect: () => setTheme('light'),
+            },
+            {
+              active: theme === 'dark',
+              label: tt('common.dark'),
+              onSelect: () => setTheme('dark'),
+            },
+          ]}
+        />
+        {profile.role === 'admin' ? (
+          <a className="accountMenuItem" href="/console" role="menuitem">
+            <Settings aria-hidden="true" size={15} />
+            <span>{tt('Console')}</span>
+          </a>
+        ) : null}
+        <button className="accountMenuItem accountMenuItemDanger" onClick={onSignOut} role="menuitem" type="button">
+          <LogOut aria-hidden="true" size={15} />
+          <span>{tt('account.signOut')}</span>
+        </button>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+function AccountPreferenceSubmenu({
+  icon,
+  label,
+  options,
+}: {
+  icon: ReactNode
+  label: string
+  options: Array<{ active: boolean; label: string; onSelect: () => void }>
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="accountMenuItem accountSubmenuTrigger">
+        <span className="accountSubmenuTriggerLabel">
+          {icon}
+          <span>{label}</span>
+        </span>
+        <ChevronRight aria-hidden="true" size={15} />
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="accountSubmenuContent">
+        {options.map((option) => (
+          <DropdownMenuItem
+            aria-checked={option.active}
+            className="accountSubmenuItem"
+            key={option.label}
+            onClick={option.onSelect}
+            role="menuitemradio"
+          >
+            <Check aria-hidden="true" className={option.active ? 'accountSubmenuCheck' : 'accountSubmenuCheckHidden'} />
+            <span>{option.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+function AccountAllSections({
+  accountCenter,
+  config,
+  confirm,
+  data,
+  mutate,
+  onSignOut,
+}: {
+  accountCenter: typeof defaultAccountCenterSettings
+  config: ReturnType<typeof useConfigz>['data']
+  confirm: ConfirmDestructiveHandler
+  data: AccountData
+  mutate: MutationHandler
+  onSignOut: () => void
+}) {
+  const profile = data.profile!
+  return (
+    <div className="accountSectionStack">
+      <section className="accountHero" aria-label={tt('Profile summary')}>
+        <div className="accountHeroIdentity">
+          {profile.image ? (
+            <img alt="" className="accountHeaderAvatar" src={profile.image} width="64" height="64" />
+          ) : (
+            <div className="accountHeaderAvatar" aria-hidden="true">
+              <UserRound size={30} />
+            </div>
+          )}
+          <div className="accountHeaderMeta">
+            <p className="eyebrow">{tt('common.profile')}</p>
+            <h1>{profile.displayName}</h1>
+            <p>{profile.email}</p>
+          </div>
+        </div>
+        <div className="accountSummaryStrip">
+          <StatusPill label={profile.emailVerified ? tt('Verified') : tt('Required')} value={tt('Email')} />
+          <StatusPill label={data.security?.mfa.enabled ? tt('Enabled') : tt('Off')} value={tt('MFA')} />
+          <StatusPill label={String(data.passkeys.length)} value={tt('Passkeys')} />
+          <StatusPill label={String(data.sessions.length)} value={tt('Sessions')} />
+        </div>
+        <Button onClick={onSignOut} variant="secondary">
+          {tt('account.signOut')}
+        </Button>
+      </section>
+      <div className="accountDashboardGrid">
+        {accountCenter.profileEditingEnabled || accountCenter.passwordChangeEnabled ? (
+          <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Profile settings')}>
+            <div className="accountPanelHeader">
+              <PanelTitle
+                description={tt('Profile information and sign-in identifiers.')}
+                icon={<UserRound size={18} />}
+                title={tt('Account details')}
+              />
+            </div>
+            <ProfileSections accountCenter={accountCenter} profile={profile} mutate={mutate} />
+          </section>
+        ) : null}
+        <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Security settings')}>
+          <div className="accountPanelHeader">
+            <PanelTitle
+              description={tt('Credentials and second-factor controls.')}
+              icon={<ShieldCheck size={18} />}
+              title={tt('Sign-in security')}
+            />
+          </div>
+          <SecuritySections confirm={confirm} data={data} mutate={mutate} profileEmail={profile.email} />
+        </section>
+        {accountCenter.connectedAccountsEnabled ? (
+          <section className="accountPanelGroup accountDashboardPanel" aria-label={tt('Social and app access')}>
+            <div className="accountPanelHeader">
+              <PanelTitle
+                description={tt('Linked identities and authorized applications.')}
+                icon={<Link2 size={18} />}
+                title={tt('Connections and apps')}
+              />
+            </div>
+            <ConnectionsSection
+              accounts={data.linkedAccounts}
+              confirm={confirm}
+              mutate={mutate}
+              providers={config?.identityProviders ?? []}
+              walletProvider={config?.builtInProviders.web3Wallet}
+            />
+            <ApplicationsSection applications={data.applications} confirm={confirm} mutate={mutate} />
+            <AgentsSection agents={data.agents} confirm={confirm} mutate={mutate} />
+          </section>
+        ) : null}
+        {accountCenter.sessionsViewEnabled ? (
+          <section
+            className="accountPanelGroup accountDashboardPanel accountDashboardPanelWide"
+            aria-label={tt('Session management')}
+          >
+            <div className="accountPanelHeader">
+              <PanelTitle
+                action={
+                  <Button
+                    onClick={() =>
+                      confirm({
+                        title: tt('Revoke other sessions'),
+                        description: tt('Every other active session for this account will be signed out.'),
+                        actionLabel: tt('Revoke sessions'),
+                        onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
+                      })
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    {tt('Revoke other sessions')}
+                  </Button>
+                }
+                description={tt('Devices currently signed in to this account.')}
+                icon={<Laptop size={18} />}
+                title={tt('Active sessions')}
+              />
+            </div>
+            <SessionsSection confirm={confirm} sessions={data.sessions} mutate={mutate} />
+          </section>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+function AccountSidebar({
+  accountCenter,
+  section,
+}: {
+  accountCenter: typeof defaultAccountCenterSettings
+  section: AccountCenterSection
+}) {
+  const items = accountNavItems(accountCenter)
+  return (
+    <aside className="accountSidebar" aria-label={tt('Account center')}>
+      <nav className="accountNav" aria-label={tt('Account center')}>
+        {items.map((item) => (
+          <Link
+            aria-current={section === item.section ? 'page' : undefined}
+            className="accountNavItem"
+            data-active={section === item.section ? 'true' : undefined}
+            key={item.section}
+            to={item.href}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  )
+}
+function accountNavItems(accountCenter: typeof defaultAccountCenterSettings) {
+  return [
+    { section: 'profile' as const, href: '/profile', label: tt('Profile'), icon: <UserRound size={16} /> },
+    { section: 'security' as const, href: '/security', label: tt('Security'), icon: <ShieldCheck size={16} /> },
+    ...(accountCenter.connectedAccountsEnabled
+      ? [{ section: 'connections' as const, href: '/connections', label: tt('Connections'), icon: <Link2 size={16} /> }]
+      : []),
+  ]
+}
+function AccountSectionPage({
+  accountCenter,
+  config,
+  confirm,
+  data,
+  mutate,
+  section,
+}: {
+  accountCenter: typeof defaultAccountCenterSettings
+  config: ReturnType<typeof useConfigz>['data']
+  confirm: ConfirmDestructiveHandler
+  data: AccountData
+  mutate: MutationHandler
+  section: AccountCenterSection
+}) {
+  const profile = data.profile!
+  if (section === 'profile') {
+    return (
+      <div className="accountProfilePage">
+        <section className="accountPanelGroup accountProfileDetails" aria-label={tt('Profile settings')}>
+          {accountCenter.profileEditingEnabled ? (
+            <ProfileSections accountCenter={accountCenter} mode="profile-account" profile={profile} mutate={mutate} />
+          ) : (
+            <UnavailableSection message={tt('Profile editing is disabled for this account center.')} />
+          )}
+        </section>
+      </div>
+    )
+  }
+  if (section === 'security') {
+    return (
+      <div className="accountSectionStackFlat">
+        {accountCenter.passwordChangeEnabled ? (
+          <section className="accountPanelGroup" aria-label={tt('Password settings')}>
+            <div className="accountPanelHeader">
+              <PanelTitle
+                description={tt('Hosted sign-in credential rotation.')}
+                icon={<KeyRound size={18} />}
+                title={tt('Password')}
+              />
+            </div>
+            <ProfileSections accountCenter={accountCenter} mode="password" profile={profile} mutate={mutate} />
+          </section>
+        ) : null}
+        <section className="accountPanelGroup" aria-label={tt('Security settings')}>
+          <div className="accountPanelHeader">
+            <PanelTitle
+              description={tt('Second-factor controls and passwordless sign-in.')}
+              icon={<ShieldCheck size={18} />}
+              title={tt('Multi-factor and passkeys')}
+            />
+          </div>
+          <SecuritySections confirm={confirm} data={data} mutate={mutate} profileEmail={profile.email} />
+        </section>
+        {accountCenter.sessionsViewEnabled ? (
+          <section className="accountPanelGroup" aria-label={tt('Session management')}>
+            <div className="accountPanelHeader">
+              <PanelTitle
+                action={
+                  <Button
+                    onClick={() =>
+                      confirm({
+                        title: tt('Revoke other sessions'),
+                        description: tt('Every other active session for this account will be signed out.'),
+                        actionLabel: tt('Revoke sessions'),
+                        onConfirm: () => mutate('Other sessions revoked.', revokeOtherSessions),
+                      })
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    {tt('Revoke other sessions')}
+                  </Button>
+                }
+                description={tt('Devices currently signed in to this account.')}
+                icon={<Laptop size={18} />}
+                title={tt('Active sessions')}
+              />
+            </div>
+            <SessionsSection confirm={confirm} sessions={data.sessions} mutate={mutate} />
+          </section>
+        ) : null}
+      </div>
+    )
+  }
+  return (
+    <div className="accountSectionStackFlat">
+      <section className="accountPanelGroup" aria-label={tt('Linked accounts')}>
+        <div className="accountPanelHeader">
+          <PanelTitle
+            description={tt('External sign-in identities connected to this account.')}
+            icon={<Link2 size={18} />}
+            title={tt('Linked accounts')}
+          />
+        </div>
+        <ConnectionsSection
+          accounts={data.linkedAccounts}
+          confirm={confirm}
+          mutate={mutate}
+          providers={config?.identityProviders ?? []}
+          walletProvider={config?.builtInProviders.web3Wallet}
+        />
+      </section>
+      <section className="accountPanelGroup" aria-label={tt('Authorized apps')}>
+        <div className="accountPanelHeader">
+          <PanelTitle
+            description={tt('Applications with consent to access this account.')}
+            icon={<AppWindow size={18} />}
+            title={tt('Authorized apps')}
+          />
+        </div>
+        <ApplicationsSection applications={data.applications} confirm={confirm} mutate={mutate} />
+      </section>
+      <section className="accountPanelGroup" aria-label={tt('Delegated agents')}>
+        <div className="accountPanelHeader">
+          <PanelTitle
+            description={tt('Agents approved to access this account.')}
+            icon={<Bot size={18} />}
+            title={tt('Delegated agents')}
+          />
+        </div>
+        <AgentsSection agents={data.agents} confirm={confirm} mutate={mutate} />
+      </section>
+    </div>
+  )
+}
+function UnavailableSection({ message }: { message: string }) {
+  return (
+    <section className="settingsPanel">
+      <article className="itemRow itemRowEmpty">
+        <div>
+          <h3>{message}</h3>
+          <p>{tt('Nothing needs attention here.')}</p>
+        </div>
+      </article>
+    </section>
+  )
+}
 function ProfileSections({
   accountCenter,
+  mode = 'all',
   profile,
   mutate,
 }: {
   accountCenter: typeof defaultAccountCenterSettings
+  mode?: 'all' | 'profile' | 'account' | 'profile-account' | 'password'
   profile: UserProfile
   mutate: MutationHandler
 }) {
-  const [dialog, setDialog] = useState<'profile' | 'username' | 'email' | 'password' | null>(null)
+  const [dialog, setDialog] = useState<'profile' | 'avatar' | 'displayName' | 'username' | 'email' | 'password' | null>(
+    null,
+  )
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [username, setUsername] = useState(profile.username ?? '')
   const [avatarAssetId, setAvatarAssetId] = useState(profile.avatarAssetId ?? '')
@@ -538,7 +894,46 @@ function ProfileSections({
   }
   return (
     <>
-      {accountCenter.profileEditingEnabled ? (
+      {mode === 'profile-account' ? (
+        <section className="settingsPanel">
+          {accountCenter.avatarEditable ? (
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('avatar')} type="button" variant="secondary">
+                  <Pencil size={16} /> {tt('Change avatar')}
+                </Button>
+              }
+              icon={
+                profile.image ? (
+                  <img alt="" className="accountProfileRowAvatar" src={profile.image} width="36" height="36" />
+                ) : (
+                  <UserRound size={18} />
+                )
+              }
+              meta={tt('Shown across trusted applications.')}
+              title={tt('Avatar')}
+              value={profile.image ? tt('Custom image') : tt('Default avatar')}
+            />
+          ) : null}
+          {accountCenter.displayNameEditable ? (
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('displayName')} type="button" variant="secondary">
+                  <Pencil size={16} /> {tt('Edit display name')}
+                </Button>
+              }
+              icon={<UserRound size={18} />}
+              meta={tt('Shown across trusted applications.')}
+              title={tt('Display name')}
+              value={profile.displayName}
+            />
+          ) : null}
+        </section>
+      ) : null}
+      {accountCenter.profileEditingEnabled &&
+      mode !== 'account' &&
+      mode !== 'password' &&
+      mode !== 'profile-account' ? (
         <section className="settingsPanel">
           <SettingsAction
             action={
@@ -559,7 +954,11 @@ function ProfileSections({
           />
         </section>
       ) : null}
-      {accountCenter.profileEditingEnabled && (accountCenter.usernameEditable || accountCenter.emailChangeEnabled) ? (
+      {accountCenter.profileEditingEnabled &&
+      mode !== 'profile' &&
+      mode !== 'password' &&
+      mode !== 'profile-account' &&
+      (accountCenter.usernameEditable || accountCenter.emailChangeEnabled) ? (
         <section className="settingsPanel">
           {accountCenter.usernameEditable ? (
             <SettingsAction
@@ -588,7 +987,37 @@ function ProfileSections({
           ) : null}
         </section>
       ) : null}
-      {accountCenter.passwordChangeEnabled ? (
+      {mode === 'profile-account' && (accountCenter.usernameEditable || accountCenter.emailChangeEnabled) ? (
+        <section className="settingsPanel">
+          {accountCenter.usernameEditable ? (
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('username')} type="button" variant="secondary">
+                  {tt('Edit username')}
+                </Button>
+              }
+              icon={<UserRound size={18} />}
+              meta={tt('Public account handle.')}
+              title={tt('Username')}
+              value={profile.username ? `@${profile.username}` : tt('No username set')}
+            />
+          ) : null}
+          {accountCenter.emailChangeEnabled ? (
+            <SettingsAction
+              action={
+                <Button onClick={() => setDialog('email')} type="button" variant="secondary">
+                  <Mail size={18} /> {tt('Change email')}
+                </Button>
+              }
+              icon={<Mail size={18} />}
+              meta={tt('Used for sign-in and account notifications.')}
+              title={tt('Email')}
+              value={profile.email}
+            />
+          ) : null}
+        </section>
+      ) : null}
+      {accountCenter.passwordChangeEnabled && mode !== 'profile' && mode !== 'profile-account' ? (
         <section className="settingsPanel">
           <SettingsAction
             action={
@@ -603,17 +1032,27 @@ function ProfileSections({
           />
         </section>
       ) : null}
-      <Dialog open={dialog === 'profile'}>
+      <Dialog open={dialog === 'profile' || dialog === 'avatar' || dialog === 'displayName'}>
         <DialogContent>
           <form onSubmit={saveProfile}>
             <DialogHeader>
-              <DialogTitle>{tt('Edit profile')}</DialogTitle>
+              <DialogTitle>
+                {dialog === 'avatar'
+                  ? tt('Change avatar')
+                  : dialog === 'displayName'
+                    ? tt('Edit display name')
+                    : tt('Edit profile')}
+              </DialogTitle>
               <DialogDescription>
-                {tt('Update the name and avatar shown across trusted applications.')}
+                {dialog === 'avatar'
+                  ? tt('Update the profile image shown across trusted applications.')
+                  : dialog === 'displayName'
+                    ? tt('Update the display name shown across trusted applications.')
+                    : tt('Update the name and avatar shown across trusted applications.')}
               </DialogDescription>
             </DialogHeader>
             <div className="dialogFormBody formStack">
-              {accountCenter.avatarEditable ? (
+              {accountCenter.avatarEditable && (dialog === 'profile' || dialog === 'avatar') ? (
                 <div className="avatarUploadControl">
                   {avatarPreview ? (
                     <img alt="" className="assetPreview" src={avatarPreview} width="56" height="56" />
@@ -644,7 +1083,7 @@ function ProfileSections({
                   </div>
                 </div>
               ) : null}
-              {accountCenter.displayNameEditable ? (
+              {accountCenter.displayNameEditable && (dialog === 'profile' || dialog === 'displayName') ? (
                 <Field label={tt('Display name')}>
                   <TextInput
                     autoComplete="name"
@@ -660,7 +1099,13 @@ function ProfileSections({
                 {' '}
                 {tt('Cancel')}{' '}
               </Button>
-              <Button type="submit">{tt('Save profile')}</Button>
+              <Button type="submit">
+                {dialog === 'avatar'
+                  ? tt('Save avatar')
+                  : dialog === 'displayName'
+                    ? tt('Save display name')
+                    : tt('Save profile')}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1134,7 +1579,7 @@ function ConnectionsSection({
         linkAccount({
           providerType: provider.providerType === 'generic_oauth' ? 'generic_oauth' : 'social',
           providerId: provider.providerId,
-          callbackURL: `${window.location.origin}/profile/linked-accounts`,
+          callbackURL: `${window.location.origin}/linked-accounts`,
           errorCallbackURL: `${window.location.origin}/profile`,
         }),
       {

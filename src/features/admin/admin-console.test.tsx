@@ -428,21 +428,25 @@ describe('admin console', () => {
     expect(screen.queryByRole('navigation', { name: 'Account center' })).toBeNull()
   })
 
-  it('renders the top-level profile entry route and redirects legacy profile sections', async () => {
+  it('renders account center sibling routes and redirects legacy account sections', async () => {
     vi.spyOn(window, 'fetch').mockImplementation(accountRouteFetch)
 
-    for (const path of [
-      '/profile',
-      '/profile/security',
-      '/profile/linked-accounts',
-      '/profile/sessions',
-      '/profile/authorized-apps',
-    ]) {
+    for (const [path, expected] of [
+      ['/profile', '/profile'],
+      ['/account', '/profile'],
+      ['/security', '/security'],
+      ['/connections', '/connections'],
+      ['/linked-accounts', '/connections'],
+      ['/sessions', '/security'],
+      ['/authorized-apps', '/connections'],
+      ['/account/security', '/security'],
+      ['/account/linked-accounts', '/connections'],
+    ] as const) {
       window.history.pushState(null, '', path)
       render(<AppRouter />)
 
-      await waitFor(() => expect(window.location.pathname).toBe('/profile'))
-      expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
+      await waitFor(() => expect(window.location.pathname).toBe(expected))
+      expect(await screen.findByRole('navigation', { name: 'Account center' })).toBeTruthy()
 
       cleanup()
       queryClient.clear()
@@ -538,26 +542,21 @@ describe('admin console', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/profile'))
   })
 
-  it('redirects legacy account section routes to the canonical profile page', async () => {
+  it('redirects legacy account section routes to grouped account pages', async () => {
     vi.spyOn(window, 'fetch').mockImplementation(accountRouteFetch)
 
-    for (const path of [
-      '/account/profile',
-      '/account/security',
-      '/account/linked-accounts',
-      '/account/sessions',
-      '/account/authorized-apps',
+    for (const [path, expected] of [
+      ['/account/profile', '/profile'],
+      ['/account/security', '/security'],
+      ['/account/linked-accounts', '/connections'],
+      ['/account/sessions', '/security'],
+      ['/account/authorized-apps', '/connections'],
     ] as const) {
       window.history.pushState(null, '', path)
       render(<AppRouter />)
 
-      expect(await screen.findByRole('heading', { name: 'Jane Stone' })).toBeTruthy()
-      await waitFor(() => expect(window.location.pathname).toBe('/profile'))
-      expect(screen.queryByRole('navigation', { name: 'Account center' })).toBeNull()
-      expect(screen.getByRole('heading', { name: 'Multi-factor authentication' })).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Linked accounts' })).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Active sessions' })).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Authorized apps' })).toBeTruthy()
+      await waitFor(() => expect(window.location.pathname).toBe(expected))
+      expect(await screen.findByRole('navigation', { name: 'Account center' })).toBeTruthy()
 
       cleanup()
       queryClient.clear()

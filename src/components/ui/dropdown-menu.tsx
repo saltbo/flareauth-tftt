@@ -22,6 +22,8 @@ export function DropdownMenuTrigger({ className, ...props }: ButtonHTMLAttribute
   const menu = useDropdownMenu()
   return (
     <button
+      aria-expanded={menu.open}
+      aria-haspopup="menu"
       className={cn(
         'inline-flex min-h-8 items-center justify-center rounded-md border border-border px-2.5 text-sm font-medium',
         className,

@@ -8,9 +8,21 @@ Feature: Account Center
     And I am signed in
 
   @journey:account-center
-  Scenario: Account Center loads account sections
+  Scenario: Account Center loads account navigation
     When I open /profile
-    Then I see profile, security, sessions, connections, and applications
+    Then I see the account navigation and the single Profile settings card
+
+  @journey:account-section-routes
+  Scenario: Account Center groups related sections into route-backed pages
+    When I open /profile, /security, or /connections
+    Then I see only the grouped account page in the account content area
+    And I can navigate between Profile, Security, and Connections as sibling routes
+
+  @journey:account-admin-console-entry
+  Scenario: Admin users can reach Console from Account Center
+    Given my signed-in user has the admin role
+    When I open /profile
+    Then the account avatar menu includes a Console entry
 
   @journey:account-deep-links
   Scenario: Legacy account deep links resolve to Account Center

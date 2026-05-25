@@ -132,79 +132,123 @@ const oidcStartRoute = createRoute({
 const accountRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account',
-  beforeLoad: () => {
-    throw redirect({ to: '/profile' })
-  },
   component: () => <Outlet />,
 })
 
 const accountIndexRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/',
-  component: AccountRoute,
+  beforeLoad: () => {
+    throw redirect({ to: '/profile' })
+  },
 })
 
 const accountProfileRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/profile',
+  beforeLoad: () => {
+    throw redirect({ to: '/profile' })
+  },
+})
+
+const accountDetailsRoute = createRoute({
+  getParentRoute: () => accountRoute,
+  path: '/account',
+  beforeLoad: () => {
+    throw redirect({ to: '/profile' })
+  },
 })
 
 const accountSecurityRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/security',
+  beforeLoad: () => {
+    throw redirect({ to: '/security' })
+  },
 })
 
 const accountLinkedAccountsRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/linked-accounts',
+  beforeLoad: () => {
+    throw redirect({ to: '/connections' })
+  },
 })
 
 const accountSessionsRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/sessions',
+  beforeLoad: () => {
+    throw redirect({ to: '/security' })
+  },
 })
 
 const accountAuthorizedAppsRoute = createRoute({
   getParentRoute: () => accountRoute,
   path: '/authorized-apps',
+  beforeLoad: () => {
+    throw redirect({ to: '/connections' })
+  },
+})
+
+const accountAgentsRoute = createRoute({
+  getParentRoute: () => accountRoute,
+  path: '/agents',
+  beforeLoad: () => {
+    throw redirect({ to: '/connections' })
+  },
 })
 
 const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/profile',
   beforeLoad: async ({ location }) => loadAccountAccess(location.href),
-  component: AccountRoute,
+  component: () => <AccountRoute section="profile" />,
 })
 
-const profileSecurityRoute = createRoute({
+const securityRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/profile/security',
+  path: '/security',
+  beforeLoad: async ({ location }) => loadAccountAccess(location.href),
+  component: () => <AccountRoute section="security" />,
+})
+
+const connectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/connections',
+  beforeLoad: async ({ location }) => loadAccountAccess(location.href),
+  component: () => <AccountRoute section="connections" />,
+})
+
+const linkedAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/linked-accounts',
   beforeLoad: () => {
-    throw redirect({ to: '/profile' })
+    throw redirect({ to: '/connections' })
   },
 })
 
-const profileLinkedAccountsRoute = createRoute({
+const sessionsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/profile/linked-accounts',
+  path: '/sessions',
   beforeLoad: () => {
-    throw redirect({ to: '/profile' })
+    throw redirect({ to: '/security' })
   },
 })
 
-const profileSessionsRoute = createRoute({
+const authorizedAppsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/profile/sessions',
+  path: '/authorized-apps',
   beforeLoad: () => {
-    throw redirect({ to: '/profile' })
+    throw redirect({ to: '/connections' })
   },
 })
 
-const profileAuthorizedAppsRoute = createRoute({
+const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/profile/authorized-apps',
+  path: '/agents',
   beforeLoad: () => {
-    throw redirect({ to: '/profile' })
+    throw redirect({ to: '/connections' })
   },
 })
 
@@ -731,18 +775,22 @@ const routeTree = rootRoute.addChildren([
   oauthConsentRoute,
   agentApproveRoute,
   profileRoute,
-  profileSecurityRoute,
-  profileLinkedAccountsRoute,
-  profileSessionsRoute,
-  profileAuthorizedAppsRoute,
   accountRoute.addChildren([
     accountIndexRoute,
     accountProfileRoute,
+    accountDetailsRoute,
     accountSecurityRoute,
     accountLinkedAccountsRoute,
     accountSessionsRoute,
     accountAuthorizedAppsRoute,
+    accountAgentsRoute,
   ]),
+  securityRoute,
+  connectionsRoute,
+  linkedAccountsRoute,
+  sessionsRoute,
+  authorizedAppsRoute,
+  agentsRoute,
   consoleRoute.addChildren([
     consoleIndexRoute,
     consoleDashboardRoute,
