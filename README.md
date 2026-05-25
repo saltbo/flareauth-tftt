@@ -33,6 +33,26 @@ the same realm when they should share accounts and administrators.
 For products that need separate users, administrators, issuer URLs, or sign-in
 policy, deploy another FlareAuth instance.
 
+## Why FlareAuth
+
+Better Auth is a strong foundation, but wiring it into every product means
+repeating the same user tables, hosted pages, OAuth clients, admin controls,
+email flows, security policy, deployment settings, and operational checks.
+
+FlareAuth packages that work once as a deployable auth service. Product apps
+integrate through OIDC, while teams manage users, applications, connectors, and
+policy from one dedicated identity layer.
+
+## Core Architecture
+
+FlareAuth runs Better Auth inside a Cloudflare Worker. The Worker serves hosted
+auth pages, account management, admin APIs, OIDC discovery, OAuth flows, and
+Management API endpoints from the same deployment.
+
+Cloudflare D1 stores auth and configuration data, Drizzle owns the schema, Hono
+exposes the HTTP surface, and the React console provides the hosted user and
+admin experience.
+
 ## Highlights
 
 - Hosted sign-in, sign-up, password recovery, and OAuth consent.
@@ -75,9 +95,8 @@ contract is served by each deployment at:
 
 ## Deploy
 
-Use the Deploy to Cloudflare button for each product auth realm:
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/saltbo/flareauth)
+Use the Deploy to Cloudflare button at the top of this page for each product
+auth realm.
 
 After deployment:
 
