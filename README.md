@@ -1,6 +1,15 @@
 # FlareAuth
 
+<p align="center">
+  <img src="assets/flareauth-logo.svg" alt="FlareAuth logo" width="112" height="112" />
+</p>
+
+[![CI](https://github.com/saltbo/flareauth/actions/workflows/ci.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/ci.yml)
+[![E2E](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml/badge.svg)](https://github.com/saltbo/flareauth/actions/workflows/e2e.yml)
 [![License](https://img.shields.io/github/license/saltbo/flareauth.svg)](LICENSE)
+[![Coverage](https://codecov.io/gh/saltbo/flareauth/branch/main/graph/badge.svg)](https://codecov.io/gh/saltbo/flareauth)
+[![Node](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178c6.svg)](package.json)
 
 FlareAuth is a deployable identity platform for products that need hosted
 sign-in, account management, administration, and a standard OIDC provider.

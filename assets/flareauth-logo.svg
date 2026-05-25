@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">FlareAuth logo</title>
+  <desc id="desc">A FlareAuth Fa monogram wrapped by a Cloudflare-orange and charcoal circular swirl.</desc>
+  <defs>
+    <linearGradient id="flare" x1="130" y1="40" x2="224" y2="126" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBB040" />
+      <stop offset="0.48" stop-color="#F6821F" />
+      <stop offset="1" stop-color="#F04E23" />
+    </linearGradient>
+    <linearGradient id="ink" x1="38" y1="220" x2="124" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B121A" />
+      <stop offset="1" stop-color="#1E2A34" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M56 168c-13-30-8-64 14-88 18-21 45-32 74-29"
+    fill="none"
+    stroke="#111A22"
+    stroke-linecap="round"
+    stroke-width="17"
+  />
+  <path
+    d="M190 88c14 29 9 63-12 88-18 21-46 32-75 29"
+    fill="none"
+    stroke="#111A22"
+    stroke-linecap="round"
+    stroke-width="17"
+  />
+  <path
+    d="M144 51c35 4 63 29 72 63"
+    fill="none"
+    stroke="url(#flare)"
+    stroke-linecap="round"
+    stroke-width="17"
+  />
+  <path
+    d="M104 205c-35-4-62-29-71-63"
+    fill="none"
+    stroke="url(#ink)"
+    stroke-linecap="round"
+    stroke-width="17"
+  />
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="820">
+    <text x="62" y="151" fill="#F6821F" font-size="96">F</text>
+    <text x="117" y="151" fill="#101820" font-size="86">a</text>
+  </g>
+</svg>
