@@ -1,10 +1,4 @@
-import {
-  createSiweMessage,
-  requestWalletNonce,
-  signInWithOneTap,
-  signInWithWallet,
-  type useConfigz,
-} from '../auth-pages'
+import { createSiweMessage, requestWalletNonce, signInWithOneTap, signInWithWallet, type useConfigz } from './shared'
 
 export async function signInWithEthereum(enabledChains: number[], callback: string | undefined) {
   const ethereum = window.ethereum

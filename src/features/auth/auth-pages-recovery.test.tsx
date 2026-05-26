@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EmailVerificationPage, ForgotPasswordPage, SignInPage } from './auth-pages'
+import { EmailVerificationPage, ForgotPasswordPage } from './pages/recovery'
+import { SignInPage } from './pages/sign-in'
 
 const configz = {
   onboarding: { required: false, href: '/onboarding' },

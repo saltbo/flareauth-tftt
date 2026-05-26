@@ -16,11 +16,17 @@ vi.mock('@/features/auth/onboarding-page', () => ({
   OnboardingRoute: () => <h1>First-admin onboarding</h1>,
 }))
 
-vi.mock('@/features/auth/auth-pages', () => ({
+vi.mock('@/features/auth/pages/recovery', () => ({
   AuthCallbackPage: () => <h1>Auth callback route</h1>,
   EmailVerificationPage: () => <h1>Email verification route</h1>,
   ForgotPasswordPage: () => <h1>Forgot password route</h1>,
+}))
+
+vi.mock('@/features/auth/pages/sign-in', () => ({
   SignInPage: () => <h1>Sign in route</h1>,
+}))
+
+vi.mock('@/features/auth/pages/sign-up', () => ({
   SignUpPage: () => <h1>Sign up route</h1>,
 }))
 

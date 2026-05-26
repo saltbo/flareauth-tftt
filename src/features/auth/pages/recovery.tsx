@@ -1,29 +1,31 @@
 import {
-  ArrowLeft,
-  AuthLayout,
   authPageHref,
   authRequestContext,
-  Button,
   CaptchaTokenField,
+  LoadingMessage,
+  missingEmailSignUpErrors,
+  missingEmailSignUpMessage,
+  PasswordInput,
+  resetCaptchaState,
+  SubmitStatus,
+  submitRequest,
+} from './controls'
+import {
+  ArrowLeft,
+  AuthLayout,
+  Button,
   CircleAlert,
   callbackURL,
   Field,
   type FormEvent,
   initialSubmitState,
   LinkButton,
-  LoadingMessage,
-  missingEmailSignUpErrors,
-  missingEmailSignUpMessage,
-  PasswordInput,
   passwordResetResendCooldownSeconds,
   requestEmailOtp,
   requestEmailOtpPasswordReset,
-  resetCaptchaState,
   resetPasswordWithEmailOtp,
   Status,
-  SubmitStatus,
   safeRedirectPath,
-  submitRequest,
   TextInput,
   tt,
   useConfigz,
@@ -31,7 +33,7 @@ import {
   useState,
   verifyEmail,
   verifyEmailOtp,
-} from '../auth-pages'
+} from './shared'
 
 export function ForgotPasswordPage() {
   const { data: config } = useConfigz()

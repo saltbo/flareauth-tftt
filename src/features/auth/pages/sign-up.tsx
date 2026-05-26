@@ -1,25 +1,27 @@
 import {
-  AuthLayout,
   authPageHref,
   authRequestContext,
-  Button,
   CaptchaTokenField,
+  PasswordInput,
+  resetCaptchaState,
+  SocialButtons,
+  SubmitStatus,
+  submitRequest,
+} from './controls'
+import {
+  AuthLayout,
+  Button,
   callbackURL,
   Field,
   type FormEvent,
   initialSubmitState,
-  PasswordInput,
   type ReactNode,
-  resetCaptchaState,
-  SocialButtons,
-  SubmitStatus,
   signUp,
-  submitRequest,
   TextInput,
   tt,
   useConfigz,
   useState,
-} from '../auth-pages'
+} from './shared'
 
 export function SignUpPage() {
   const { data: config } = useConfigz()

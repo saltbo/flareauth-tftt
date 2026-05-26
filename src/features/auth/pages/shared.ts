@@ -39,7 +39,7 @@ import {
   verifySignInTotp,
 } from '@/lib/auth-client'
 import { tt } from '@/lib/i18n'
-import { callbackURL, safeRedirectPath, useConfigz } from './hooks'
+import { callbackURL, safeRedirectPath, useConfigz } from '../hooks'
 
 export type { ComponentProps, FormEvent, ReactNode }
 export {
@@ -148,32 +148,3 @@ export const initialSubmitState: SubmitState = {
   message: null,
   error: null,
 }
-export {
-  authContinuationParams,
-  authPageHref,
-  authRequestContext,
-  CaptchaTokenField,
-  LoadingMessage,
-  localizedHostedCopy,
-  missingEmailSignUpErrors,
-  missingEmailSignUpMessage,
-  navigateAfterAuth,
-  PasswordInput,
-  primarySignInMode,
-  readRedirectUrl,
-  redirectDestination,
-  redirectToMissingEmailSignUp,
-  requiresTwoFactor,
-  resetCaptchaState,
-  resolveAuthRedirect,
-  SignInCardBody,
-  SignInMethodButtons,
-  SocialButtons,
-  SubmitStatus,
-  safeAuthRedirect,
-  submitRequest,
-} from './pages/controls'
-export { signInWithEthereum, signInWithGoogleOneTap } from './pages/provider-auth'
-export { AuthCallbackPage, EmailVerificationPage, ForgotPasswordPage } from './pages/recovery'
-export { SignInPage } from './pages/sign-in'
-export { SignUpCardBody, SignUpForm, SignUpPage } from './pages/sign-up'

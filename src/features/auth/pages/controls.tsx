@@ -22,7 +22,7 @@ import {
   useRef,
   useState,
   Wallet,
-} from '../auth-pages'
+} from './shared'
 
 export function SignInMethodButtons({
   callback,

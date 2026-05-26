@@ -9,9 +9,9 @@ import {
   readRedirectUrl,
   redirectDestination,
   requiresTwoFactor,
-  SignInPage,
   safeAuthRedirect,
-} from './auth-pages'
+} from './pages/controls'
+import { SignInPage } from './pages/sign-in'
 
 const configz = {
   onboarding: { required: false, href: '/onboarding' },
