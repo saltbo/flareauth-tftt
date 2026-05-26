@@ -5,6 +5,7 @@ const corsMethods = 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
 const corsHeaders = 'authorization,content-type'
 
 interface TrustedOriginCorsOptions {
+  isPublicPath?: (path: string) => boolean
   resolveAllowedOrigins?: (context: { path: string; context: Context }) => Promise<string[]>
 }
 
@@ -16,6 +17,25 @@ export function trustedOriginCors(trustedOrigins: string[], options: TrustedOrig
 
     if (!origin) {
       await next()
+      return
+    }
+
+    if (options.isPublicPath?.(c.req.path)) {
+      const setPublicCorsHeaders = () => {
+        c.header('Access-Control-Allow-Origin', origin)
+        c.header('Vary', 'Origin')
+      }
+
+      setPublicCorsHeaders()
+
+      if (c.req.method === 'OPTIONS') {
+        c.header('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        c.header('Access-Control-Allow-Headers', c.req.header('access-control-request-headers') || corsHeaders)
+        return c.body(null, 204)
+      }
+
+      await next()
+      setPublicCorsHeaders()
       return
     }
 

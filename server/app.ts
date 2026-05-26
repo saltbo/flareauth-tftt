@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import type { SecurityPolicy } from '../shared/api/security'
 import {
+  isPublicOAuthMetadataPath,
   mountAgentConfiguration,
   oauthClientCorsOrigins,
   requireHostedAuthMethodEnabled,
@@ -83,7 +84,10 @@ export function createApp(auth: AuthHandler, options: AppOptions = {}) {
   app.use('*', accessLog())
   app.use(
     '/api/*',
-    trustedOriginCors(options.trustedOrigins ?? [], { resolveAllowedOrigins: oauthClientCorsOrigins(options) }),
+    trustedOriginCors(options.trustedOrigins ?? [], {
+      isPublicPath: isPublicOAuthMetadataPath,
+      resolveAllowedOrigins: oauthClientCorsOrigins(options),
+    }),
   )
   app.use('/api/*', authContext(auth))
 

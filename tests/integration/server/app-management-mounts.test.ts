@@ -45,7 +45,31 @@ describe('app.test 2', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example.com')
-    expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull()
+  })
+
+  it('allows public OAuth metadata reads from unregistered browser origins', async () => {
+    const auth = createAuthMock()
+    auth.api.getOpenIdConfig.mockResolvedValue({
+      issuer: 'https://auth.example.com/api/auth',
+      authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
+      jwks_uri: 'https://auth.example.com/api/auth/jwks',
+      userinfo_endpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',
+    })
+
+    const response = await createApp(auth, {
+      trustedOrigins: ['https://tenant.example.com'],
+      applicationServiceFactory: applicationCorsFactory([]),
+    }).request('/api/auth/.well-known/openid-configuration', {
+      headers: {
+        origin: 'https://unknown.example.com',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://unknown.example.com')
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull()
   })
 
   it('allows application CORS origins for OAuth token preflight', async () => {
