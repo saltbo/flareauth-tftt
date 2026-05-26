@@ -121,34 +121,34 @@ jobs:
             fi
 
             node <<'NODE'
-            const { execFileSync } = require('node:child_process')
-            const { writeFileSync } = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+          const { writeFileSync } = require('node:fs')
 
-            const readStage = (stage, path) =>
-              JSON.parse(execFileSync('git', ['show', `:${stage}:${path}`], { encoding: 'utf8' }))
-            const writeJson = (path, value) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`)
+          const readStage = (stage, path) =>
+            JSON.parse(execFileSync('git', ['show', `:${stage}:${path}`], { encoding: 'utf8' }))
+          const writeJson = (path, value) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`)
 
-            const packageOurs = readStage(2, 'package.json')
-            const packageTheirs = readStage(3, 'package.json')
-            const mergedPackage = {
-              ...packageTheirs,
-              name: packageOurs.name,
-              scripts: {
-                ...packageTheirs.scripts,
-                ...(packageOurs.scripts?.['deploy:prod'] ? { 'deploy:prod': packageOurs.scripts['deploy:prod'] } : {}),
-              },
-            }
-            writeJson('package.json', mergedPackage)
+          const packageOurs = readStage(2, 'package.json')
+          const packageTheirs = readStage(3, 'package.json')
+          const mergedPackage = {
+            ...packageTheirs,
+            name: packageOurs.name,
+            scripts: {
+              ...packageTheirs.scripts,
+              ...(packageOurs.scripts?.['deploy:prod'] ? { 'deploy:prod': packageOurs.scripts['deploy:prod'] } : {}),
+            },
+          }
+          writeJson('package.json', mergedPackage)
 
-            const lockTheirs = readStage(3, 'package-lock.json')
-            lockTheirs.name = mergedPackage.name
-            lockTheirs.version = mergedPackage.version
-            if (lockTheirs.packages?.['']) {
-              lockTheirs.packages[''].name = mergedPackage.name
-              lockTheirs.packages[''].version = mergedPackage.version
-            }
-            writeJson('package-lock.json', lockTheirs)
-            NODE
+          const lockTheirs = readStage(3, 'package-lock.json')
+          lockTheirs.name = mergedPackage.name
+          lockTheirs.version = mergedPackage.version
+          if (lockTheirs.packages?.['']) {
+            lockTheirs.packages[''].name = mergedPackage.name
+            lockTheirs.packages[''].version = mergedPackage.version
+          }
+          writeJson('package-lock.json', lockTheirs)
+          NODE
 
             git add package.json package-lock.json
             git commit --no-edit
