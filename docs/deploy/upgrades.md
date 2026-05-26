@@ -51,6 +51,11 @@ updates every six hours.
 In a deployment repository, open **Actions > Update From FlareAuth Upstream >
 Run workflow** to run the same check manually.
 
+If repository settings do not allow GitHub Actions to create pull requests with
+the default `GITHUB_TOKEN`, add a repository secret named
+`FLAREAUTH_UPGRADE_TOKEN` with permission to create and update pull requests.
+The workflow uses that token when it is present.
+
 - Leave `target_ref` empty to merge the latest compatible upstream semver tag.
   Compatibility is based on the current deployment repository's
   `package.json` major version. For example, a `1.2.0` deployment can
