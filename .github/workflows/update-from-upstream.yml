@@ -207,7 +207,7 @@ jobs:
       - name: Open upgrade PR
         if: steps.merge.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLAREAUTH_UPGRADE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           branch="${{ steps.merge.outputs.branch }}"
