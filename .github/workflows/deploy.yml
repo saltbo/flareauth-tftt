@@ -1,0 +1,104 @@
+name: Deploy FlareAuth Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_repository:
+        description: "FlareAuth upstream repository. Used only to disable this workflow in upstream."
+        required: true
+        default: "saltbo/flareauth"
+      run_checks:
+        description: "Run typecheck, lint, tests, and build before deploy."
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      run_migrations:
+        description: "Run remote D1 migrations before deploy."
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flareauth-deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    if: github.repository != 'saltbo/flareauth'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deployment repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Restish
+        if: inputs.run_checks == 'true'
+        run: |
+          version=0.21.2
+          archive="restish-${version}-linux-amd64.tar.gz"
+          curl -fsSL "https://github.com/rest-sh/restish/releases/download/v${version}/${archive}" -o "$archive"
+          curl -fsSL "https://github.com/rest-sh/restish/releases/download/v${version}/checksums.txt" -o checksums.txt
+          grep "  ${archive}$" checksums.txt | sha256sum --check -
+          tar -xzf "$archive"
+          sudo install restish /usr/local/bin/restish
+          restish --version
+
+      - name: Typecheck
+        if: inputs.run_checks == 'true'
+        run: npm run typecheck
+
+      - name: Lint
+        if: inputs.run_checks == 'true'
+        run: npm run lint
+
+      - name: Test
+        if: inputs.run_checks == 'true'
+        run: npm test
+
+      - name: Build
+        if: inputs.run_checks == 'true'
+        run: npm run build
+
+      - name: Apply remote D1 migrations
+        if: inputs.run_migrations == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run db:migrate:remote
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ "${{ inputs.run_checks }}" = "true" ]; then
+            npx wrangler deploy
+          else
+            npm run build
+            npx wrangler deploy
+          fi
+
+  upstream-disabled:
+    name: Disabled In Upstream Repository
+    if: github.repository == 'saltbo/flareauth'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This workflow is distributed by the upstream template and only runs in deployment repositories."

@@ -146,6 +146,19 @@ Run migrations before deployment. `npm run deploy` runs remote D1 migrations
 through the `DB` binding, builds, and deploys. Using the binding name keeps the
 script compatible with Deploy Button generated database names.
 
+Deployment repositories also receive `.github/workflows/deploy.yml` from
+upstream. The workflow is maintained in upstream but disabled in
+`saltbo/flareauth`; it only performs deployment steps when copied into a product
+deployment repository. Configure these GitHub Actions secrets in the deployment
+repository before using it:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Then open **Actions > Deploy FlareAuth Deployment > Run workflow**. Keep
+`run_migrations` enabled for normal upgrades so D1 migrations are applied before
+the Worker is published.
+
 Sources:
 
 - [Cloudflare Deploy to Cloudflare buttons](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
