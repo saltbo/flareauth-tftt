@@ -45,21 +45,32 @@ host or when extra trusted origins are required.
 The upstream repository ships `.github/workflows/update-from-upstream.yml` for
 deployment repositories. The workflow is maintained in upstream so every
 deployment receives the same upgrade mechanism, but its job is disabled when it
-runs in `saltbo/flareauth` itself.
+runs in `saltbo/flareauth` itself. Deployment repositories check for upstream
+updates every six hours.
 
 In a deployment repository, open **Actions > Update From FlareAuth Upstream >
-Run workflow**.
+Run workflow** to run the same check manually.
 
-- Leave `target_ref` empty to merge the latest upstream `main`.
+- Leave `target_ref` empty to merge the latest compatible upstream semver tag.
+  Compatibility is based on the current deployment repository's
+  `package.json` major version. For example, a `1.2.0` deployment can
+  automatically upgrade to `1.3.0` or `1.3.4`, but not to `2.0.0`.
 - Set `target_ref` to a release tag such as `v1.0.3`, a branch, or a commit SHA
   to upgrade to a specific upstream version.
+- Manual semver tags from a different major are rejected unless
+  `allow_major_upgrade` is set to `true`.
 - Keep `upstream_repository` as `saltbo/flareauth` unless the deployment follows
   a different FlareAuth upstream fork.
 - Enable `run_e2e` when the deployment repository should run Cucumber E2E before
   opening the upgrade PR.
 
-The workflow creates or updates a PR from `flareauth-upgrade/<target>` into the
-deployment repository's `main` branch after running:
+The scheduled workflow creates or updates a single PR from
+`flareauth-upgrade/latest` into the deployment repository's `main` branch. If
+that PR is still open when a newer compatible upstream tag is published, the
+same branch and PR are updated to the newer tag instead of creating a second
+upgrade PR. Manually pinned versions use `flareauth-upgrade/<target>`.
+
+Upgrade PRs are opened after running:
 
 - `npm run typecheck`
 - `npm run lint`

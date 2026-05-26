@@ -1,6 +1,8 @@
 name: Update From FlareAuth Upstream
 
 on:
+  schedule:
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       upstream_repository:
@@ -8,9 +10,17 @@ on:
         required: true
         default: "saltbo/flareauth"
       target_ref:
-        description: "Upstream branch, tag, or commit to merge. Empty uses main."
+        description: "Upstream branch, tag, or commit to merge. Empty uses latest semver tag."
         required: false
         default: ""
+      allow_major_upgrade:
+        description: "Allow manually requested semver tags from a different major."
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
       run_e2e:
         description: "Run Cucumber E2E before opening the PR."
         required: true
@@ -50,18 +60,49 @@ jobs:
         id: merge
         run: |
           set -euo pipefail
-          upstream_repository="${{ inputs.upstream_repository }}"
-          target_ref="${{ inputs.target_ref }}"
-          if [ -z "$target_ref" ]; then
-            target_ref="main"
-          fi
-
-          branch="flareauth-upgrade/${target_ref//[^A-Za-z0-9._-]/-}"
+          upstream_repository="${{ inputs.upstream_repository || 'saltbo/flareauth' }}"
+          requested_ref="${{ inputs.target_ref || '' }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add flareauth-upstream "https://github.com/${upstream_repository}.git" 2>/dev/null || true
           git fetch origin main
           git fetch flareauth-upstream --tags
+
+          current_version="$(node -p "require('./package.json').version")"
+          current_major="${current_version%%.*}"
+
+          if [ -z "$requested_ref" ]; then
+            target_ref="$(
+              git tag -l "v${current_major}.*.*" --sort=-v:refname |
+                grep -E "^v${current_major}\.[0-9]+\.[0-9]+$" |
+                head -n 1 ||
+                true
+            )"
+            if [ -z "$target_ref" ]; then
+              echo "No compatible upstream semver tags found for current major ${current_major}."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "branch=flareauth-upgrade/latest" >> "$GITHUB_OUTPUT"
+              echo "target_ref=none" >> "$GITHUB_OUTPUT"
+              echo "update_mode=latest" >> "$GITHUB_OUTPUT"
+              echo "run_e2e=${{ inputs.run_e2e || 'false' }}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            branch="flareauth-upgrade/latest"
+            update_mode="latest"
+          else
+            target_ref="$requested_ref"
+            if [[ "$target_ref" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+              target_major="${BASH_REMATCH[1]}"
+              if [ "$target_major" != "$current_major" ] && [ "${{ inputs.allow_major_upgrade || 'false' }}" != "true" ]; then
+                echo "Refusing major upgrade from ${current_version} to ${target_ref}."
+                echo "Set allow_major_upgrade=true for an intentional major-version PR."
+                exit 1
+              fi
+            fi
+            branch="flareauth-upgrade/${target_ref//[^A-Za-z0-9._-]/-}"
+            update_mode="pinned"
+          fi
+
           git checkout -B "$branch"
 
           if git rev-parse --verify --quiet "refs/remotes/flareauth-upstream/$target_ref" >/dev/null; then
@@ -81,6 +122,8 @@ jobs:
           fi
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "target_ref=$target_ref" >> "$GITHUB_OUTPUT"
+          echo "update_mode=$update_mode" >> "$GITHUB_OUTPUT"
+          echo "run_e2e=${{ inputs.run_e2e || 'false' }}" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         if: steps.merge.outputs.changed == 'true'
@@ -115,7 +158,7 @@ jobs:
         run: npm run build
 
       - name: Cucumber E2E
-        if: steps.merge.outputs.changed == 'true' && inputs.run_e2e == 'true'
+        if: steps.merge.outputs.changed == 'true' && steps.merge.outputs.run_e2e == 'true'
         run: npm run test:e2e
 
       - name: Push upgrade branch
@@ -130,9 +173,16 @@ jobs:
           set -euo pipefail
           branch="${{ steps.merge.outputs.branch }}"
           target_ref="${{ steps.merge.outputs.target_ref }}"
-          title="chore: update FlareAuth upstream to ${target_ref}"
+          update_mode="${{ steps.merge.outputs.update_mode }}"
+          if [ "$update_mode" = "latest" ]; then
+            title="chore: update FlareAuth to latest upstream ${target_ref}"
+          else
+            title="chore: update FlareAuth upstream to ${target_ref}"
+          fi
           body="$(cat <<EOF
-          Updates this deployment repository from \`${{ inputs.upstream_repository }}\` at \`${target_ref}\`.
+          Updates this deployment repository from \`${{ inputs.upstream_repository || 'saltbo/flareauth' }}\` at \`${target_ref}\`.
+
+          Update mode: \`${update_mode}\`
 
           Validation run by this workflow:
           - \`npm run typecheck\`
@@ -140,7 +190,7 @@ jobs:
           - \`npm test\`
           - \`npm run build\`
 
-          E2E run: \`${{ inputs.run_e2e }}\`
+          E2E run: \`${{ steps.merge.outputs.run_e2e }}\`
 
           Review deployment-specific files such as \`wrangler.toml\`, \`wrangler.preview.toml\`, and \`package.json\` before merging.
           EOF
