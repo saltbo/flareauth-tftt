@@ -49,7 +49,12 @@ export async function startRestishAuthHeader(home: RestishHome) {
   return {
     child,
     authorizeUrl: normalizeAuthorizeUrl(await waitForAuthorizeUrl(() => `${stdout}\n${stderr}`)),
-    authHeader: () => waitForAuthHeader(child, () => stdout, () => stderr),
+    authHeader: () =>
+      waitForAuthHeader(
+        child,
+        () => stdout,
+        () => stderr,
+      ),
   }
 }
 
@@ -103,7 +108,8 @@ function normalizeAuthorizeUrl(raw: string) {
   const url = new URL(raw)
   if (!url.searchParams.get('client_id')?.trim()) url.searchParams.set('client_id', 'flareauth-cli')
   if (!url.searchParams.get('response_type')?.trim()) url.searchParams.set('response_type', 'code')
-  if (!url.searchParams.get('redirect_uri')?.trim()) url.searchParams.set('redirect_uri', 'http://localhost:8484/callback')
+  if (!url.searchParams.get('redirect_uri')?.trim())
+    url.searchParams.set('redirect_uri', 'http://localhost:8484/callback')
   if (!url.searchParams.get('scope')?.trim()) {
     url.searchParams.set('scope', 'openid profile email offline_access management:read management:write')
   }
@@ -114,7 +120,8 @@ function normalizeAuthorizeUrl(raw: string) {
 }
 
 function stripAnsi(value: string) {
-  return value.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
+  // biome-ignore lint/complexity/useRegexLiterals: Avoid a raw ESC control character in a regex literal.
+  return value.replace(new RegExp(String.raw`\u001B\[[0-?]*[ -/]*[@-~]`, 'g'), '')
 }
 
 async function waitForAuthHeader(child: ReturnType<typeof spawn>, stdout: () => string, stderr: () => string) {
@@ -123,7 +130,10 @@ async function waitForAuthHeader(child: ReturnType<typeof spawn>, stdout: () => 
     throw new Error(`restish auth-header failed with exit code ${exitCode}\n${stdout()}\n${stderr()}`)
   }
 
-  const header = stdout().trim().split('\n').find((line) => line.startsWith('Bearer '))
+  const header = stdout()
+    .trim()
+    .split('\n')
+    .find((line) => line.startsWith('Bearer '))
   if (!header) {
     throw new Error(`restish auth-header did not return a Bearer header.\n${stdout()}\n${stderr()}`)
   }

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["@cloudflare/workers-types", "node", "vite/client", "vitest/globals"],
+    "noEmit": true
+  },
+  "include": ["tests/unit/**/*.ts", "tests/unit/**/*.tsx", "tests/component/**/*.ts", "tests/component/**/*.tsx", "tests/contract/**/*.ts", "tests/integration/**/*.ts"]
+}

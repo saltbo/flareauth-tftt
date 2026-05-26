@@ -1,64 +1,62 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const specsDir = fileURLToPath(new URL('../specs', import.meta.url))
-const coveragePath = fileURLToPath(new URL('../tests/e2e/journey-coverage.json', import.meta.url))
-const e2eDir = fileURLToPath(new URL('../tests/e2e', import.meta.url))
+const e2eCoveragePath = fileURLToPath(new URL('../specs/e2e-coverage.json', import.meta.url))
+const e2eCoverage = JSON.parse(readFileSync(e2eCoveragePath, 'utf8'))
 
-const coverage = JSON.parse(readFileSync(coveragePath, 'utf8'))
-const declaredJourneys = new Set((coverage.journeys ?? []).map((journey) => journey.id))
-const waivedJourneys = new Set(coverage.waivers ?? [])
-
-const specFiles = readdirSync(specsDir).filter((file) => file.endsWith('.feature'))
-const specJourneys = new Set()
-
-for (const file of specFiles) {
-  const source = readFileSync(join(specsDir, file), 'utf8')
-  for (const match of source.matchAll(/@journey:([a-z0-9-]+)/g)) {
-    specJourneys.add(match[1])
-  }
-}
-
-const attachedJourneys = new Set()
-const e2eFiles = readdirSync(e2eDir)
-  .filter((file) => file.endsWith('.spec.ts'))
-  .map((file) => join(e2eDir, file))
-
-for (const file of e2eFiles) {
-  const source = readFileSync(file, 'utf8')
-  for (const match of source.matchAll(/attachCoverage\([^,]+,\s*\[([\s\S]*?)\]\)/g)) {
-    for (const journeyMatch of match[1].matchAll(/['"]([a-z0-9-]+)['"]/g)) {
-      attachedJourneys.add(journeyMatch[1])
-    }
-  }
-}
-
+const sourceSpecJourneys = readFeatureTags(specsDir, /@journey:([a-z0-9-]+)/g)
+const e2eJourneys = readE2eJourneys(specsDir)
+const specEntrypoints = readFeatureTags(specsDir, /@entrypoint:([a-z0-9-]+)/g)
+const requiredEntrypoints = new Set(e2eCoverage.requiredEntrypoints ?? [])
+const automatedJourneys = new Set(e2eCoverage.automatedJourneys ?? [])
 const errors = []
 
-for (const journey of declaredJourneys) {
-  if (!specJourneys.has(journey)) {
-    errors.push(`Missing spec tag for journey "${journey}".`)
+if (existsSync(fileURLToPath(new URL('../playwright.config.ts', import.meta.url)))) {
+  errors.push('playwright.config.ts must not exist; Cucumber owns E2E execution.')
+}
+
+for (const file of readdirSync(fileURLToPath(new URL('../tests/e2e', import.meta.url)), { recursive: true })) {
+  if (typeof file !== 'string') continue
+  if (file.endsWith('.spec.ts') || file.endsWith('.spec.tsx')) {
+    errors.push(`tests/e2e/${file} must be migrated to Cucumber; direct Playwright specs are not allowed.`)
+  }
+  if (file.endsWith('.feature')) {
+    errors.push(`tests/e2e/${file} must move to specs/; feature files are product specs, not test glue.`)
   }
 }
 
-for (const journey of specJourneys) {
-  if (!declaredJourneys.has(journey)) {
-    errors.push(`Spec tag "${journey}" is not declared in tests/e2e/journey-coverage.json.`)
+for (const journey of automatedJourneys) {
+  if (!sourceSpecJourneys.has(journey)) {
+    errors.push(`Automated E2E journey "${journey}" is not defined in specs/*.feature.`)
+  }
+  if (!e2eJourneys.has(journey)) {
+    errors.push(`Automated E2E journey "${journey}" is not tagged @e2e in specs/*.feature.`)
   }
 }
 
-for (const journey of attachedJourneys) {
-  if (!declaredJourneys.has(journey)) {
-    errors.push(`Playwright attaches undeclared journey "${journey}".`)
+for (const journey of e2eJourneys) {
+  if (!automatedJourneys.has(journey)) {
+    errors.push(`@e2e journey "${journey}" is not declared in specs/e2e-coverage.json.`)
   }
 }
 
-for (const journey of declaredJourneys) {
-  if (!attachedJourneys.has(journey) && !waivedJourneys.has(journey)) {
-    errors.push(`Journey "${journey}" is not attached by any E2E test and has no waiver.`)
+for (const entrypoint of requiredEntrypoints) {
+  if (!specEntrypoints.has(entrypoint)) {
+    errors.push(`Missing spec entrypoint "${entrypoint}".`)
   }
+}
+
+for (const entrypoint of specEntrypoints) {
+  if (!requiredEntrypoints.has(entrypoint)) {
+    errors.push(`Unknown spec entrypoint "${entrypoint}".`)
+  }
+}
+
+for (const issue of validateSpecFeatures(specsDir, requiredEntrypoints)) {
+  errors.push(issue)
 }
 
 if (errors.length > 0) {
@@ -70,5 +68,78 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `Spec verification passed: ${specJourneys.size} spec journeys, ${attachedJourneys.size} automated journeys.`,
+  [
+    `Spec verification passed: ${sourceSpecJourneys.size} source journeys,`,
+    `${e2eJourneys.size} automated Cucumber journeys,`,
+    `${specEntrypoints.size} spec entrypoints.`,
+  ].join(' '),
 )
+
+function readFeatureTags(directory, pattern) {
+  const tags = new Set()
+  for (const file of readdirSync(directory, { recursive: true })) {
+    if (typeof file !== 'string' || !file.endsWith('.feature')) continue
+    const source = readFileSync(join(directory, file), 'utf8')
+    for (const match of source.matchAll(pattern)) {
+      tags.add(match[1])
+    }
+  }
+  return tags
+}
+
+function readE2eJourneys(directory) {
+  const journeys = new Set()
+  for (const file of readdirSync(directory, { recursive: true })) {
+    if (typeof file !== 'string' || !file.endsWith('.feature')) continue
+    const source = readFileSync(join(directory, file), 'utf8')
+    let pendingTags = []
+    for (const line of source.split('\n')) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('@')) {
+        pendingTags = trimmed.split(/\s+/)
+        continue
+      }
+      if (/^Scenario:/.test(trimmed) && pendingTags.includes('@e2e')) {
+        for (const tag of pendingTags) {
+          const match = tag.match(/^@journey:([a-z0-9-]+)$/)
+          if (match) journeys.add(match[1])
+        }
+      }
+      if (trimmed && !trimmed.startsWith('@')) pendingTags = []
+    }
+  }
+  return journeys
+}
+
+function validateSpecFeatures(directory, requiredEntrypoints) {
+  const issues = []
+  for (const file of readdirSync(directory, { recursive: true })) {
+    if (typeof file !== 'string' || !file.endsWith('.feature')) continue
+    const source = readFileSync(join(directory, file), 'utf8')
+
+    let pendingTags = []
+    for (const [index, line] of source.split('\n').entries()) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('@')) {
+        pendingTags = trimmed.split(/\s+/)
+        continue
+      }
+      if (/^Scenario:/.test(trimmed) && !pendingTags.some((tag) => tag.startsWith('@journey:'))) {
+        issues.push(`${join('specs', file)}:${index + 1} scenario is missing @journey:<id>.`)
+      }
+      if (/^Scenario:/.test(trimmed)) {
+        const entrypointTags = pendingTags.filter((tag) => tag.startsWith('@entrypoint:'))
+        if (entrypointTags.length !== 1) {
+          issues.push(`${join('specs', file)}:${index + 1} scenario must declare exactly one @entrypoint:<id> tag.`)
+        } else {
+          const entrypoint = entrypointTags[0].replace('@entrypoint:', '')
+          if (!requiredEntrypoints.has(entrypoint)) {
+            issues.push(`${join('specs', file)}:${index + 1} scenario declares unsupported entrypoint "${entrypoint}".`)
+          }
+        }
+      }
+      if (trimmed && !trimmed.startsWith('@')) pendingTags = []
+    }
+  }
+  return issues
+}

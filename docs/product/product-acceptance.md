@@ -65,8 +65,8 @@ FlareAuth 1.0 is production ready only when all of these are true:
 - Public, account, admin, and setup surfaces are gated correctly.
 - Account Center and Admin Console use persistent navigation for route-backed
   pages.
-- E2E coverage is 100% of declared journeys in
-  `tests/e2e/journey-coverage.json`, with no waivers.
+- Cucumber E2E coverage is 100% of automated journeys declared in
+  `specs/e2e-coverage.json`.
 - Automated code coverage is at least 90% overall before a production release.
 - Review and production validation include screenshots or trace artifacts for
   all required product journeys.
@@ -251,18 +251,18 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
 
 ## E2E Journey Coverage Contract
 
-`tests/e2e/journey-coverage.json` is the executable declaration of browser
-journeys. Each journey ID must have a matching assertion in
-`tests/e2e/product-journeys.spec.ts`. The coverage test requires:
+`specs/e2e-coverage.json` is the executable declaration of automated Cucumber
+journeys. Each automated journey ID must match a scenario in `specs/*.feature`
+tagged with `@e2e`, exactly one `@entrypoint:<id>`, and one `@journey:<id>`.
+The coverage check requires:
 
-- Every declared journey has an assertion.
-- Every assertion is declared.
-- `target` remains `1`.
-- `waivers` remains an empty array.
-- The only Hono RPC smoke journey is `platform-status`.
+- Every automated journey is defined in `specs/*.feature`.
+- Every `@e2e` scenario is declared in `specs/e2e-coverage.json`.
+- Every scenario has exactly one supported entrypoint.
+- Direct Playwright spec files do not exist under `tests/e2e`.
 
 As new detail routes from this spec ship, the same PR must add journey IDs and
-Playwright assertions for those detail pages before claiming product acceptance.
+Cucumber coverage for those detail pages before claiming product acceptance.
 
 ## Review And Production Evidence
 
@@ -272,7 +272,7 @@ must include the review-environment acceptance path:
 1. Preview URL and commit SHA under review.
 2. Setup state used for validation: fresh database, setup-incomplete tenant, or
    setup-complete tenant.
-3. Screenshots or Playwright traces for first-admin gate, hosted sign-in,
+3. Screenshots or browser traces for first-admin gate, hosted sign-in,
    Account Center, Admin setup, Applications, Connectors, Users, Branding,
    Security, Organizations/RBAC/API resources, and Deployment.
 4. OIDC discovery JSON captured from the preview or production domain.

@@ -2,11 +2,11 @@
 
 ## Objective
 
-Validate FlareAuth authentication end to end to production-readiness standard. Use Playwright CRI for manual acceptance first, fix discovered issues, run at least five additional bug-hunting passes, then codify the accepted flows as E2E tests and run them.
+Validate FlareAuth authentication end to end to production-readiness standard. Use manual browser automation for acceptance first, fix discovered issues, run at least five additional bug-hunting passes, then codify the accepted flows as Cucumber E2E scenarios and run them.
 
 ## Verification Rule
 
-Existing E2E tests are only supporting signals. They do not prove a feature is accepted. A feature can move to "Fully Verified Through Real Product Chain" only after Playwright CLI manual regression exercises the actual product path and records evidence here. After that, E2E coverage is added or updated to preserve the verified behavior.
+Existing E2E tests are only supporting signals. They do not prove a feature is accepted. A feature can move to "Fully Verified Through Real Product Chain" only after manual browser regression exercises the actual product path and records evidence here. After that, Cucumber E2E coverage is added or updated to preserve the verified behavior.
 
 Every authentication-related setting and feature point must have a recorded outcome. Do not skip configuration items because they look small or because a broader flow passed. If a setting cannot be verified, record it under "Could Not Be Verified" with the concrete blocker and required dependency.
 
@@ -15,7 +15,7 @@ Exit criteria for this Go:
 - Every Authentication page setting, Profile authentication action, hosted sign-in/sign-up path, backend enforcement path, and provider-specific configuration item has an explicit row or finding.
 - Every individual configuration item and every feature point must be manually accepted or explicitly classified. Group-level acceptance is not enough.
 - Each item must end in exactly one evidence bucket: fully verified through the real product chain, verified only with an external-boundary mock, or could not be verified with the blocker named.
-- E2E tests are written only after the manual Playwright CLI acceptance path has passed or the limitation has been documented.
+- E2E tests are written only after the manual acceptance path has passed or the limitation has been documented.
 - No project-internal chain can be mocked to claim acceptance. Only external services such as OAuth/SMS providers may be replaced by external-boundary mocks when real credentials are unavailable.
 - This Go cannot be closed while any Authentication setting remains ambiguous, untested, or only implied by another test.
 
@@ -28,9 +28,9 @@ Exit criteria for this Go:
 
 ## Current Environment Facts
 
-- Playwright E2E base URL defaults to `http://localhost:4179`.
-- E2E server command from `playwright.config.ts`:
-  `BETTER_AUTH_URL=http://localhost:4179 TRUSTED_ORIGINS=http://localhost:4179 E2E_OAUTH_CLIENT_SECRET=e2e-secret npm run dev -- --host 127.0.0.1 --mode e2e --port 4179`
+- Cucumber E2E base URL defaults to `http://127.0.0.1:4189`.
+- E2E launches the dev server through `scripts/run-cucumber-e2e.mjs` with:
+  `BETTER_AUTH_URL=http://127.0.0.1:4189 TRUSTED_ORIGINS=http://127.0.0.1:4189 E2E_OAUTH_CLIENT_SECRET=e2e-secret npm run dev -- --host 127.0.0.1 --mode e2e --port 4189`
 - Admin bootstrap helper uses:
   - username: `admin`
   - email: `admin@example.com`
@@ -153,7 +153,7 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
 | 1 | Config switch backend enforcement audit for Email OTP, email verification, Passwordless, Social, Phone, Web3, OneTap, Passkey | Found Email connector overreach, Phone-only UI state bug, and Live Preview OneTap/Passkey drift. Fixed and verified manually + focused tests/E2E. Disabled-provider direct endpoint enforcement manually verified and solidified. Pass complete. |
 | 2 | Password mode and managed password policy enforcement across native and product password-change boundaries | Found native Better Auth `/api/auth/change-password` bypassed the managed password policy while Account Center custom change-password enforced it. Fixed middleware policy enforcement, verified with Playwright CLI, added E2E, and reran broad auth E2E covering sign-up/reset/Profile password flows. Pass complete. |
 | 3 | MFA/Profile security policy linkage for Authenticator App, required MFA, and enrollment API access | Existing Playwright CLI evidence showed TOTP enrollment/sign-in and required MFA behavior; added E2E for disabled Authenticator App enrollment and required-MFA API gating. Pass complete. |
-| 4 | E2E mock audit for project-internal chain bypasses | Searched the full `tests/e2e` tree for route interception, fulfillment, aborts, and mock keywords. Only `tests/e2e/connectors.spec.ts` intercepts `https://idp.e2e.test/**`, which is an external IdP boundary mock. No project-internal API/UI/runtime mocks found in E2E. Pass complete. |
+| 4 | E2E mock audit for project-internal chain bypasses | Searched the full `tests/e2e` tree for route interception, fulfillment, aborts, and mock keywords. Only `archived Playwright connectors spec` intercepts `https://idp.e2e.test/**`, which is an external IdP boundary mock. No project-internal API/UI/runtime mocks found in E2E. Pass complete. |
 | 5 | Per-setting manual/E2E coverage gap audit | Found remaining E2E solidification gaps for Passwordless, disabled sign-up, and hosted passkey sign-in. Added split E2E files for those paths, added missing journey coverage ids, and verified the new tests. Pass complete. |
 
 ## Findings
@@ -195,7 +195,7 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
 - 2026-05-21 fixed Web3 wallet runtime: added Better Auth SIWE registration, wallet address schema/migration, public runtime config for enabled chains, hosted sign-in wallet action, SIWE nonce/signature verification using `viem`, and Live Preview/real login Card wallet entry.
 - 2026-05-21 Playwright CLI Web3 wallet pass found a schema bug: Better Auth's Drizzle adapter expects an `id` field on the `walletAddress` model. Fixed the schema and migration to include `wallet_address.id`.
 - 2026-05-21 Playwright CLI verified Web3 wallet using an external wallet boundary signer on `127.0.0.1:4566`: enabling Web3 in Console made Live Preview and real `/auth/sign-in` show `Continue with Web3 wallet`; a browser with no wallet showed the expected no-provider error; the external wallet boundary signed the real SIWE message; `/api/auth/siwe/verify` created a real session; Profile loaded for wallet address `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`; D1 contained a `wallet_address` row and `account(provider_id='siwe')`.
-- 2026-05-21 added and ran `tests/e2e/auth-web3.spec.ts`: 1 passed. The test enables Web3 through the management API, verifies the no-wallet error, injects only an external wallet boundary signer, signs a real SIWE message, reaches Profile, and asserts the `wallet_address` row.
+- 2026-05-21 added and ran `archived Playwright auth-web3 spec`: 1 passed. The test enables Web3 through the management API, verifies the no-wallet error, injects only an external wallet boundary signer, signs a real SIWE message, reaches Profile, and asserts the `wallet_address` row.
 - 2026-05-21 Playwright CLI manual MFA settings check found Authenticator App policy was not fully wired: Profile TOTP enrollment did not check `authenticatorAppEnabled`, and Better Auth TOTP was always enabled. Fixed by passing `totpOptions.disable` from policy into Better Auth and blocking Profile TOTP enrollment/verification when the factor is disabled.
 - 2026-05-21 Playwright CLI reverified Authenticator App linkage: after disabling the factor, Profile TOTP enrollment returned 400 with the policy message, and an already-enrolled TOTP user could sign in without the TOTP challenge because the factor was disabled; the factor was then re-enabled.
 - 2026-05-21 Playwright CLI verified Passkey policy linkage: disabling passkeys removed the hosted sign-in passkey option and direct `/api/auth/passkey/generate-authenticate-options` returned 404; passkeys were then re-enabled.
@@ -215,26 +215,29 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
 - 2026-05-21 Playwright CLI found a Backup codes UI gap: Better Auth returned generated backup codes during TOTP enrollment, but Account Center did not display them. Fixed the enrollment panel to render returned backup codes, added focused component coverage, and manually reverified the codes display in Profile.
 - 2026-05-21 Playwright CLI manually verified MFA Prompt policy enforcement: management PATCH to `required` succeeded, non-exempt account profile API returned 403 with the MFA enrollment message, account security API stayed available for enrollment, then D1 restored policy to `optional` and removed the cancelled unverified TOTP setup row.
 - 2026-05-21 Authentication E2E regression initially failed after product-flow fixes because several tests still asserted removed/old behavior: Account Center email change expected the old one-step button instead of OTP confirmation; OTP password reset expected the previously fixed 500; linked-account connect waited for the removed `/api/account/linked-accounts` wrapper; TOTP setup read the last setup code, which became a backup code after backup-code display was added. Updated these tests to assert the real current flows.
-- 2026-05-21 Playwright CLI verified the Email connector drawer linkage: disabling Email code removed the hosted `Continue with Email` action and blocked the direct Better Auth Email OTP send endpoint with 403; re-enabling restored the hosted action. Added `tests/e2e/auth-email-connector.spec.ts` to preserve the same UI and backend enforcement path.
+- 2026-05-21 Playwright CLI verified the Email connector drawer linkage: disabling Email code removed the hosted `Continue with Email` action and blocked the direct Better Auth Email OTP send endpoint with 403; re-enabling restored the hosted action. Added `archived Playwright auth-email-connector spec` to preserve the same UI and backend enforcement path.
 - 2026-05-21 bug-hunting pass 1 found an Email connector boundary bug: the `emailOtpEnabled` guard blocked `/api/auth/email-otp/verify-email` and all `/api/auth/email-otp/send-verification-otp` calls, so disabling Email sign-in could break mandatory email verification. Fixed the guard to block only sign-in/recovery Email OTP paths while allowing only explicit `type: "email-verification"` and `/api/auth/email-otp/verify-email`; the email verification page now always shows the OTP field when no token is present.
-- 2026-05-21 bug-hunting pass 1 found a Phone-only sign-in UI bug: the empty-method warning condition ignored Phone and Passkey availability. Fixed the condition and verified with Playwright CLI by temporarily setting Password/Email/Social off and Phone on; the signed-out login page showed `Continue with Phone` without the empty-method warning. Added `tests/e2e/auth-method-availability.spec.ts`.
+- 2026-05-21 bug-hunting pass 1 found a Phone-only sign-in UI bug: the empty-method warning condition ignored Phone and Passkey availability. Fixed the condition and verified with Playwright CLI by temporarily setting Password/Email/Social off and Phone on; the signed-out login page showed `Continue with Phone` without the empty-method warning. Added `archived Playwright auth-method-availability spec`.
 - 2026-05-21 bug-hunting pass 1 found a Live Preview drift bug: real hosted sign-in showed enabled OneTap/Passkey methods, but the Content/Branding previews did not consistently include them. Fixed the preview state to source OneTap from sign-in settings and Passkey from security policy, then verified with Playwright CLI that real `/auth/sign-in`, Content preview, and Branding preview all showed `Continue with Email`, `Continue with Passkey`, and `Continue with OneTap` when OneTap was enabled. Restored OneTap disabled afterward.
 - 2026-05-21 reinforced acceptance rule after user escalation: every individual Authentication configuration item and feature point must get an explicit recorded outcome. Broad page-level or existing E2E pass/fail is not sufficient evidence.
 - 2026-05-21 admin-console regression tests were realigned with the current product structure after Password policy moved into Sign-up and sign-in: Security default route now lands on CAPTCHA, old password-policy compatibility links redirect to the canonical sign-in settings page, and Passwordless assertions target the switch instead of ambiguous repeated text.
-- 2026-05-21 Playwright CLI manually verified disabled-provider endpoint enforcement through the real admin session: with Phone, OneTap, Web3, Social, and Passkey disabled, direct native endpoints returned Phone 404, OneTap 404, Web3 SIWE 404, Passkey 404, and Social 403 `Social authentication is disabled.` Restored settings afterward and added `tests/e2e/auth-provider-enforcement.spec.ts`.
-- 2026-05-21 bug-hunting pass 2 found a managed password-policy bypass: Account Center `/api/account/password/change` enforced the tenant policy, but native Better Auth `/api/auth/change-password` accepted a 10-character password while the managed policy minimum was 12. Fixed `server/middleware/security-policy.ts` to validate `/api/auth/change-password` `newPassword`, added server coverage, reverified with Playwright CLI that the weak native change now returns 400 `Password must be at least 12 characters.`, and added `tests/e2e/auth-password-policy-enforcement.spec.ts`.
+- 2026-05-21 Playwright CLI manually verified disabled-provider endpoint enforcement through the real admin session: with Phone, OneTap, Web3, Social, and Passkey disabled, direct native endpoints returned Phone 404, OneTap 404, Web3 SIWE 404, Passkey 404, and Social 403 `Social authentication is disabled.` Restored settings afterward and added `archived Playwright auth-provider-enforcement spec`.
+- 2026-05-21 bug-hunting pass 2 found a managed password-policy bypass: Account Center `/api/account/password/change` enforced the tenant policy, but native Better Auth `/api/auth/change-password` accepted a 10-character password while the managed policy minimum was 12. Fixed `server/middleware/security-policy.ts` to validate `/api/auth/change-password` `newPassword`, added server coverage, reverified with Playwright CLI that the weak native change now returns 400 `Password must be at least 12 characters.`, and added `archived Playwright auth-password-policy-enforcement spec`.
 - 2026-05-21 bug-hunting pass 3 solidified MFA policy linkage: added E2E proving disabled Authenticator App blocks Account Center TOTP enrollment with the deployment-policy error, and `required` MFA blocks protected account APIs while leaving `/api/account/security` reachable for enrollment.
-- 2026-05-21 bug-hunting pass 4 audited E2E mocks with `rg -n "page\\.route|context\\.route|browserContext\\.route|route\\(|fulfill\\(|abort\\(|vi\\.mock|jest\\.mock|mock" tests/e2e`; the only route interception is `https://idp.e2e.test/**` in `tests/e2e/connectors.spec.ts`, used as an external OAuth IdP boundary. No project-internal chain is mocked in E2E.
-- 2026-05-21 bug-hunting pass 5 audited per-setting manual evidence against E2E solidification. Added `tests/e2e/auth-sign-in-settings-enforcement.spec.ts` for Passwordless native endpoint blocking and disabled sign-up UI/API blocking, and `tests/e2e/auth-passkey-sign-in.spec.ts` for Profile passkey enrollment followed by hosted passkey sign-in. Targeted E2E rerun passed: 3/3.
+- 2026-05-21 bug-hunting pass 4 audited E2E mocks with `rg -n "page\\.route|context\\.route|browserContext\\.route|route\\(|fulfill\\(|abort\\(|vi\\.mock|jest\\.mock|mock" tests/e2e`; the only route interception is `https://idp.e2e.test/**` in `archived Playwright connectors spec`, used as an external OAuth IdP boundary. No project-internal chain is mocked in E2E.
+- 2026-05-21 bug-hunting pass 5 audited per-setting manual evidence against E2E solidification. Added `archived Playwright auth-sign-in-settings-enforcement spec` for Passwordless native endpoint blocking and disabled sign-up UI/API blocking, and `archived Playwright auth-passkey-sign-in spec` for Profile passkey enrollment followed by hosted passkey sign-in. Targeted E2E rerun passed: 3/3.
 
 ## Commands And Evidence
 
-- `npm run test:e2e -- tests/e2e/auth.spec.ts tests/e2e/auth-advanced.spec.ts tests/e2e/account.spec.ts tests/e2e/account-security.spec.ts tests/e2e/connectors.spec.ts`
+Historical command entries below reference archived direct Playwright specs that have been replaced by the current `specs/*.feature` plus Cucumber workflow. Current E2E execution is `npm run test:e2e`.
+
+
+- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
   - Result: 17 passed, 1 failed.
-  - Failed: `tests/e2e/account-security.spec.ts` TOTP enrollment/sign-in path.
-- `npm run test:e2e -- tests/e2e/account-security.spec.ts -g "TOTP enrollment"`
+  - Failed: `archived Playwright account-security spec` TOTP enrollment/sign-in path.
+- `npm run test:e2e -- archived Playwright account-security spec -g "TOTP enrollment"`
   - Result: 1 passed after UI fix.
-- `npm run test:e2e -- tests/e2e/auth.spec.ts tests/e2e/auth-advanced.spec.ts tests/e2e/account.spec.ts tests/e2e/account-security.spec.ts tests/e2e/connectors.spec.ts`
+- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
   - Result: 18 passed.
 - `npm run typecheck`
   - Result: passed after first-admin/stale connector-link changes.
@@ -250,35 +253,35 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
   - Result: passed after Web3/OneTap runtime wiring.
 - `npm test -- src/features/auth/auth-pages.test.tsx server/modules/configz/service.test.ts server/routes/configz.test.ts`
   - Result: 3 files passed, 54 tests passed after public OneTap/Web3 config and hosted client wiring.
-- `npm run test:e2e -- tests/e2e/auth-web3.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-web3 spec`
   - Result: 1 passed.
-- `npm run test:e2e -- tests/e2e/account-security.spec.ts`
+- `npm run test:e2e -- archived Playwright account-security spec`
   - Result: 3 passed after updating Account Center email OTP and TOTP setup-code selectors.
-- `npm run test:e2e -- tests/e2e/auth.spec.ts tests/e2e/auth-advanced.spec.ts tests/e2e/account.spec.ts tests/e2e/account-security.spec.ts tests/e2e/connectors.spec.ts tests/e2e/auth-web3.spec.ts`
+- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec`
   - Result: 19 passed.
 - `npm run lint`
   - Result: passed after formatting/import fixes.
 - `npm run typecheck`
   - Result: passed after formatting/import fixes.
-- `npm run test:e2e -- tests/e2e/auth-sign-in-settings-enforcement.spec.ts tests/e2e/auth-passkey-sign-in.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
   - Result: 3 passed after fixing the test to avoid using password sign-in while Passwordless is intentionally enabled.
-- `npm run test:e2e -- tests/e2e/auth-email-connector.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-email-connector spec`
   - Result: 1 passed.
 - `npm test -- server/app.test.ts src/features/auth/auth-pages.test.tsx`
   - Result: 2 files passed, 53 tests passed after Email connector/email-verification boundary fix and Phone-only empty-state coverage.
-- `npm run test:e2e -- tests/e2e/auth-email-connector.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-email-connector spec`
   - Result: 1 passed after adding the email-verification regression path.
 - `npm test -- src/features/auth/auth-pages.test.tsx`
   - Result: 1 file passed, 43 tests passed after Phone-only empty-state fix.
-- `npm run test:e2e -- tests/e2e/auth-method-availability.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-method-availability spec`
   - Result: 1 passed.
-- `npm run test:e2e -- tests/e2e/auth-email-connector.spec.ts tests/e2e/auth-method-availability.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec`
   - Result: 2 passed after tightening the Email OTP disabled guard.
 - `npm run typecheck`
   - Result: passed after Email OTP guard and Phone-only UI fixes.
 - `npm test -- src/features/console/console-branding-content-a.test.tsx -t 'OneTap|hosted sign-in previews'`
   - Result: 2 passed after Live Preview OneTap/Passkey state fixes.
-- `npm run test:e2e -- tests/e2e/auth-preview-consistency.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-preview-consistency spec`
   - Result: 1 passed. Covers real hosted sign-in, Content Live Preview, and Branding Live Preview method consistency for Email, Passkey, and OneTap.
 - `npm run typecheck`
   - Result: passed after Live Preview OneTap/Passkey state fixes.
@@ -286,23 +289,23 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
   - Result: 112 passed after current product-structure test realignment.
 - `npm run typecheck`
   - Result: passed after admin-console test realignment.
-- `npm run test:e2e -- tests/e2e/auth-email-connector.spec.ts tests/e2e/auth-method-availability.spec.ts tests/e2e/auth-preview-consistency.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec`
   - Result: 3 passed.
-- `npm run test:e2e -- tests/e2e/auth-provider-enforcement.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-provider-enforcement spec`
   - Result: 1 passed.
 - `npm test -- server/routes/security.test.ts -t 'enforces password, blocklist'`
   - Result: 1 passed after native change-password policy enforcement fix.
-- `npm run test:e2e -- tests/e2e/auth-password-policy-enforcement.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-password-policy-enforcement spec`
   - Result: 1 passed.
 - `npm run typecheck`
   - Result: passed after native change-password policy enforcement fix.
 - `npm test -- server/routes/security.test.ts server/app.test.ts`
   - Result: 2 files passed, 27 tests passed.
-- `npm run test:e2e -- tests/e2e/auth-mfa-policy-enforcement.spec.ts`
+- `npm run test:e2e -- archived Playwright auth-mfa-policy-enforcement spec`
   - Result: 1 passed.
-- `npm run test:e2e -- tests/e2e/auth.spec.ts tests/e2e/auth-advanced.spec.ts tests/e2e/account.spec.ts tests/e2e/account-security.spec.ts tests/e2e/connectors.spec.ts tests/e2e/auth-web3.spec.ts tests/e2e/auth-email-connector.spec.ts tests/e2e/auth-method-availability.spec.ts tests/e2e/auth-preview-consistency.spec.ts tests/e2e/auth-provider-enforcement.spec.ts tests/e2e/auth-password-policy-enforcement.spec.ts`
+- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec`
   - Result: 24 passed.
-- `npm run test:e2e -- tests/e2e/auth.spec.ts tests/e2e/auth-advanced.spec.ts tests/e2e/account.spec.ts tests/e2e/account-security.spec.ts tests/e2e/connectors.spec.ts tests/e2e/auth-web3.spec.ts tests/e2e/auth-email-connector.spec.ts tests/e2e/auth-method-availability.spec.ts tests/e2e/auth-preview-consistency.spec.ts tests/e2e/auth-provider-enforcement.spec.ts tests/e2e/auth-password-policy-enforcement.spec.ts tests/e2e/auth-mfa-policy-enforcement.spec.ts tests/e2e/auth-sign-in-settings-enforcement.spec.ts tests/e2e/auth-passkey-sign-in.spec.ts`
+- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec archived Playwright auth-mfa-policy-enforcement spec archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
   - Result: 28 passed.
 - `npm test -- server/routes/security.test.ts server/app.test.ts src/features/console src/features/auth`
   - Result: 4 files passed, 182 tests passed.

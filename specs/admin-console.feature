@@ -7,182 +7,162 @@ Feature: Admin Console
     Given a first admin exists
     And I am signed in to Console
 
-  @journey:admin-dashboard
+  @entrypoint:product-ui @journey:admin-dashboard
   Scenario: Admin dashboard loads tenant health
     When I open /console
     Then the dashboard shows tenant health from real management APIs
 
-  @journey:management-openapi-discovery
-  Scenario: Management API contract is discoverable
-    When a Management API client requests service discovery
-    Then /api/management/openapi.json returns the OpenAPI 3.1 contract
-    And Management API responses advertise the contract with Restish-compatible Link headers
-
-  @journey:management-restish-oauth-auth
-  Scenario: Restish authenticates to the Management API with PKCE
-    Given the system-managed FlareAuth CLI OAuth client exists
-    When Restish signs in through Authorization Code with PKCE
-    Then the client uses client_id "flareauth-cli" without a client secret
-    And the callback redirects to http://127.0.0.1:8484/callback or http://localhost:8484/callback
-    And Management API requests with an administrator Bearer token are accepted
-    And Management API requests with a non-admin Bearer token are rejected
-
-  @journey:admin-signed-out-redirect
+  @entrypoint:product-ui @journey:admin-signed-out-redirect
   Scenario: Signed-out Console routes redirect before data loads
     Given I am signed out
     When I open a Console route
     Then I am redirected to admin sign-in
     And management API data requests are not made
 
-  @journey:admin-setup-gate
+  @entrypoint:product-ui @journey:admin-setup-gate
   Scenario: Console setup gate handles missing OIDC applications
     Given no OIDC application exists
     When I open Console
     Then setup guidance is shown without blocking persistent Console routes
 
-  @journey:admin-onboarding
+  @entrypoint:product-ui @journey:admin-onboarding
   Scenario: Admin onboarding creates the first OIDC client
     Given no OIDC application exists
     When I complete Console onboarding
     Then the first OIDC client is created
     And integration details are visible
 
-  @journey:admin-route-backed-navigation
+  @entrypoint:product-ui @journey:admin-route-backed-navigation
   Scenario: Console navigation exposes persistent route-backed pages
     When I use Console navigation
     Then each visible product page has a canonical route
 
-  @journey:admin-application-inventory
+  @entrypoint:product-ui @journey:admin-application-inventory
   Scenario: Applications page lists OIDC clients and status controls
     Given OIDC applications exist
     When I open the applications page
     Then clients and lifecycle controls are visible
 
-  @journey:admin-create-application
+  @entrypoint:product-ui @journey:admin-create-application
   Scenario: Applications page creates an OIDC client
     When I create an application from Console
     Then the new OIDC client appears in inventory
 
-  @journey:admin-application-detail
+  @entrypoint:product-ui @journey:admin-application-detail
   Scenario: Application detail manages lifecycle, redirects, integration details, and secret rotation
     Given an application exists
     When I open its detail page
     Then settings, branding, redirect URIs, integration details, and secret rotation are available
 
-  @journey:admin-create-user
+  @entrypoint:product-ui @journey:admin-create-user
   Scenario: Users page creates a user
     When I create a user from Console
     Then the user is persisted through the management API
 
-  @journey:admin-user-inventory
+  @entrypoint:product-ui @journey:admin-user-inventory
   Scenario: Users page supports search and status inventory
     Given users exist
     When I open the users page
     Then user search and status inventory are visible
 
-  @journey:admin-user-detail
+  @entrypoint:product-ui @journey:admin-user-detail
   Scenario: User detail updates profile, resets password, and revokes sessions
     Given a user exists
     When I open user detail
     Then profile update, password reset, and session revocation controls work
 
-  @journey:admin-create-connector
+  @entrypoint:product-ui @journey:admin-create-connector
   Scenario: Connectors page creates a draft social connector
     When I create a social connector from Console
     Then the connector is saved as a draft
 
-  @journey:admin-connector-inventory
+  @entrypoint:product-ui @journey:admin-connector-inventory
   Scenario: Connectors page lists email and SMS setup state
     When I open connectors
     Then Email and SMS setup state is visible
 
-  @journey:admin-social-connector-inventory
+  @entrypoint:product-ui @journey:admin-social-connector-inventory
   Scenario: Social connectors list provider settings and availability
     When I open social connector settings
     Then provider settings and availability are visible
 
-  @journey:admin-sign-in-settings
+  @entrypoint:product-ui @journey:admin-sign-in-settings
   Scenario: Sign-in settings persist legal links and hosted auth copy
     When I update sign-in settings
     Then hosted auth uses the saved settings
 
-  @journey:admin-sign-in-experience-routes
+  @entrypoint:product-ui @journey:admin-sign-in-experience-routes
   Scenario: Sign-in experience tabs use canonical Console routes
     When I navigate sign-in experience tabs
     Then the browser URL uses canonical Console routes
 
-  @journey:admin-account-center-settings
+  @entrypoint:product-ui @journey:admin-account-center-settings
   Scenario: Account Center settings change profile visibility
     When I update Account Center settings
     Then profile visibility changes for end users
 
-  @journey:admin-content-settings
+  @entrypoint:product-ui @journey:admin-content-settings
   Scenario: Hosted content settings save through the management API
     When I update hosted copy and legal links
     Then the management API persists the content settings
 
-  @journey:admin-security-policy
+  @entrypoint:product-ui @journey:admin-security-policy
   Scenario: Security pages show policy, CAPTCHA, blocklist, and general settings
     When I open security settings
     Then MFA policy, CAPTCHA, blocklist, and general settings are visible
 
-  @journey:admin-create-organization
+  @entrypoint:product-ui @journey:admin-create-organization
   Scenario: Organizations page creates an organization
     When I create an organization
     Then it appears in authorization inventory
 
-  @journey:admin-create-role
+  @entrypoint:product-ui @journey:admin-create-role
   Scenario: Roles page creates a role
     When I create a role
     Then it appears in authorization inventory
 
-  @journey:admin-create-api-resource
+  @entrypoint:product-ui @journey:admin-create-api-resource
   Scenario: API resources page creates an API resource
     When I create an API resource
     Then it appears in authorization inventory
 
-  @journey:admin-authorization-inventory
+  @entrypoint:product-ui @journey:admin-authorization-inventory
   Scenario: Authorization inventory lists organizations, roles, and API resources
     Given authorization resources exist
     When I open the authorization pages
     Then organizations, roles, and API resources are listed
 
-  @journey:admin-branding-settings
+  @entrypoint:product-ui @journey:admin-branding-settings
   Scenario: Branding settings update hosted auth
     When I update branding settings
     Then hosted auth renders the saved branding
 
-  @journey:admin-deployment-settings
+  @entrypoint:product-ui @journey:admin-deployment-settings
   Scenario: Deployment page shows Cloudflare runtime settings
     When I open deployment settings
     Then Cloudflare runtime configuration is visible
 
-  @journey:management-restish-oauth-crud
-  Scenario: Restish manages applications through the Management API
-    Given I authenticate the Restish CLI through the built-in OAuth client
-    When I create, update, list, and delete an application with Restish
-    Then the Management API applies each application change
-
-  @journey:admin-application-oidc-claims
+  @entrypoint:product-ui @journey:admin-application-oidc-claims
   Scenario: Application detail configures OIDC claim settings
     Given an application exists
     When I configure organization and RBAC claims for access tokens, ID tokens, and userinfo
     Then the Console saves the claim settings through the Management API
     And the application detail shows the saved claim settings after reload
 
+  @entrypoint:product-ui @journey:oidc-claim-emission
   Scenario: Applications apply configured OIDC claim emission per token destination
     Given an application has organization membership, roles, permissions, and API scopes
     When OIDC claims are configured for access tokens, ID tokens, and userinfo
     Then issued access tokens, ID tokens, and userinfo include only the configured claims
 
-  @journey:agent-discovery
+  @entrypoint:product-ui @journey:agent-discovery
   Scenario: AgentAuth discovery exposes a narrow delegated protocol surface
     When an agent client requests /.well-known/agent-configuration
     Then FlareAuth advertises delegated mode and device authorization approval
     And the advertised capabilities are limited to read-only account data
     And generated Management API capabilities are not exposed
 
-  @journey:admin-agent-inventory
+  @entrypoint:product-ui @journey:admin-agent-inventory
   Scenario: Admins can inspect and revoke delegated agent protocol records
     Given delegated AgentAuth hosts, agents, grants, and approval requests exist
     When Console reads the agent protocol inventory

@@ -26,7 +26,7 @@ npm run db:migrate:staging
 10. Visit the Account Center, Applications, Connectors, Sign-in settings,
     Branding, Security, Organizations, Roles, API resources, and Deployment
     pages listed in the product acceptance map.
-11. Capture screenshots or Playwright traces for the required surfaces and
+11. Capture screenshots or browser traces for the required surfaces and
     include `/api/health`, `/api/configz`, `/api/management/readiness`, OIDC
     discovery, E2E coverage, and code coverage evidence in the PR.
 12. Confirm email flows send from the verified Cloudflare sender.

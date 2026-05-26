@@ -1,5 +1,5 @@
-import { expect, type Page, type TestInfo } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
+import { expect, type Page } from '@playwright/test'
 
 export const admin = {
   email: 'admin@example.com',
@@ -422,13 +422,6 @@ export function trackProjectErrors(page: Page) {
   return failedProjectResponses
 }
 
-export async function attachCoverage(testInfo: TestInfo, covered: string[]) {
-  await testInfo.attach('journey-coverage', {
-    body: JSON.stringify({ covered }, null, 2),
-    contentType: 'application/json',
-  })
-}
-
 function sql(command: string) {
   run('npx', [
     'wrangler',
@@ -476,7 +469,10 @@ function run(command: string, args: string[]) {
 }
 
 function slugify(value: string) {
-  return value.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, '')
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-|-$/g, '')
 }
 
 function sqlString(value: string) {
