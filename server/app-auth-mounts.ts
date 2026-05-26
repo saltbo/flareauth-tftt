@@ -60,6 +60,16 @@ export function isOAuthClientCorsPath(path: string) {
   return oauthClientCorsPaths.has(path)
 }
 
+export function isPublicOAuthMetadataPath(path: string) {
+  return publicOAuthMetadataPaths.has(path)
+}
+
+const publicOAuthMetadataPaths = new Set([
+  '/api/auth/.well-known/openid-configuration',
+  '/api/auth/.well-known/oauth-authorization-server',
+  '/api/auth/jwks',
+])
+
 const oauthClientCorsPaths = new Set([
   '/api/auth/.well-known/openid-configuration',
   '/api/auth/.well-known/oauth-authorization-server',
