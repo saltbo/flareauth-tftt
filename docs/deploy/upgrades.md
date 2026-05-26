@@ -40,6 +40,40 @@ host or when extra trusted origins are required.
 
 ## Upgrade From Upstream
 
+## Automated Upgrade PR
+
+The upstream repository ships `.github/workflows/update-from-upstream.yml` for
+deployment repositories. The workflow is maintained in upstream so every
+deployment receives the same upgrade mechanism, but its job is disabled when it
+runs in `saltbo/flareauth` itself.
+
+In a deployment repository, open **Actions > Update From FlareAuth Upstream >
+Run workflow**.
+
+- Leave `target_ref` empty to merge the latest upstream `main`.
+- Set `target_ref` to a release tag such as `v1.0.3`, a branch, or a commit SHA
+  to upgrade to a specific upstream version.
+- Keep `upstream_repository` as `saltbo/flareauth` unless the deployment follows
+  a different FlareAuth upstream fork.
+- Enable `run_e2e` when the deployment repository should run Cucumber E2E before
+  opening the upgrade PR.
+
+The workflow creates or updates a PR from `flareauth-upgrade/<target>` into the
+deployment repository's `main` branch after running:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm test`
+- `npm run build`
+- optionally `npm run test:e2e`
+
+Review deployment-specific files such as `wrangler.toml`,
+`wrangler.preview.toml`, and `package.json` before merging the PR. Those files
+belong in the deployment repository even though the workflow templates are
+maintained in upstream.
+
+## Manual Upgrade
+
 Prefer tagged releases for production upgrades:
 
 ```bash

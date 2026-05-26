@@ -1,0 +1,165 @@
+name: Update From FlareAuth Upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_repository:
+        description: "FlareAuth upstream repository to fetch from."
+        required: true
+        default: "saltbo/flareauth"
+      target_ref:
+        description: "Upstream branch, tag, or commit to merge. Empty uses main."
+        required: false
+        default: ""
+      run_e2e:
+        description: "Run Cucumber E2E before opening the PR."
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: flareauth-upstream-update-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update Deployment Repository
+    if: github.repository != 'saltbo/flareauth'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deployment repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          set -euo pipefail
+          upstream_repository="${{ inputs.upstream_repository }}"
+          target_ref="${{ inputs.target_ref }}"
+          if [ -z "$target_ref" ]; then
+            target_ref="main"
+          fi
+
+          branch="flareauth-upgrade/${target_ref//[^A-Za-z0-9._-]/-}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add flareauth-upstream "https://github.com/${upstream_repository}.git" 2>/dev/null || true
+          git fetch origin main
+          git fetch flareauth-upstream --tags
+          git checkout -B "$branch"
+
+          if git rev-parse --verify --quiet "refs/remotes/flareauth-upstream/$target_ref" >/dev/null; then
+            merge_ref="refs/remotes/flareauth-upstream/$target_ref"
+          elif git rev-parse --verify --quiet "refs/tags/$target_ref" >/dev/null; then
+            merge_ref="refs/tags/$target_ref"
+          else
+            merge_ref="$target_ref"
+          fi
+
+          git merge --no-edit "$merge_ref"
+
+          if git diff --quiet origin/main...HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "target_ref=$target_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.merge.outputs.changed == 'true'
+        run: npm ci
+
+      - name: Install Restish
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          version=0.21.2
+          archive="restish-${version}-linux-amd64.tar.gz"
+          curl -fsSL "https://github.com/rest-sh/restish/releases/download/v${version}/${archive}" -o "$archive"
+          curl -fsSL "https://github.com/rest-sh/restish/releases/download/v${version}/checksums.txt" -o checksums.txt
+          grep "  ${archive}$" checksums.txt | sha256sum --check -
+          tar -xzf "$archive"
+          sudo install restish /usr/local/bin/restish
+          restish --version
+
+      - name: Typecheck
+        if: steps.merge.outputs.changed == 'true'
+        run: npm run typecheck
+
+      - name: Lint
+        if: steps.merge.outputs.changed == 'true'
+        run: npm run lint
+
+      - name: Test
+        if: steps.merge.outputs.changed == 'true'
+        run: npm test
+
+      - name: Build
+        if: steps.merge.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Cucumber E2E
+        if: steps.merge.outputs.changed == 'true' && inputs.run_e2e == 'true'
+        run: npm run test:e2e
+
+      - name: Push upgrade branch
+        if: steps.merge.outputs.changed == 'true'
+        run: git push --force-with-lease origin "${{ steps.merge.outputs.branch }}"
+
+      - name: Open upgrade PR
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="${{ steps.merge.outputs.branch }}"
+          target_ref="${{ steps.merge.outputs.target_ref }}"
+          title="chore: update FlareAuth upstream to ${target_ref}"
+          body="$(cat <<EOF
+          Updates this deployment repository from \`${{ inputs.upstream_repository }}\` at \`${target_ref}\`.
+
+          Validation run by this workflow:
+          - \`npm run typecheck\`
+          - \`npm run lint\`
+          - \`npm test\`
+          - \`npm run build\`
+
+          E2E run: \`${{ inputs.run_e2e }}\`
+
+          Review deployment-specific files such as \`wrangler.toml\`, \`wrangler.preview.toml\`, and \`package.json\` before merging.
+          EOF
+          )"
+
+          existing="$(gh pr list --head "$branch" --base main --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body "$body"
+          else
+            gh pr create --base main --head "$branch" --title "$title" --body "$body"
+          fi
+
+      - name: No upstream changes
+        if: steps.merge.outputs.changed == 'false'
+        run: echo "Deployment repository is already up to date with ${{ steps.merge.outputs.target_ref }}."
+
+  upstream-disabled:
+    name: Disabled In Upstream Repository
+    if: github.repository == 'saltbo/flareauth'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This workflow is distributed by the upstream template and only runs in deployment repositories."
