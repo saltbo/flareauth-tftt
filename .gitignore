@@ -1,10 +1,13 @@
 node_modules
 dist
+src/routeTree.gen.ts
+src/routeTree.gen.js
 .wrangler
 .playwright-cli
 .dev.vars
 *.local
 coverage
+cucumber-report
 playwright-report
 test-results
 *.tsbuildinfo

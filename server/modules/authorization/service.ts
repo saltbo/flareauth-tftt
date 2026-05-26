@@ -1,4 +1,4 @@
-import type { PaginationMetadata } from '../../../shared/api/applications'
+import type { ApplicationOidcClaims, PaginationMetadata } from '../../../shared/api/applications'
 import type {
   AddMemberRequest,
   ApiPermissionResponse,
@@ -24,6 +24,14 @@ import type {
   UpdateRoleRequest,
 } from '../../../shared/api/authorization'
 import { badRequest, notFound } from '../../lib/errors'
+import {
+  assertRoleTokenClaimName,
+  assertTokenClaims,
+  createId,
+  filterScopes,
+  toAssignmentInput,
+  toTokenClaims,
+} from './service-utils'
 
 export interface PaginatedResult<T> {
   items: T[]
@@ -42,6 +50,8 @@ export interface AuthorizationTokenClaimInput {
   organizationId?: string
   resource?: string
   scopes: string[]
+  destination?: 'access_token' | 'id_token' | 'userinfo'
+  claimSelection?: ApplicationOidcClaims['accessToken']
 }
 
 export interface AuthorizationRepository {
@@ -68,6 +78,7 @@ export interface AuthorizationRepository {
   deleteResource(id: string): Promise<void>
   createScope(resourceId: string, input: ApiScopeRecordInput): Promise<ApiScopeResponse>
   listScopes(resourceId: string, pagination: PaginationQuery): Promise<PaginatedResult<ApiScopeResponse>>
+  listScopesByValues(resourceId: string | undefined, values: string[]): Promise<ApiScopeResponse[]>
   findScope(id: string): Promise<ApiScopeResponse | null>
   updateScope(id: string, patch: UpdateApiScopeRequest): Promise<void>
   deleteScope(id: string): Promise<void>
@@ -391,6 +402,12 @@ export class AuthorizationService {
     if (input.resource && !resource) {
       return toTokenClaims(input, [], null)
     }
+    const scopes = input.destination ? await this.repository.listScopesByValues(resource?.id, input.scopes) : []
+    const tokenScopes = input.destination ? filterScopes(input.scopes, input.destination, scopes) : input.scopes
+    const organization =
+      input.organizationId && input.claimSelection?.organizationName
+        ? await this.repository.findOrganization(input.organizationId)
+        : null
     const resourceId = resource?.id
     const scope = {
       resourceId,
@@ -407,7 +424,7 @@ export class AuthorizationService {
         : []
 
     const assignments = [...userAssignments, ...applicationAssignments, ...memberAssignments]
-    return toTokenClaims(input, assignments, resource)
+    return toTokenClaims({ ...input, scopes: tokenScopes }, assignments, resource, organization)
   }
 
   private async memberAssignmentsFor(userId: string, organizationId: string, scope: RoleAssignmentScope) {
@@ -464,75 +481,4 @@ export class AuthorizationService {
     }
     return permission
   }
-}
-
-function toAssignmentInput(input: AssignRoleRequest, actorUserId: string | null): RoleAssignmentInput {
-  return {
-    ...input,
-    id: createId('assign'),
-    assignedByUserId: actorUserId,
-  }
-}
-
-function assertTokenClaims(tokenClaims: Record<string, unknown> | undefined) {
-  if (!tokenClaims) return
-  for (const key of Object.keys(tokenClaims)) {
-    if (['authorization', 'roles', 'permissions'].includes(key) || /^https?:\/\//.test(key)) {
-      throw badRequest(`Assignment token claim is reserved: ${key}`)
-    }
-  }
-}
-
-function assertRoleTokenClaimName(tokenClaimName: string | null | undefined) {
-  if (!tokenClaimName) return
-  if (['authorization', 'roles', 'permissions'].includes(tokenClaimName) || /^https?:\/\//.test(tokenClaimName)) {
-    throw badRequest(`Role token claim name is reserved: ${tokenClaimName}`)
-  }
-}
-
-function toTokenClaims(
-  input: AuthorizationTokenClaimInput,
-  assignments: RoleAssignmentRecord[],
-  resource: ApiResourceResponse | null,
-) {
-  const roles = dedupe(assignments.map((assignment) => assignment.role.key))
-  const permissions = dedupe(
-    assignments.flatMap((assignment) => assignment.permissions.map((permission) => permission.key)),
-  )
-  const roleClaims = Object.fromEntries(
-    assignments
-      .map((assignment) => [assignment.role.tokenClaimName, assignment.role.tokenClaimValue ?? assignment.role.key])
-      .filter((entry): entry is [string, string] => !!entry[0]),
-  )
-  const explicitClaims: Record<string, unknown> = {}
-  for (const assignment of assignments) {
-    Object.assign(explicitClaims, assignment.tokenClaims)
-  }
-  const authorization = {
-    scopes: input.scopes,
-    roles,
-    permissions,
-    ...(input.organizationId ? { organization_id: input.organizationId } : {}),
-    ...(resource ? { resource: resource.identifier, audience: resource.audience } : {}),
-  }
-  const namespaced =
-    resource?.tokenClaimsNamespace && Object.keys(roleClaims).length > 0
-      ? { [resource.tokenClaimsNamespace]: roleClaims }
-      : roleClaims
-
-  return {
-    ...explicitClaims,
-    authorization,
-    roles,
-    permissions,
-    ...namespaced,
-  }
-}
-
-function dedupe(values: string[]) {
-  return [...new Set(values)]
-}
-
-function createId(prefix: string) {
-  return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`
 }

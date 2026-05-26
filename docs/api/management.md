@@ -46,7 +46,7 @@ restish patch flareauth/applications/app_123 < patch.json
 restish delete flareauth/applications/app_123
 ```
 
-The older `/api/admin/*` routes remain available for the operator UI and compatibility, but `/api/management/*` is the public v1.0 contract.
+The Management API is exposed under `/api/management/*`.
 
 Product applications should not use this API for sign-in, session, or profile
 integration. Products consume FlareAuth through standard OIDC discovery and
@@ -178,13 +178,13 @@ Uploaded assets are returned with a same-origin public URL at `/api/assets/{asse
 
 ## Readiness
 
-`GET /readiness` returns protected Console setup state. The admin route guard uses this response to decide whether `/admin/*` should continue to the requested product route or redirect to `/admin/onboarding`.
+`GET /readiness` returns protected Console setup state. The Console route guard uses this response to decide whether `/console/*` should continue to the requested product route or redirect to `/console/onboarding`.
 
 ```json
 {
   "admin": {
     "setupRequired": true,
-    "setupHref": "/admin/onboarding",
+    "setupHref": "/console/onboarding",
     "missing": ["oidc_application"]
   }
 }

@@ -11,14 +11,22 @@ import {
   oauthConsent,
   oauthRefreshToken,
 } from '../../db/schema'
-import type { ApplicationAggregate, ApplicationRepository, ConsentRecord } from './service'
+import {
+  serializeList,
+  toAggregate,
+  toApplicationInsert,
+  toConsent,
+  toOAuthClientInsert,
+  toPaginationMetadata,
+  writeApplicationMetadata,
+} from './drizzle-mappers'
+import type { ApplicationRepository } from './service'
 
-type ApplicationRow = typeof application.$inferSelect
-type OAuthClientRow = typeof oauthClient.$inferSelect
-const corsOriginsMetadataKey = 'corsOrigins'
-const customDataMetadataKey = 'customData'
-const iconUrlMetadataKey = 'iconUrl'
-const systemManagedMetadataKey = 'systemManaged'
+const _corsOriginsMetadataKey = 'corsOrigins'
+const _customDataMetadataKey = 'customData'
+const _iconUrlMetadataKey = 'iconUrl'
+const _oidcClaimsMetadataKey = 'oidcClaims'
+const _systemManagedMetadataKey = 'systemManaged'
 
 export function createDrizzleApplicationRepository(db: Database): ApplicationRepository {
   return {
@@ -62,6 +70,7 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
               clientSecret: null,
               disabled: input.disabled,
               skipConsent: input.trusted,
+              enableEndSession: true,
               name: input.name,
               uri: input.homepageUrl,
               icon: input.iconUrl,
@@ -74,7 +83,7 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
               type: input.clientType,
               requirePKCE: input.requirePkce,
               scopes: serializeList(input.allowedScopes),
-              metadata: JSON.stringify({ applicationId: input.id }),
+              metadata: JSON.stringify({ applicationId: input.id, oidcClaims: input.oidcClaims }),
               updatedAt: now,
             },
           }),
@@ -97,6 +106,7 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
                 iconUrl: input.iconUrl,
                 corsOrigins: input.corsOrigins,
                 customData: input.customData,
+                oidcClaims: input.oidcClaims,
                 systemManaged: input.systemManaged,
               }),
               updatedAt: now,
@@ -160,12 +170,16 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.description !== undefined ? { description: patch.description } : {}),
         ...(patch.homepageUrl !== undefined ? { homepageUrl: patch.homepageUrl } : {}),
-        ...(patch.iconUrl !== undefined || patch.corsOrigins !== undefined || patch.customData !== undefined
+        ...(patch.iconUrl !== undefined ||
+        patch.corsOrigins !== undefined ||
+        patch.customData !== undefined ||
+        patch.oidcClaims !== undefined
           ? {
               metadata: writeApplicationMetadata(current.metadata, {
                 iconUrl: patch.iconUrl,
                 corsOrigins: patch.corsOrigins,
                 customData: patch.customData,
+                oidcClaims: patch.oidcClaims,
               }),
             }
           : {}),
@@ -184,10 +198,13 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
         ...(patch.trusted !== undefined ? { skipConsent: patch.trusted } : {}),
         ...(patch.redirectUris !== undefined ? { redirectUris: serializeList(patch.redirectUris) } : {}),
         ...(patch.postLogoutRedirectUris !== undefined
-          ? { postLogoutRedirectUris: serializeList(patch.postLogoutRedirectUris) }
+          ? { postLogoutRedirectUris: serializeList(patch.postLogoutRedirectUris), enableEndSession: true }
           : {}),
         ...(patch.allowedGrantTypes !== undefined ? { grantTypes: serializeList(patch.allowedGrantTypes) } : {}),
         ...(patch.allowedScopes !== undefined ? { scopes: serializeList(patch.allowedScopes) } : {}),
+        ...(patch.oidcClaims !== undefined
+          ? { metadata: JSON.stringify({ applicationId: id, oidcClaims: patch.oidcClaims }) }
+          : {}),
         updatedAt: now,
       }
       await db.batch([
@@ -364,205 +381,4 @@ export function createDrizzleApplicationRepository(db: Database): ApplicationRep
       }
     },
   }
-}
-
-function toApplicationInsert(input: Omit<ApplicationAggregate, 'createdAt' | 'updatedAt'>, now: Date) {
-  return {
-    id: input.id,
-    oauthClientId: input.clientId,
-    slug: input.slug,
-    name: input.name,
-    description: input.description,
-    homepageUrl: input.homepageUrl,
-    firstParty: input.firstParty,
-    trusted: input.trusted,
-    disabled: input.disabled,
-    disabledReason: input.disabledReason,
-    metadata: writeApplicationMetadata(null, {
-      iconUrl: input.iconUrl,
-      corsOrigins: input.corsOrigins.length > 0 ? input.corsOrigins : undefined,
-      customData: Object.keys(input.customData).length > 0 ? input.customData : undefined,
-      systemManaged: input.systemManaged,
-    }),
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-function toOAuthClientInsert(
-  input: Omit<ApplicationAggregate, 'createdAt' | 'updatedAt'>,
-  clientSecret: string | null,
-  now: Date,
-) {
-  return {
-    id: `oauth_${crypto.randomUUID().replaceAll('-', '')}`,
-    clientId: input.clientId,
-    clientSecret,
-    disabled: input.disabled,
-    skipConsent: input.trusted,
-    name: input.name,
-    uri: input.homepageUrl,
-    icon: input.iconUrl,
-    redirectUris: serializeList(input.redirectUris),
-    postLogoutRedirectUris: serializeList(input.postLogoutRedirectUris),
-    tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
-    grantTypes: serializeList(input.allowedGrantTypes),
-    responseTypes: serializeList(['code']),
-    public: input.public,
-    type: input.clientType,
-    requirePKCE: input.requirePkce,
-    scopes: serializeList(input.allowedScopes),
-    metadata: JSON.stringify({ applicationId: input.id }),
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-function toAggregate(app: ApplicationRow, client: OAuthClientRow): ApplicationAggregate {
-  return {
-    id: app.id,
-    slug: app.slug,
-    name: app.name,
-    description: app.description,
-    homepageUrl: app.homepageUrl,
-    iconUrl: client.icon ?? readIconUrl(app.metadata),
-    clientId: client.clientId,
-    clientType: toClientType(client.type),
-    public: client.public ?? false,
-    firstParty: app.firstParty,
-    trusted: app.trusted,
-    systemManaged: readSystemManaged(app.metadata),
-    disabled: app.disabled || !!client.disabled,
-    disabledReason: app.disabledReason,
-    redirectUris: parseList(client.redirectUris),
-    postLogoutRedirectUris: parseList(client.postLogoutRedirectUris),
-    corsOrigins: readCorsOrigins(app.metadata),
-    customData: readCustomData(app.metadata),
-    allowedGrantTypes: parseList(client.grantTypes).filter(isGrantType),
-    allowedScopes: parseList(client.scopes).filter(isScope),
-    requirePkce: client.requirePKCE ?? false,
-    tokenEndpointAuthMethod: toTokenEndpointAuthMethod(client.tokenEndpointAuthMethod),
-    createdAt: app.createdAt,
-    updatedAt: app.updatedAt,
-  }
-}
-
-function toConsent(row: typeof applicationConsent.$inferSelect): ConsentRecord {
-  return {
-    id: row.id,
-    scopes: row.scopes.filter(isScope),
-    grantedAt: row.grantedAt,
-  }
-}
-
-function toPaginationMetadata(pagination: { limit: number; offset: number }, total: number) {
-  const nextOffset = pagination.offset + pagination.limit < total ? pagination.offset + pagination.limit : null
-
-  return {
-    limit: pagination.limit,
-    offset: pagination.offset,
-    total,
-    hasMore: nextOffset !== null,
-    nextOffset,
-  }
-}
-
-function serializeList(values: readonly string[]) {
-  return JSON.stringify(values)
-}
-
-function parseList(value: string | null): string[] {
-  if (!value) return []
-  const parsed = JSON.parse(value) as unknown
-  return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
-}
-
-function readIconUrl(metadata: unknown) {
-  return typeof metadata === 'object' &&
-    metadata !== null &&
-    iconUrlMetadataKey in metadata &&
-    typeof metadata[iconUrlMetadataKey] === 'string'
-    ? metadata[iconUrlMetadataKey]
-    : null
-}
-
-function readCorsOrigins(metadata: unknown) {
-  return readStringListMetadata(metadata, corsOriginsMetadataKey)
-}
-
-function readCustomData(metadata: unknown) {
-  if (
-    typeof metadata === 'object' &&
-    metadata !== null &&
-    customDataMetadataKey in metadata &&
-    typeof metadata[customDataMetadataKey] === 'object' &&
-    metadata[customDataMetadataKey] !== null &&
-    !Array.isArray(metadata[customDataMetadataKey])
-  ) {
-    return metadata[customDataMetadataKey] as Record<string, unknown>
-  }
-  return {}
-}
-
-function readSystemManaged(metadata: unknown) {
-  return Boolean(
-    typeof metadata === 'object' &&
-      metadata !== null &&
-      systemManagedMetadataKey in metadata &&
-      metadata[systemManagedMetadataKey] === true,
-  )
-}
-
-function readStringListMetadata(metadata: unknown, key: string) {
-  if (typeof metadata !== 'object' || metadata === null || !(key in metadata)) return []
-  const value = (metadata as Record<string, unknown>)[key]
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-}
-
-function writeApplicationMetadata(
-  current: Record<string, unknown> | null,
-  patch: {
-    iconUrl?: string | null
-    corsOrigins?: string[]
-    customData?: Record<string, unknown>
-    systemManaged?: boolean
-  },
-) {
-  const next = { ...(current ?? {}) }
-  if (patch.iconUrl !== undefined) {
-    if (patch.iconUrl) next[iconUrlMetadataKey] = patch.iconUrl
-    else delete next[iconUrlMetadataKey]
-  }
-  if (patch.corsOrigins !== undefined) next[corsOriginsMetadataKey] = patch.corsOrigins
-  if (patch.customData !== undefined) next[customDataMetadataKey] = patch.customData
-  if (patch.systemManaged !== undefined) {
-    if (patch.systemManaged) next[systemManagedMetadataKey] = true
-    else delete next[systemManagedMetadataKey]
-  }
-  return Object.keys(next).length ? next : null
-}
-
-function toClientType(value: string | null): ApplicationAggregate['clientType'] {
-  if (value === 'public_spa' || value === 'public_native' || value === 'confidential_web') return value
-  return 'confidential_web'
-}
-
-function toTokenEndpointAuthMethod(value: string | null): ApplicationAggregate['tokenEndpointAuthMethod'] {
-  if (value === 'none' || value === 'client_secret_basic' || value === 'client_secret_post') return value
-  return 'client_secret_basic'
-}
-
-function isGrantType(value: string): value is ApplicationAggregate['allowedGrantTypes'][number] {
-  return value === 'authorization_code' || value === 'refresh_token' || value === 'client_credentials'
-}
-
-function isScope(value: string): value is ApplicationAggregate['allowedScopes'][number] {
-  return (
-    value === 'openid' ||
-    value === 'profile' ||
-    value === 'email' ||
-    value === 'offline_access' ||
-    value === 'management:read' ||
-    value === 'management:write'
-  )
 }

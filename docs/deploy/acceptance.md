@@ -19,14 +19,14 @@ npm run db:migrate:staging
 3. Open the preview URL and confirm `/api/health` returns `{ "ok": true, "service": "flareauth" }`.
 4. If the preview D1 database is fresh, open `/onboarding` on the preview URL and create the first admin.
 5. Sign in as the admin user.
-6. Open `/admin` and verify the dashboard loads.
+6. Open `/console` and verify the dashboard loads.
 7. Create a test user from Admin > Users.
-8. Open `/admin/onboarding` and create or inspect the first OIDC application.
-9. Exercise the public sign-in flow from `/sign-in`.
+8. Open `/console/onboarding` and create or inspect the first OIDC application.
+9. Exercise the public sign-in flow from `/auth/sign-in`.
 10. Visit the Account Center, Applications, Connectors, Sign-in settings,
     Branding, Security, Organizations, Roles, API resources, and Deployment
     pages listed in the product acceptance map.
-11. Capture screenshots or Playwright traces for the required surfaces and
+11. Capture screenshots or browser traces for the required surfaces and
     include `/api/health`, `/api/configz`, `/api/management/readiness`, OIDC
     discovery, E2E coverage, and code coverage evidence in the PR.
 12. Confirm email flows send from the verified Cloudflare sender.

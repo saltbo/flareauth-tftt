@@ -1,0 +1,361 @@
+import { sql } from 'drizzle-orm'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { uploadedAsset } from './agent-tables'
+import { oauthClient, user } from './auth-tables'
+
+export const organization = sqliteTable(
+  'organization',
+  {
+    id: text('id').primaryKey(),
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    logo: text('logo'),
+    displayName: text('display_name'),
+    logoAssetId: text('logo_asset_id').references(() => uploadedAsset.id, { onDelete: 'set null' }),
+    disabled: integer('disabled', { mode: 'boolean' }).default(false).notNull(),
+    disabledReason: text('disabled_reason'),
+    metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index('organization_logoAssetId_idx').on(table.logoAssetId)],
+)
+
+export const member = sqliteTable(
+  'member',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    title: text('title'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('member_organizationId_userId_unique').on(table.organizationId, table.userId),
+    index('member_userId_idx').on(table.userId),
+    index('member_role_idx').on(table.role),
+  ],
+)
+
+export const invitation = sqliteTable(
+  'invitation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: text('role').notNull().default('member'),
+    inviterId: text('inviter_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('pending'),
+    tokenHash: text('token_hash').unique(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('invitation_organizationId_idx').on(table.organizationId),
+    index('invitation_email_idx').on(table.email),
+    index('invitation_inviterId_idx').on(table.inviterId),
+  ],
+)
+
+export const application = sqliteTable(
+  'application',
+  {
+    id: text('id').primaryKey(),
+    oauthClientId: text('oauth_client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    description: text('description'),
+    homepageUrl: text('homepage_url'),
+    logoAssetId: text('logo_asset_id').references(() => uploadedAsset.id, { onDelete: 'set null' }),
+    ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    ownerOrganizationId: text('owner_organization_id').references(() => organization.id, { onDelete: 'set null' }),
+    firstParty: integer('first_party', { mode: 'boolean' }).default(false).notNull(),
+    trusted: integer('trusted', { mode: 'boolean' }).default(false).notNull(),
+    disabled: integer('disabled', { mode: 'boolean' }).default(false).notNull(),
+    disabledReason: text('disabled_reason'),
+    accessTokenTtlSeconds: integer('access_token_ttl_seconds'),
+    refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds'),
+    metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('application_oauthClientId_unique').on(table.oauthClientId),
+    index('application_ownerUserId_idx').on(table.ownerUserId),
+    index('application_ownerOrganizationId_idx').on(table.ownerOrganizationId),
+    index('application_disabled_idx').on(table.disabled),
+  ],
+)
+
+export const applicationClientMetadata = sqliteTable('application_client_metadata', {
+  applicationId: text('application_id')
+    .primaryKey()
+    .references(() => application.id, { onDelete: 'cascade' }),
+  accessReviewStatus: text('access_review_status').notNull().default('pending'),
+  accessReviewNotes: text('access_review_notes'),
+  allowedEnvironments: text('allowed_environments', { mode: 'json' }).$type<string[]>(),
+  adminMetadata: text('admin_metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .$onUpdate(() => new Date())
+    .notNull(),
+})
+
+export const applicationClientSecret = sqliteTable(
+  'application_client_secret',
+  {
+    id: text('id').primaryKey(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => application.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    secretHash: text('secret_hash').notNull(),
+    secretPrefix: text('secret_prefix'),
+    status: text('status').notNull().default('active'),
+    materializedToOauthClientAt: integer('materialized_to_oauth_client_at', { mode: 'timestamp_ms' }),
+    createdByUserId: text('created_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    uniqueIndex('applicationClientSecret_applicationId_version_unique').on(table.applicationId, table.version),
+    index('applicationClientSecret_applicationId_status_idx').on(table.applicationId, table.status),
+    index('applicationClientSecret_createdByUserId_idx').on(table.createdByUserId),
+  ],
+)
+
+export const applicationConsent = sqliteTable(
+  'application_consent',
+  {
+    id: text('id').primaryKey(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => application.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+    scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull(),
+    permissions: text('permissions', { mode: 'json' }).$type<string[]>(),
+    grantedAt: integer('granted_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    index('applicationConsent_applicationId_idx').on(table.applicationId),
+    index('applicationConsent_userId_idx').on(table.userId),
+    index('applicationConsent_organizationId_idx').on(table.organizationId),
+  ],
+)
+
+export const apiResource = sqliteTable(
+  'api_resource',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull().unique(),
+    name: text('name').notNull(),
+    audience: text('audience').notNull(),
+    description: text('description'),
+    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
+    tokenClaimsNamespace: text('token_claims_namespace'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index('apiResource_enabled_idx').on(table.enabled)],
+)
+
+export const apiScope = sqliteTable(
+  'api_scope',
+  {
+    id: text('id').primaryKey(),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => apiResource.id, { onDelete: 'cascade' }),
+    value: text('value').notNull(),
+    description: text('description'),
+    required: integer('required', { mode: 'boolean' }).default(false).notNull(),
+    tokenClaimName: text('token_claim_name'),
+    includeInAccessToken: integer('include_in_access_token', { mode: 'boolean' }).default(true).notNull(),
+    includeInIdToken: integer('include_in_id_token', { mode: 'boolean' }).default(false).notNull(),
+  },
+  (table) => [
+    uniqueIndex('apiScope_resourceId_value_unique').on(table.resourceId, table.value),
+    index('apiScope_resourceId_idx').on(table.resourceId),
+  ],
+)
+
+export const apiPermission = sqliteTable(
+  'api_permission',
+  {
+    id: text('id').primaryKey(),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => apiResource.id, { onDelete: 'cascade' }),
+    scopeId: text('scope_id').references(() => apiScope.id, { onDelete: 'set null' }),
+    key: text('key').notNull(),
+    description: text('description'),
+    tokenClaimValue: text('token_claim_value'),
+  },
+  (table) => [
+    uniqueIndex('apiPermission_resourceId_key_unique').on(table.resourceId, table.key),
+    index('apiPermission_scopeId_idx').on(table.scopeId),
+  ],
+)
+
+export const role = sqliteTable(
+  'role',
+  {
+    id: text('id').primaryKey(),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    resourceId: text('resource_id').references(() => apiResource.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+    applicationId: text('application_id').references(() => application.id, { onDelete: 'cascade' }),
+    system: integer('system', { mode: 'boolean' }).default(false).notNull(),
+    tokenClaimName: text('token_claim_name'),
+    tokenClaimValue: text('token_claim_value'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('role_key_idx').on(table.key),
+    index('role_resourceId_idx').on(table.resourceId),
+    index('role_organizationId_idx').on(table.organizationId),
+    index('role_applicationId_idx').on(table.applicationId),
+  ],
+)
+
+export const rolePermission = sqliteTable(
+  'role_permission',
+  {
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    permissionId: text('permission_id')
+      .notNull()
+      .references(() => apiPermission.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [uniqueIndex('rolePermission_roleId_permissionId_unique').on(table.roleId, table.permissionId)],
+)
+
+export const userRoleAssignment = sqliteTable(
+  'user_role_assignment',
+  {
+    id: text('id').primaryKey(),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    assignedByUserId: text('assigned_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    tokenClaims: text('token_claims', { mode: 'json' }).$type<Record<string, unknown>>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    uniqueIndex('userRoleAssignment_roleId_userId_unique').on(table.roleId, table.userId),
+    index('userRoleAssignment_roleId_idx').on(table.roleId),
+    index('userRoleAssignment_userId_idx').on(table.userId),
+  ],
+)
+
+export const applicationRoleAssignment = sqliteTable(
+  'application_role_assignment',
+  {
+    id: text('id').primaryKey(),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => application.id, { onDelete: 'cascade' }),
+    assignedByUserId: text('assigned_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    tokenClaims: text('token_claims', { mode: 'json' }).$type<Record<string, unknown>>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    uniqueIndex('applicationRoleAssignment_roleId_applicationId_unique').on(table.roleId, table.applicationId),
+    index('applicationRoleAssignment_roleId_idx').on(table.roleId),
+    index('applicationRoleAssignment_applicationId_idx').on(table.applicationId),
+  ],
+)
+
+export const memberRoleAssignment = sqliteTable(
+  'member_role_assignment',
+  {
+    id: text('id').primaryKey(),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    memberId: text('member_id')
+      .notNull()
+      .references(() => member.id, { onDelete: 'cascade' }),
+    assignedByUserId: text('assigned_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    tokenClaims: text('token_claims', { mode: 'json' }).$type<Record<string, unknown>>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    uniqueIndex('memberRoleAssignment_roleId_memberId_unique').on(table.roleId, table.memberId),
+    index('memberRoleAssignment_roleId_idx').on(table.roleId),
+    index('memberRoleAssignment_memberId_idx').on(table.memberId),
+  ],
+)

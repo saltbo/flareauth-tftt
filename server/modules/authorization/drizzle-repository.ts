@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 import type { Database } from '../../db/client'
 import {
@@ -14,12 +14,18 @@ import {
   rolePermission,
   userRoleAssignment,
 } from '../../db/schema'
-import type {
-  ApiPermissionRecordInput,
-  ApiScopeRecordInput,
-  AuthorizationRepository,
-  RoleAssignmentScope,
-} from './service'
+import {
+  toInvitation,
+  toMember,
+  toOrganization,
+  toPagination,
+  toPermission,
+  toResource,
+  toRole,
+  toScope,
+  withoutUndefined,
+} from './drizzle-mappers'
+import type { AuthorizationRepository, RoleAssignmentScope } from './service'
 
 export function createDrizzleAuthorizationRepository(db: Database): AuthorizationRepository {
   return {
@@ -189,6 +195,19 @@ export function createDrizzleAuthorizationRepository(db: Database): Authorizatio
         .offset(pagination.offset)
       const total = await totalRows(db, apiScope, eq(apiScope.resourceId, resourceId))
       return { items: rows.map(toScope), pagination: toPagination(pagination, total) }
+    },
+
+    async listScopesByValues(resourceId, values) {
+      if (values.length === 0) return []
+      const rows = await db
+        .select()
+        .from(apiScope)
+        .where(
+          resourceId
+            ? and(eq(apiScope.resourceId, resourceId), inArray(apiScope.value, values))
+            : inArray(apiScope.value, values),
+        )
+      return rows.map(toScope)
     },
 
     async findScope(id) {
@@ -406,116 +425,4 @@ async function totalRows(
   const query = db.select({ total: count() }).from(table)
   const rows = where ? await query.where(where) : await query
   return rows[0]?.total ?? 0
-}
-
-function toOrganization(row: typeof organization.$inferSelect) {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    displayName: row.displayName,
-    logo: row.logo,
-    disabled: row.disabled,
-    disabledReason: row.disabledReason,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function toMember(row: typeof member.$inferSelect) {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    userId: row.userId,
-    role: row.role,
-    title: row.title,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function toInvitation(row: typeof invitation.$inferSelect) {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    email: row.email,
-    role: row.role,
-    inviterId: row.inviterId,
-    status: row.status,
-    expiresAt: row.expiresAt.toISOString(),
-    acceptedAt: row.acceptedAt?.toISOString() ?? null,
-    revokedAt: row.revokedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
-
-function toResource(row: typeof apiResource.$inferSelect) {
-  return {
-    id: row.id,
-    identifier: row.identifier,
-    name: row.name,
-    audience: row.audience,
-    description: row.description,
-    enabled: row.enabled,
-    tokenClaimsNamespace: row.tokenClaimsNamespace,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function toScope(row: typeof apiScope.$inferSelect): ApiScopeRecordInput {
-  return {
-    id: row.id,
-    resourceId: row.resourceId,
-    value: row.value,
-    description: row.description,
-    required: row.required,
-    tokenClaimName: row.tokenClaimName,
-    includeInAccessToken: row.includeInAccessToken,
-    includeInIdToken: row.includeInIdToken,
-  }
-}
-
-function toPermission(row: typeof apiPermission.$inferSelect): ApiPermissionRecordInput {
-  return {
-    id: row.id,
-    resourceId: row.resourceId,
-    scopeId: row.scopeId,
-    key: row.key,
-    description: row.description,
-    tokenClaimValue: row.tokenClaimValue,
-  }
-}
-
-function toRole(row: typeof role.$inferSelect) {
-  return {
-    id: row.id,
-    key: row.key,
-    name: row.name,
-    description: row.description,
-    resourceId: row.resourceId,
-    organizationId: row.organizationId,
-    applicationId: row.applicationId,
-    system: row.system,
-    tokenClaimName: row.tokenClaimName,
-    tokenClaimValue: row.tokenClaimValue,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-function toPagination(pagination: { limit: number; offset: number }, total: number) {
-  const nextOffset = pagination.offset + pagination.limit < total ? pagination.offset + pagination.limit : null
-
-  return {
-    limit: pagination.limit,
-    offset: pagination.offset,
-    total,
-    hasMore: nextOffset !== null,
-    nextOffset,
-  }
-}
-
-function withoutUndefined<T extends object>(input: T) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) as Partial<T>
 }

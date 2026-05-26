@@ -78,41 +78,45 @@ export function createConsent(input: HostedConsentApprovalRequest) {
   return readRpcResponse(apiClient.api.oauth.consent.$post({ json: input }))
 }
 
-export async function getOnboardingStatus(): Promise<{ required: boolean }> {
-  const response = await fetch('/api/onboarding/status')
-  if (!response.ok) {
-    throw new ApiRequestError(await responseMessage(response), response.status)
-  }
-  return response.json() as Promise<{ required: boolean }>
+export function getOnboardingStatus(): Promise<{ required: boolean }> {
+  return readRpcResponse(apiClient.api.onboarding.status.$get())
 }
 
-export async function createOnboardingAdmin(input: OnboardingAdminRequest) {
-  const response = await fetch('/api/onboarding/admin-users', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  if (!response.ok) {
-    throw new ApiRequestError(await responseMessage(response), response.status)
-  }
-  return response.json() as Promise<{
-    user: { id: string; email: string; role: string | null }
-    onboarding: { locked: true }
-  }>
+export function createOnboardingAdmin(input: OnboardingAdminRequest): Promise<{
+  user: { id: string; email: string; role: string | null }
+  onboarding: { locked: true }
+}> {
+  return readRpcResponse(apiClient.api.onboarding['admin-users'].$post({ json: input }))
 }
 
-export async function uploadApiFile(path: string, file: File): Promise<UploadedAssetResponse> {
-  const body = new FormData()
-  body.set('file', file)
-
-  const response = await fetch(path, {
-    method: 'POST',
-    body,
-  })
-  if (!response.ok) {
-    throw new ApiRequestError(await responseMessage(response), response.status)
+export function uploadApiFile(path: string, file: File): Promise<UploadedAssetResponse> {
+  const form = { file }
+  if (path === '/api/account/avatar') return readRpcResponse(apiClient.api.account.avatar.$post({ form }))
+  if (path === '/api/management/branding/logo') {
+    return readRpcResponse(apiClient.api.management.branding.logo.$post({ form }))
   }
-  return response.json() as Promise<UploadedAssetResponse>
+  if (path === '/api/management/branding/favicon') {
+    return readRpcResponse(apiClient.api.management.branding.favicon.$post({ form }))
+  }
+  const applicationLogo = path.match(/^\/api\/management\/applications\/([^/]+)\/logo$/)
+  if (applicationLogo) {
+    return readRpcResponse(
+      apiClient.api.management.applications[':applicationId'].logo.$post({
+        param: { applicationId: applicationLogo[1] },
+        form,
+      }),
+    )
+  }
+  const organizationLogo = path.match(/^\/api\/management\/organizations\/([^/]+)\/logo$/)
+  if (organizationLogo) {
+    return readRpcResponse(
+      apiClient.api.management.organizations[':organizationId'].logo.$post({
+        param: { organizationId: organizationLogo[1] },
+        form,
+      }),
+    )
+  }
+  throw new Error(`Unsupported upload path: ${path}`)
 }
 
 function query(search: string): Record<string, string> {

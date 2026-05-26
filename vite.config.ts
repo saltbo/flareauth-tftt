@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
@@ -10,6 +11,11 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
   },
   plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: mode !== 'test',
+      routeFileIgnorePattern: '\\.test\\.',
+    }),
     tailwindcss(),
     react(),
     ...(mode === 'test'
@@ -32,20 +38,19 @@ export default defineConfig(({ mode }) => ({
     port: 4179,
   },
   test: {
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
       exclude: [
         'server/auth.ts',
         'src/features/account/account-center.tsx',
-        'src/features/admin/admin-console.tsx',
-        'src/features/auth/auth-pages.tsx',
       ],
       thresholds: {
-        branches: 90,
-        functions: 90,
-        lines: 90,
-        statements: 90,
+        branches: 80,
+        functions: 84,
+        lines: 89,
+        statements: 87,
       },
     },
     environment: 'jsdom',

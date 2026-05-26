@@ -24,11 +24,11 @@ Product-facing behavior starts in `specs/`. For new or changed product
 behavior:
 
 1. Update or add the relevant `.feature` scenario first.
-2. Add the journey id to `tests/e2e/journey-coverage.json` when browser
-   verification is required.
-3. Attach the same journey id from the narrowest Playwright test with
-   `attachCoverage(...)`.
-4. Run `npm run spec:check`.
+2. Add `@entrypoint:<id>` and `@journey:<id>` to the scenario.
+3. Add `@e2e` and the journey id to `specs/e2e-coverage.json` when automated
+   Cucumber verification is required.
+4. Implement or update Cucumber steps in `tests/e2e`.
+5. Run `npm run spec:check`.
 
 If implementation reveals a new user-facing behavior, update the spec before
 continuing.
@@ -45,6 +45,8 @@ Spec index:
   availability and native endpoint enforcement.
 - `specs/admin-console.feature`: Console applications, users, connectors,
   security, authorization, branding, content, and deployment settings.
+- `specs/management-api.feature`: Management API discovery and Restish
+  command-line administration entry point.
 
 ## Checks
 

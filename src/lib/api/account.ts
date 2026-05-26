@@ -1,4 +1,5 @@
 import type {
+  AccountAgentsResponse,
   AccountEmailChangeConfirmInput,
   AccountEmailChangeInput,
   AccountPasswordChangeInput,
@@ -75,15 +76,8 @@ export function unlinkAccount(providerId: string, accountId: string) {
   )
 }
 
-export async function linkWalletAddress(input: AccountWalletAddressLinkInput) {
-  return readJsonResponse<Record<string, unknown>>(
-    await fetch('/api/account/wallet-addresses', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    }),
-  )
+export function linkWalletAddress(input: AccountWalletAddressLinkInput) {
+  return readRpcResponse(apiClient.api.account['wallet-addresses'].$post({ json: input }))
 }
 
 export async function unlinkWalletAddress(accountId: string) {
@@ -100,6 +94,18 @@ export function revokeApplicationConsent(consentId: string) {
 
 export function listAccountSessions() {
   return readRpcResponse(apiClient.api.account.sessions.$get())
+}
+
+export function listAccountAgents(): Promise<AccountAgentsResponse> {
+  return readRpcResponse(apiClient.api.account.agents.$get())
+}
+
+export function revokeAccountAgent(agentId: string) {
+  return readRpcResponse(apiClient.api.account.agents[':agentId'].$delete({ param: { agentId } }))
+}
+
+export function revokeAccountAgentCapabilityGrant(grantId: string) {
+  return readRpcResponse(apiClient.api.account['agent-capability-grants'][':grantId'].$delete({ param: { grantId } }))
 }
 
 export function getAccountSecurity() {

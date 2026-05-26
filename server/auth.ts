@@ -1,3 +1,4 @@
+import { agentAuth } from '@better-auth/agent-auth'
 import { i18n } from '@better-auth/i18n'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
@@ -17,14 +18,34 @@ import {
 } from '../shared/api/applications'
 import type { ManagementSignInSettingsResponse } from '../shared/api/management'
 import type { SecurityPolicy } from '../shared/api/security'
+import {
+  buildOAuthAccessTokenClaims,
+  buildOAuthIdTokenClaims,
+  buildOAuthUserInfoClaims,
+  createNonce,
+  hasManagementScope,
+  readString,
+  readUserRole,
+  sendPasswordChangedNotification,
+  sendSmsOtp,
+  siweDomain,
+} from './auth-helpers'
 import { betterAuthTranslations } from './auth-i18n'
 import type { Database } from './db/client'
 import * as schema from './db/schema'
 import type { TransactionalEmailSender } from './lib/email/sender'
 import { hashPassword, verifyPassword } from './lib/password'
+import { agentCapabilities, areKnownAgentCapabilities } from './modules/agents/capabilities'
+import { createDrizzleAgentRepository } from './modules/agents/repository'
+import { AgentService } from './modules/agents/service'
+import { createDrizzleApplicationRepository } from './modules/applications/drizzle-repository'
 import { createDrizzleAuthorizationRepository } from './modules/authorization/drizzle-repository'
-import { AuthorizationService, type AuthorizationTokenClaimInput } from './modules/authorization/service'
+import { AuthorizationService } from './modules/authorization/service'
 import type { AuthConnectorConfig } from './modules/connectors/service'
+
+export { buildOAuthAccessTokenClaims, buildOAuthIdTokenClaims, buildOAuthUserInfoClaims } from './auth-helpers'
+
+import { createUserRepository } from './modules/users/repository'
 
 const oauthScopes = ['openid', 'profile', 'email', 'offline_access', ...managementApplicationScopes]
 const organizationAccessControl = createAccessControl({
@@ -79,6 +100,8 @@ export function createAuth(
   } = {},
 ) {
   const authorization = new AuthorizationService(createDrizzleAuthorizationRepository(db))
+  const applications = createDrizzleApplicationRepository(db)
+  const agents = new AgentService(createUserRepository(db), createDrizzleAgentRepository(db))
 
   return betterAuth({
     appName: 'FlareAuth',
@@ -214,6 +237,20 @@ export function createAuth(
           userVerification: 'preferred',
         },
       }),
+      agentAuth({
+        providerName: 'FlareAuth',
+        providerDescription: 'Delegated FlareAuth account access for approved agents.',
+        modes: ['delegated'],
+        approvalMethods: ['device_authorization'],
+        deviceAuthorizationPage: '/agent/approve',
+        allowDynamicHostRegistration: true,
+        defaultHostCapabilities: [],
+        requireAuthForCapabilities: false,
+        capabilities: agentCapabilities,
+        validateCapabilities: areKnownAgentCapabilities,
+        onExecute: ({ capability, arguments: args, agentSession }) =>
+          agents.executeReadOnlyCapability({ capability, arguments: args, agentSession }),
+      }),
       emailOTP({
         otpLength: options.builtInProviders?.email.otpLength,
         expiresIn: options.builtInProviders?.email.expiresInSeconds,
@@ -310,14 +347,17 @@ export function createAuth(
         config: connectors.genericOAuthProviders,
       }),
       oauthProvider({
-        loginPage: '/sign-in',
+        loginPage: '/auth/sign-in',
         consentPage: '/oauth/consent',
         scopes: oauthScopes,
         validAudiences: options.validAudiences,
         customAccessTokenClaims: (input) => buildOAuthAccessTokenClaims(authorization, input),
-        customUserInfoClaims: ({ user, scopes, jwt }) => {
+        customUserInfoClaims: async ({ user, scopes, jwt }) => {
           const clientId = readString(jwt, 'client_id') ?? readString(jwt, 'azp')
-          if (clientId !== systemCliClientId || !hasManagementScope(scopes)) return {}
+          if (clientId !== systemCliClientId) {
+            return buildOAuthUserInfoClaims(authorization, applications, { clientId, user, scopes, jwt })
+          }
+          if (!hasManagementScope(scopes)) return {}
           return {
             role: readUserRole(user),
             scope: jwt.scope,
@@ -326,9 +366,7 @@ export function createAuth(
             roles: jwt.roles,
           }
         },
-        customIdTokenClaims: ({ metadata }) => ({
-          ...(readString(metadata, 'applicationId') ? { application_id: readString(metadata, 'applicationId') } : {}),
-        }),
+        customIdTokenClaims: (input) => buildOAuthIdTokenClaims(authorization, input),
         clientRegistrationDefaultScopes: ['openid', 'profile', 'email'],
         clientRegistrationAllowedScopes: [...userConfigurableApplicationScopes],
         storeClientSecret: 'hashed',
@@ -343,141 +381,3 @@ export function createAuth(
 }
 
 export type Auth = ReturnType<typeof createAuth>
-
-function siweDomain(baseURL: string, configuredDomain: string) {
-  if (configuredDomain.trim()) return configuredDomain.trim()
-  return new URL(baseURL).host
-}
-
-function createNonce() {
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function sendPasswordChangedNotification(emailSender: TransactionalEmailSender, email: string) {
-  void emailSender
-    .send({
-      to: email,
-      template: {
-        type: 'security-notification',
-        title: 'Your password was changed',
-        body: 'Your FlareAuth password was changed. If this was not you, reset your password immediately.',
-      },
-    })
-    .catch((error: unknown) => {
-      console.error('Failed to send password changed notification.', error)
-    })
-}
-
-async function sendSmsOtp(
-  config: ManagementSignInSettingsResponse['builtInProviders']['phone'] | undefined,
-  phoneNumber: string,
-  code: string,
-) {
-  if (!config) throw new Error('Phone provider is not configured.')
-
-  if (config.smsProvider === 'twilio') {
-    if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFromNumber) {
-      throw new Error('Twilio SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      To: phoneNumber,
-      From: config.twilioFromNumber,
-      Body: `Your verification code is ${code}`,
-    })
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${config.twilioAccountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${btoa(`${config.twilioAccountSid}:${config.twilioAuthToken}`)}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body,
-      },
-    )
-    if (!response.ok) throw new Error('Twilio SMS delivery failed.')
-    return
-  }
-
-  if (config.smsProvider === 'vonage') {
-    if (!config.vonageApiKey || !config.vonageApiSecret || !config.vonageFrom) {
-      throw new Error('Vonage SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      api_key: config.vonageApiKey,
-      api_secret: config.vonageApiSecret,
-      to: phoneNumber,
-      from: config.vonageFrom,
-      text: `Your verification code is ${code}`,
-    })
-    const response = await fetch('https://rest.nexmo.com/sms/json', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    })
-    if (!response.ok) throw new Error('Vonage SMS delivery failed.')
-    const payload = (await response.json()) as { messages?: Array<{ status?: string }> }
-    if (payload.messages?.[0]?.status !== '0') throw new Error('Vonage SMS delivery failed.')
-    return
-  }
-
-  if (config.smsProvider === 'messagebird') {
-    if (!config.messageBirdAccessKey || !config.messageBirdOriginator) {
-      throw new Error('MessageBird SMS provider is not configured.')
-    }
-    const body = new URLSearchParams({
-      originator: config.messageBirdOriginator,
-      recipients: phoneNumber,
-      body: `Your verification code is ${code}`,
-    })
-    const response = await fetch('https://rest.messagebird.com/messages', {
-      method: 'POST',
-      headers: {
-        Authorization: `AccessKey ${config.messageBirdAccessKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body,
-    })
-    if (!response.ok) throw new Error('MessageBird SMS delivery failed.')
-    return
-  }
-
-  throw new Error(`Unsupported SMS provider: ${config.smsProvider}`)
-}
-
-export function buildOAuthAccessTokenClaims(
-  authorization: Pick<AuthorizationService, 'buildTokenClaims'>,
-  input: {
-    user?: { id?: string } | null
-    scopes: Iterable<string>
-    resource?: string
-    referenceId?: string
-    metadata?: Record<string, unknown>
-  },
-): Promise<Record<string, unknown>> {
-  return authorization.buildTokenClaims({
-    userId: input.user?.id,
-    applicationId: readString(input.metadata, 'applicationId'),
-    organizationId: input.referenceId,
-    resource: input.resource,
-    scopes: [...input.scopes],
-  } satisfies AuthorizationTokenClaimInput)
-}
-
-function readString(metadata: Record<string, unknown> | undefined, key: string) {
-  const value = metadata?.[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function hasManagementScope(scopes: Iterable<string>) {
-  for (const scope of scopes) {
-    if (managementApplicationScopes.includes(scope as (typeof managementApplicationScopes)[number])) return true
-  }
-  return false
-}
-
-function readUserRole(user: unknown) {
-  return typeof user === 'object' && user !== null && 'role' in user && typeof user.role === 'string' ? user.role : null
-}

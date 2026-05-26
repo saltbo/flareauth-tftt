@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   journeys:
-    name: Browser E2E
+    name: Cucumber E2E
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,15 +46,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Browser E2E
+      - name: Cucumber E2E
         run: npm run test:e2e
 
-      - name: Upload browser evidence
+      - name: Upload Cucumber evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-evidence
+          name: cucumber-evidence
           path: |
-            test-results
-            playwright-report
+            cucumber-report
           if-no-files-found: ignore
