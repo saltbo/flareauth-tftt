@@ -1,5 +1,7 @@
 node_modules
 dist
+src/routeTree.gen.ts
+src/routeTree.gen.js
 .wrangler
 .playwright-cli
 .dev.vars

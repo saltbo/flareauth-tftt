@@ -3,6 +3,7 @@ import { tt } from '@/lib/i18n'
 
 const oidcStateStorageKey = 'flareauth.oidc.state'
 const oidcVerifierStorageKey = 'flareauth.oidc.verifier'
+
 export function OidcStartRoute({
   startAuthorization = () => startOidcAuthorization((url) => window.location.assign(url)),
 }: {
@@ -21,6 +22,7 @@ export function OidcStartRoute({
     </main>
   )
 }
+
 export function OidcCallbackRoute() {
   const params = new URLSearchParams(window.location.search)
   const state = params.get('state')
@@ -45,6 +47,7 @@ export function OidcCallbackRoute() {
     </main>
   )
 }
+
 export async function startOidcAuthorization(redirect: (url: URL) => void) {
   const currentUrl = new URL(window.location.href)
   const state = randomUrlToken()
@@ -64,15 +67,18 @@ export async function startOidcAuthorization(redirect: (url: URL) => void) {
   authorizationUrl.searchParams.set('code_challenge_method', 'S256')
   redirect(authorizationUrl)
 }
+
 function randomUrlToken() {
   const bytes = new Uint8Array(32)
   window.crypto.getRandomValues(bytes)
   return base64Url(bytes)
 }
+
 async function pkceChallenge(verifier: string) {
   const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
   return base64Url(new Uint8Array(digest))
 }
+
 function base64Url(bytes: Uint8Array) {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)

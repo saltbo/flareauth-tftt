@@ -1,5 +1,6 @@
+import { createFileRoute } from '@tanstack/react-router'
 import { ConsentPage } from '@/features/auth/consent-page'
 
-export function OAuthConsentRoute() {
-  return <ConsentPage />
-}
+export const Route = createFileRoute('/oauth/consent')({
+  component: ConsentPage,
+})

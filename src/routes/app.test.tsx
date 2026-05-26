@@ -2,22 +2,26 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRouter, queryClient } from '@/router'
 
-vi.mock('@/routes/account', () => ({
-  AccountConnectionsRoute: () => <h1>Profile route</h1>,
-  AccountProfileRoute: () => <h1>Profile route</h1>,
-  AccountSecurityRoute: () => <h1>Profile route</h1>,
+vi.mock('@/features/account/account-center', () => ({
+  AccountConnectionsPage: () => <h1>Profile route</h1>,
+  AccountProfilePage: () => <h1>Profile route</h1>,
+  AccountSecurityPage: () => <h1>Profile route</h1>,
 }))
 
-vi.mock('@/routes/agent-approve', () => ({
-  AgentApproveRoute: () => <h1>Agent approval route</h1>,
+vi.mock('@/features/agents/agent-approval', () => ({
+  AgentApproval: () => <h1>Agent approval route</h1>,
 }))
 
-vi.mock('@/routes/onboarding', () => ({
+vi.mock('@/routes/-onboarding', () => ({
   OnboardingRoute: () => <h1>First-admin onboarding</h1>,
 }))
 
-vi.mock('@/routes/sign-in', () => ({
-  SignInRoute: () => <h1>Sign in route</h1>,
+vi.mock('@/features/auth/auth-pages', () => ({
+  AuthCallbackPage: () => <h1>Auth callback route</h1>,
+  EmailVerificationPage: () => <h1>Email verification route</h1>,
+  ForgotPasswordPage: () => <h1>Forgot password route</h1>,
+  SignInPage: () => <h1>Sign in route</h1>,
+  SignUpPage: () => <h1>Sign up route</h1>,
 }))
 
 afterEach(() => {
