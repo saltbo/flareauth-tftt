@@ -1,4 +1,5 @@
 import { redirect } from '@tanstack/react-router'
+import { apiClient } from '@/lib/api'
 
 export type RouteAccountProfile = {
   user?: {
@@ -7,7 +8,7 @@ export type RouteAccountProfile = {
 }
 
 export async function loadAccountProfile() {
-  const response = await fetch('/api/account/profile', { credentials: 'include' })
+  const response = await apiClient.api.account.profile.$get()
   if (response.status === 401) return null
   if (!response.ok) throw new Error(await readErrorMessage(response))
   return (await response.json()) as RouteAccountProfile
@@ -19,7 +20,7 @@ export async function requireAccountProfile(locationHref: string) {
   return profile
 }
 
-async function readErrorMessage(response: Response) {
+async function readErrorMessage(response: Pick<Response, 'statusText' | 'text'>) {
   const text = await response.text()
   if (!text) return response.statusText
   try {

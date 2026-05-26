@@ -27,6 +27,7 @@ import type {
   RotateClientSecretResponse,
   UpdateApplicationRequest,
 } from '../shared/api/applications'
+import type { UploadedAssetResponse } from '../shared/api/assets'
 import type {
   ApiPermissionResponse,
   ApiResourceResponse,
@@ -83,6 +84,7 @@ import type {
   UpdateManagementConnectorRequest,
   UpdateManagementSignInSettingsRequest,
 } from '../shared/api/management'
+import type { OnboardingAdminRequest } from '../shared/api/onboarding'
 import type {
   PasskeysResponse,
   SecurityPolicy,
@@ -111,6 +113,7 @@ export type RpcEndpoint<Input, Output, Status extends StatusCode = ContentfulSta
   outputFormat: 'json'
   status: Status
 }
+export type RpcFileUploadInput = { form: { file: File } }
 
 export type RpcSchema = {
   '/api/health': {
@@ -118,6 +121,16 @@ export type RpcSchema = {
   }
   '/api/configz': {
     $get: RpcEndpoint<RpcNoInput, ConfigzConfigResponse>
+  }
+  '/api/onboarding/status': {
+    $get: RpcEndpoint<RpcNoInput, { required: boolean }>
+  }
+  '/api/onboarding/admin-users': {
+    $post: RpcEndpoint<
+      { json: OnboardingAdminRequest },
+      { user: { id: string; email: string; role: string | null }; onboarding: { locked: true } },
+      201
+    >
   }
   '/api/oauth/consent': {
     $get: RpcEndpoint<
@@ -129,6 +142,9 @@ export type RpcSchema = {
   '/api/account/profile': {
     $get: RpcEndpoint<RpcNoInput, AccountProfileResponse>
     $patch: RpcEndpoint<{ json: AccountProfileUpdateInput }, AccountProfileResponse>
+  }
+  '/api/account/avatar': {
+    $post: RpcEndpoint<RpcFileUploadInput, UploadedAssetResponse, 201>
   }
   '/api/account/email/change': {
     $post: RpcEndpoint<{ json: AccountEmailChangeInput }, EmptyResponse>
@@ -217,6 +233,9 @@ export type RpcSchema = {
     >
     $post: RpcEndpoint<{ param: { id: string } }, RotateClientSecretResponse, 201>
   }
+  '/api/management/applications/:applicationId/logo': {
+    $post: RpcEndpoint<{ param: { applicationId: string } } & RpcFileUploadInput, UploadedAssetResponse, 201>
+  }
   '/api/management/users': {
     $get: RpcEndpoint<{ query: Partial<Record<keyof ManagementUserListQuery, string>> }, ListManagementUsersResponse>
     $post: RpcEndpoint<{ json: ManagementCreateUserRequest }, EmptyResponse, 201>
@@ -293,6 +312,12 @@ export type RpcSchema = {
     $get: RpcEndpoint<RpcNoInput, ManagementBrandingSettingsResponse>
     $patch: RpcEndpoint<{ json: UpdateManagementBrandingSettingsRequest }, ManagementBrandingSettingsResponse>
   }
+  '/api/management/branding/logo': {
+    $post: RpcEndpoint<RpcFileUploadInput, UploadedAssetResponse, 201>
+  }
+  '/api/management/branding/favicon': {
+    $post: RpcEndpoint<RpcFileUploadInput, UploadedAssetResponse, 201>
+  }
   '/api/management/webhooks/endpoints': {
     $get: RpcEndpoint<
       { query?: Partial<Record<keyof ListWebhookEndpointsQuery, string>> },
@@ -347,6 +372,9 @@ export type RpcSchema = {
   '/api/management/organizations/:id': {
     $get: RpcEndpoint<{ param: { id: string } }, OrganizationResponse>
     $patch: RpcEndpoint<{ param: { id: string }; json: UpdateOrganizationRequest }, OrganizationResponse>
+  }
+  '/api/management/organizations/:organizationId/logo': {
+    $post: RpcEndpoint<{ param: { organizationId: string } } & RpcFileUploadInput, UploadedAssetResponse, 201>
   }
   '/api/management/roles': {
     $get: RpcEndpoint<RpcNoInput, ListRolesResponse>

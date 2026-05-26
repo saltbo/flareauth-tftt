@@ -76,15 +76,8 @@ export function unlinkAccount(providerId: string, accountId: string) {
   )
 }
 
-export async function linkWalletAddress(input: AccountWalletAddressLinkInput) {
-  return readJsonResponse<Record<string, unknown>>(
-    await fetch('/api/account/wallet-addresses', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    }),
-  )
+export function linkWalletAddress(input: AccountWalletAddressLinkInput) {
+  return readRpcResponse(apiClient.api.account['wallet-addresses'].$post({ json: input }))
 }
 
 export async function unlinkWalletAddress(accountId: string) {

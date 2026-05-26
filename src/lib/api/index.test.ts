@@ -84,6 +84,7 @@ describe('onboarding API client', () => {
     })
     expect(fetch).toHaveBeenCalledWith('/api/account/avatar', {
       method: 'POST',
+      headers: expect.any(Headers),
       body: expect.any(FormData),
     })
     await expect(uploadApiFile('/api/account/avatar', new File(['svg'], 'avatar.svg'))).rejects.toMatchObject({

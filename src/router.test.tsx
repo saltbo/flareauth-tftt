@@ -45,7 +45,11 @@ describe('root route', () => {
 
     expect(await screen.findByRole('heading', { name: 'Profile route' })).toBeTruthy()
     await waitFor(() => expect(window.location.pathname).toBe('/profile'))
-    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', { credentials: 'include' })
+    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', {
+      body: undefined,
+      headers: expect.any(Headers),
+      method: 'GET',
+    })
   })
 
   it('authenticates profile routes before rendering them', async () => {
@@ -56,7 +60,11 @@ describe('root route', () => {
 
     expect(await screen.findByRole('heading', { name: 'Profile route' })).toBeTruthy()
     expect(window.location.pathname).toBe('/profile')
-    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', { credentials: 'include' })
+    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', {
+      body: undefined,
+      headers: expect.any(Headers),
+      method: 'GET',
+    })
   })
 
   it('authenticates AgentAuth approval before rendering it', async () => {
@@ -66,7 +74,11 @@ describe('root route', () => {
     render(<AppRouter />)
 
     expect(await screen.findByRole('heading', { name: 'Agent approval route' })).toBeTruthy()
-    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', { credentials: 'include' })
+    expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', {
+      body: undefined,
+      headers: expect.any(Headers),
+      method: 'GET',
+    })
   })
 
   it('serves hosted auth from /auth routes only', async () => {

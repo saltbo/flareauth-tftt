@@ -45,18 +45,14 @@ describe('account API client', () => {
       ['passwordChange.post', { json: { currentPassword: 'old-password', newPassword: 'new-password' } }],
       ['linkedAccounts.get'],
       [
-        'fetch',
-        '/api/account/wallet-addresses',
+        'walletAddress.post',
         {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
+          json: {
             message: 'Sign this message.',
             signature: '0xsignature',
             walletAddress: '0x0000000000000000000000000000000000000001',
             chainId: 1,
-          }),
+          },
         },
       ],
       ['walletAddress.delete', { param: { accountId: 'siwe:1:0x0000000000000000000000000000000000000001' } }],
@@ -114,6 +110,7 @@ async function loadAccountApi() {
             ':providerId': { $delete: endpoint('linkedAccounts.delete') },
           },
           'wallet-addresses': {
+            $post: endpoint('walletAddress.post'),
             ':accountId': { $delete: endpoint('walletAddress.delete') },
           },
           applications: {
