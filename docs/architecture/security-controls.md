@@ -1,6 +1,6 @@
 # Security Controls
 
-FlareAuth uses Better Auth for MFA, passkey, and session enforcement. Product APIs under `/api/account/security` and `/api/admin/security` wrap those Better Auth capabilities with resource-oriented account and admin views.
+FlareAuth uses Better Auth for MFA, passkey, and session enforcement. Product APIs under `/api/account/security` and `/api/management/security` wrap those Better Auth capabilities with resource-oriented account and admin views.
 
 ## Deployment Policy
 

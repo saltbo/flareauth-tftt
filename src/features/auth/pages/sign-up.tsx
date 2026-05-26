@@ -82,12 +82,12 @@ export function SignUpPage() {
               usernameEnabled={config?.signIn.usernameEnabled}
             />
           }
-          signInAction={<a href={authPageHref('/sign-in')}>{tt('Already have an account?')}</a>}
+          signInAction={<a href={authPageHref('/auth/sign-in')}>{tt('Already have an account?')}</a>}
           socialButtons={<SocialButtons callback={callback} providers={socialProviders} />}
           status={<SubmitStatus state={submit} />}
         />
       ) : (
-        <SignUpDisabled signInAction={<a href={authPageHref('/sign-in')}>{tt('Back to sign in')}</a>} />
+        <SignUpDisabled signInAction={<a href={authPageHref('/auth/sign-in')}>{tt('Back to sign in')}</a>} />
       )}
     </AuthLayout>
   )

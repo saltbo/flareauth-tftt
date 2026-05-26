@@ -98,7 +98,7 @@ describe('v1.0 release product journey', () => {
     const authorizationUrl = `/api/auth/oauth2/authorize?client_id=${client.clientId}&redirect_uri=https://app.example.com/callback&response_type=code&scope=openid%20profile%20email&state=state-1`
     const hostedSignIn = await app.request(authorizationUrl)
     expect(hostedSignIn.status).toBe(302)
-    expect(hostedSignIn.headers.get('location')).toBe('http://localhost/sign-in')
+    expect(hostedSignIn.headers.get('location')).toBe('http://localhost/auth/sign-in')
 
     await expectJson(
       await app.request(

@@ -18,7 +18,7 @@ test('fresh deployment redirects hosted routes to first-admin onboarding and cre
   migrate()
   resetLocalData()
 
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await expect(page).toHaveURL(/\/onboarding$/)
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill(admin.name)
   await page.getByLabel('Email').fill(admin.email)
@@ -34,10 +34,10 @@ test('root and protected account routes redirect according to auth state', async
   await resetAndBootstrap()
 
   await page.goto('/')
-  await expect(page).toHaveURL(/\/sign-in/)
+  await expect(page).toHaveURL(/\/auth\/sign-in/)
 
   await page.goto('/profile')
-  await expect(page).toHaveURL(/\/sign-in/)
+  await expect(page).toHaveURL(/\/auth\/sign-in/)
   expect(new URL(page.url()).searchParams.get('return_to')).toBe('/profile')
 
   await signIn(page)
@@ -50,7 +50,7 @@ test('root and protected account routes redirect according to auth state', async
 test('hosted sign-up creates an account through the real auth endpoint', async ({ page }, testInfo) => {
   await resetAndBootstrap()
 
-  await page.goto('/sign-up')
+  await page.goto('/auth/sign-up')
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Signup User')
   await page.getByLabel('Email').fill('signup@example.com')
   await page.getByLabel('Username').fill('signup-user')

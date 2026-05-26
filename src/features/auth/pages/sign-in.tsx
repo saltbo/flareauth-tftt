@@ -342,7 +342,7 @@ export function SignInPage() {
               />
             </Field>
             {enabled.passwordEnabled ? (
-              <a className="authFieldLink" href={authPageHref('/forgot-password')}>
+              <a className="authFieldLink" href={authPageHref('/auth/forgot-password')}>
                 {' '}
                 {tt('Forgot password?')}{' '}
               </a>
@@ -353,7 +353,7 @@ export function SignInPage() {
             </Button>
             {enabled.signupEnabled ? (
               <p className="authSignupPrompt">
-                {tt('No account yet?')} <a href={authPageHref('/sign-up')}>{tt('Create account')}</a>
+                {tt('No account yet?')} <a href={authPageHref('/auth/sign-up')}>{tt('Create account')}</a>
               </p>
             ) : null}
           </form>

@@ -347,7 +347,7 @@ export function createAuth(
         config: connectors.genericOAuthProviders,
       }),
       oauthProvider({
-        loginPage: '/sign-in',
+        loginPage: '/auth/sign-in',
         consentPage: '/oauth/consent',
         scopes: oauthScopes,
         validAudiences: options.validAudiences,

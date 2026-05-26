@@ -11,7 +11,7 @@ test('Email connector drawer controls hosted email-code sign-in and backend enfo
   await setEmailCodeEnabled(page, false)
 
   await page.context().clearCookies()
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await expect(page.getByRole('button', { name: 'Continue with Email' })).toHaveCount(0)
 
   const disabledResponse = await page.request.post('/api/auth/email-otp/send-verification-otp', {
@@ -19,7 +19,7 @@ test('Email connector drawer controls hosted email-code sign-in and backend enfo
   })
   expect(disabledResponse.status(), await disabledResponse.text()).toBe(403)
 
-  await page.goto('/email-verification')
+  await page.goto('/auth/email-verification')
   await expect(page.getByRole('textbox', { name: 'One-time code' })).toBeVisible()
   const verificationResponse = await page.request.post('/api/auth/email-otp/send-verification-otp', {
     data: { email: admin.email, type: 'email-verification' },
@@ -35,7 +35,7 @@ test('Email connector drawer controls hosted email-code sign-in and backend enfo
   await setEmailCodeEnabled(page, true)
 
   await page.context().clearCookies()
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await expect(page.getByRole('button', { name: 'Continue with Email' })).toBeVisible()
 
   const enabledResponse = await page.request.post('/api/auth/email-otp/send-verification-otp', {

@@ -250,7 +250,7 @@ function ConsoleBrand() {
 function ConsoleAccountMenu() {
   async function onSignOut() {
     await signOut()
-    window.location.href = '/sign-in'
+    window.location.href = '/auth/sign-in'
   }
   return (
     <DropdownMenu>

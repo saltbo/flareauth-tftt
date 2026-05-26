@@ -51,7 +51,7 @@ export function AccountPageShell({
     try {
       await signOut()
       toast.success(tt('Sign out'))
-      await navigate({ to: '/sign-in' })
+      await navigate({ to: '/auth/sign-in' })
     } catch (mutationError) {
       toast.error(mutationError instanceof Error ? tt(mutationError.message) : tt('Account update failed.'))
     }

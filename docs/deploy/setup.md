@@ -34,7 +34,7 @@ npm run bootstrap:admin
 
 The endpoint creates the first admin user and credential account only when the user table is empty. Later calls return `403`.
 
-After admin sign-in, open `/admin/onboarding` to create the first OIDC client and copy the discovery, issuer, client ID, redirect URI, and PKCE integration details.
+After admin sign-in, open `/console/onboarding` to create the first OIDC client and copy the discovery, issuer, client ID, redirect URI, and PKCE integration details.
 
 ## Local Smoke Check
 

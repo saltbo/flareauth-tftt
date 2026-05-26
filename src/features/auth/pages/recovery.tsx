@@ -135,7 +135,7 @@ export function ForgotPasswordPage() {
       </form>
       <SubmitStatus state={submit} />
       <div className="authLinks">
-        <a href={authPageHref('/sign-in')}>{tt('Back to sign in')}</a>
+        <a href={authPageHref('/auth/sign-in')}>{tt('Back to sign in')}</a>
       </div>
     </AuthLayout>
   )
@@ -232,7 +232,7 @@ export function AuthCallbackPage() {
   }, [])
   return (
     <AuthLayout
-      backHref={state.error ? '/sign-in' : undefined}
+      backHref={state.error ? '/auth/sign-in' : undefined}
       config={config}
       eyebrow="Callback"
       icon={state.error ? <CircleAlert aria-hidden="true" size={28} /> : undefined}

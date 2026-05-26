@@ -10,7 +10,7 @@ describe('auth callback URL resolution', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
 
     expect(callbackURL()).toBe(
@@ -19,7 +19,11 @@ describe('auth callback URL resolution', () => {
   })
 
   it('uses explicit hosted callback parameters for non-OAuth flows', () => {
-    window.history.pushState(null, '', '/sign-in?callbackURL=%2Fprofile&redirect_uri=https%3A%2F%2Fclient.example.com')
+    window.history.pushState(
+      null,
+      '',
+      '/auth/sign-in?callbackURL=%2Fprofile&redirect_uri=https%3A%2F%2Fclient.example.com',
+    )
 
     expect(callbackURL()).toBe('/profile')
   })
@@ -28,7 +32,7 @@ describe('auth callback URL resolution', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?callbackURL=https%3A%2F%2Fclient.example.com&return_to=%2F%2Fevil.example',
+      '/auth/sign-in?callbackURL=https%3A%2F%2Fclient.example.com&return_to=%2F%2Fevil.example',
     )
 
     expect(callbackURL()).toBeUndefined()

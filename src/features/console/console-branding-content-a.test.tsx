@@ -171,7 +171,7 @@ describe('admin console branding-content-a', () => {
     expect(screen.queryByText('No account yet? Create account')).toBeNull()
     const desktopPreviewButton = screen.getByRole('button', { name: 'Open hosted sign-in' })
     fireEvent.click(desktopPreviewButton)
-    expect(open).toHaveBeenCalledWith('/sign-in', '_blank', 'noopener')
+    expect(open).toHaveBeenCalledWith('/auth/sign-in', '_blank', 'noopener')
 
     unmount()
     renderWithQuery(<ContentSettingsPage />)

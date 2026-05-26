@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { ConsoleShell } from '@/components/layout/console-shell'
-import { requireAccountProfile } from './-auth'
+import { requireAccountProfile } from '@/lib/route-auth'
 
 export const Route = createFileRoute('/console')({
   beforeLoad: async ({ location }) => {

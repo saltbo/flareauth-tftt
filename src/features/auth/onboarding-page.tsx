@@ -74,7 +74,7 @@ export function OnboardingRoute() {
       {status?.required === false || submit.message ? (
         <>
           <Status tone="success">{submit.message ?? tt('First-admin onboarding is already locked.')}</Status>
-          <LinkButton href="/sign-in?return_to=/console/onboarding">
+          <LinkButton href="/auth/sign-in?return_to=/console/onboarding">
             <KeyRound size={18} /> {tt('Continue to sign in')}{' '}
           </LinkButton>
         </>

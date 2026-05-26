@@ -221,7 +221,7 @@ export function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState
           )}
         </AuthCardFrame>
       </div>
-      <Button onClick={() => window.open('/sign-in', '_blank', 'noopener')} type="button" variant="secondary">
+      <Button onClick={() => window.open('/auth/sign-in', '_blank', 'noopener')} type="button" variant="secondary">
         <Eye data-icon="inline-start" /> {tt('Open hosted sign-in')}{' '}
       </Button>
     </div>

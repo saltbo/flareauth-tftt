@@ -167,13 +167,13 @@ describe('hosted auth pages 1', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1&token=ignored',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1&token=ignored',
     )
     expect(authContinuationParams().toString()).toBe(
       'client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
-    expect(authPageHref('/sign-up')).toBe(
-      '/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+    expect(authPageHref('/auth/sign-up')).toBe(
+      '/auth/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     expect(authRequestContext('sign-in')).toEqual({
       title: 'Continue to client.example.com.',
@@ -192,14 +192,14 @@ describe('hosted auth pages 1', () => {
       description: 'Confirm your email address before continuing to client.example.com.',
     })
 
-    window.history.pushState(null, '', '/sign-in?client_id=client-1&redirect_uri=bad')
+    window.history.pushState(null, '', '/auth/sign-in?client_id=client-1&redirect_uri=bad')
     expect(authRequestContext('sign-in')).toEqual({
       title: 'Continue to the requested application.',
       description: 'Sign in with your hosted account to continue.',
     })
-    window.history.pushState(null, '', '/sign-in')
+    window.history.pushState(null, '', '/auth/sign-in')
     expect(authContinuationParams().toString()).toBe('')
-    expect(authPageHref('/sign-up')).toBe('/sign-up')
+    expect(authPageHref('/auth/sign-up')).toBe('/auth/sign-up')
     expect(authRequestContext('sign-in')).toEqual({})
   })
 

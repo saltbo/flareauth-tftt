@@ -24,7 +24,7 @@ test('hosted identifier-first sign-in carries the identifier into password auth'
   })
   await signOut(page)
 
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await expect(page.getByRole('heading', { name: 'Sign in to FlareAuth' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Email or username' }).fill(admin.username)
   await page.getByRole('button', { name: 'Continue' }).click()
@@ -37,7 +37,7 @@ test('hosted identifier-first sign-in carries the identifier into password auth'
 })
 
 test('hosted sign-up, sign-in, and Account Center run as one real journey', async ({ page }, testInfo) => {
-  await page.goto('/sign-up')
+  await page.goto('/auth/sign-up')
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Normal Journey User')
   await page.getByLabel('Email').fill('normal-journey@example.com')
   await page.getByLabel('Username').fill('normal-journey')
@@ -45,7 +45,7 @@ test('hosted sign-up, sign-in, and Account Center run as one real journey', asyn
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByText('Account created. Check your email if verification is required.')).toBeVisible()
 
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await page.getByRole('textbox', { name: 'Email or username' }).fill('normal-journey')
   await page.getByRole('textbox', { name: 'Password' }).fill('Normal2026Pass')
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -60,7 +60,7 @@ test('email OTP, verification, and password reset hit real auth endpoints', asyn
   await createUser(page, 'otp-user@example.com', 'otp-user')
   await signOut(page)
 
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await page.getByRole('button', { name: 'Continue with Email' }).click()
   await page.getByLabel('Email').fill('otp-user@example.com')
   await page.getByRole('button', { name: 'Send code' }).click()
@@ -76,13 +76,13 @@ test('email OTP, verification, and password reset hit real auth endpoints', asyn
   })
   const verificationOtp = latestVerificationValue('otp-user@example.com')
   expect(verificationOtp).toBeTruthy()
-  await page.goto('/email-verification')
+  await page.goto('/auth/email-verification')
   await page.getByRole('textbox', { name: 'Email' }).fill('otp-user@example.com')
   await page.getByLabel('One-time code').fill(verificationOtp!)
   await page.getByRole('button', { name: 'Verify email' }).click()
   await expect(page.getByText('Email verified.')).toBeVisible()
 
-  await page.goto('/forgot-password')
+  await page.goto('/auth/forgot-password')
   await page.getByLabel('Email').fill('otp-user@example.com')
   await page.getByRole('button', { name: 'Send reset code' }).click()
   const resetOtp = latestVerificationValue('otp-user@example.com')
@@ -120,7 +120,7 @@ test('OIDC application context, consent approve and deny, and callback route are
   await expect(page.getByRole('heading', { name: 'Review application access.' })).toBeVisible()
   await expect(page.getByText('Consent Client')).toBeVisible()
   await page.getByRole('button', { name: 'Switch account' }).click()
-  await page.waitForURL(/\/sign-in/)
+  await page.waitForURL(/\/auth\/sign-in/)
   const returnTo = new URL(page.url()).searchParams.get('return_to')
   expect(returnTo).toContain('/oauth/consent?')
   expect(returnTo).toContain(`client_id=${thirdPartyApplication.clientId}`)

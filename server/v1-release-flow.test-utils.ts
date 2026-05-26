@@ -87,7 +87,7 @@ export function createAuthDouble() {
         )
       }
       if (url.pathname === '/api/auth/oauth2/authorize') {
-        if (!request.headers.get('x-user-id')) return Response.redirect(`${url.origin}/sign-in`, 302)
+        if (!request.headers.get('x-user-id')) return Response.redirect(`${url.origin}/auth/sign-in`, 302)
         const redirectUri = new URL(url.searchParams.get('redirect_uri') ?? '')
         redirectUri.searchParams.set('code', 'code-1')
         redirectUri.searchParams.set('state', url.searchParams.get('state') ?? '')

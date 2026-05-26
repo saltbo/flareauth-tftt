@@ -138,7 +138,7 @@ describe('hosted auth pages 3', () => {
     window.history.pushState(
       null,
       '',
-      '/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
@@ -168,7 +168,7 @@ describe('hosted auth pages 3', () => {
     window.history.pushState(
       null,
       '',
-      '/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1&token=reset-token',
+      '/auth/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1&token=reset-token',
     )
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
@@ -176,7 +176,7 @@ describe('hosted auth pages 3', () => {
 
     expect(await screen.findByRole('heading', { name: 'Recover access for client.example.com.' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe(
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
   })
 
@@ -184,7 +184,7 @@ describe('hosted auth pages 3', () => {
     window.history.pushState(
       null,
       '',
-      '/email-verification?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/email-verification?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
@@ -195,7 +195,7 @@ describe('hosted auth pages 3', () => {
   })
 
   it('uses generic OIDC context when redirect URI is invalid', async () => {
-    window.history.pushState(null, '', '/sign-in?client_id=client-1&redirect_uri=not-a-url')
+    window.history.pushState(null, '', '/auth/sign-in?client_id=client-1&redirect_uri=not-a-url')
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
     render(<SignInPage />)

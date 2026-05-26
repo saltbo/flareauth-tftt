@@ -16,7 +16,7 @@ test('agent discovery and signed-in approval route are reachable', async ({ page
   })
 
   await page.goto('/agent/approve?agent_id=agent_e2e_desktop&code=ABCD-1234')
-  await expect(page).toHaveURL(/\/sign-in/)
+  await expect(page).toHaveURL(/\/auth\/sign-in/)
 
   await signIn(page)
   await page.goto('/agent/approve?agent_id=agent_e2e_desktop&code=ABCD-1234&host=E2E%20Agent%20Host')

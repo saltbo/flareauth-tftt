@@ -23,7 +23,7 @@ test('signed-out Console routes redirect before management API data loads', asyn
   })
 
   await page.goto('/console/dashboard')
-  await expect(page).toHaveURL(/\/sign-in/)
+  await expect(page).toHaveURL(/\/auth\/sign-in/)
   expect(new URL(page.url()).searchParams.get('return_to')).toContain('/console/dashboard')
   expect(managementResponses).toEqual([])
 

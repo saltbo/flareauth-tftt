@@ -13,7 +13,7 @@ test('unavailable connectors are not exposed to sign-in or account linking', asy
   const config = await page.request.get('/api/configz').then((response) => response.json())
   expect(config.identityProviders).toEqual([])
 
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await expect(page.getByRole('button', { name: /E2E OAuth/i })).toHaveCount(0)
 
   await signIn(page)

@@ -28,7 +28,7 @@ Feature: Connectors and hosted method availability
   @journey:hosted-preview-consistency
   Scenario: Hosted auth preview matches the real hosted card
     When I update hosted method availability in Console
-    Then the live preview and /sign-in show the same methods
+    Then the live preview and /auth/sign-in show the same methods
 
   @journey:onetap-flow
   Scenario: Google One Tap availability is connector-controlled

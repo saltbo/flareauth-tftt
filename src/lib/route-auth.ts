@@ -15,7 +15,7 @@ export async function loadAccountProfile() {
 
 export async function requireAccountProfile(locationHref: string) {
   const profile = await loadAccountProfile()
-  if (!profile) throw redirect({ href: `/sign-in?return_to=${encodeURIComponent(locationHref)}` })
+  if (!profile) throw redirect({ href: `/auth/sign-in?return_to=${encodeURIComponent(locationHref)}` })
   return profile
 }
 

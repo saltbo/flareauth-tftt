@@ -47,7 +47,7 @@ export function migrate() {
 }
 
 export async function signIn(page: Page, password = admin.password) {
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await page.getByRole('textbox', { name: 'Email or username' }).fill(admin.username)
   await page.getByRole('textbox', { name: 'Password' }).fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -57,7 +57,7 @@ export async function signIn(page: Page, password = admin.password) {
 export async function signOut(page: Page) {
   await page.getByRole('button', { name: 'Account menu' }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
-  await page.waitForURL(/\/sign-in/)
+  await page.waitForURL(/\/auth\/sign-in/)
 }
 
 export async function createOidcApplication(page: Page, name = 'E2E Application') {

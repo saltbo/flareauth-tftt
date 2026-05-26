@@ -44,7 +44,7 @@ test('Web3 wallet sign-in requires an existing account binding', async ({ page }
   }, account.address)
 
   await signOut(page)
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await page.getByRole('button', { name: 'Continue with Web3 wallet' }).click()
   await expect(page).toHaveURL(/\/auth\/callback/)
   await expect(page.getByRole('alert')).toContainText('You do not have an account yet.')
@@ -68,7 +68,7 @@ test('Web3 wallet sign-in requires an existing account binding', async ({ page }
   ])
 
   await signOut(page)
-  await page.goto('/sign-in')
+  await page.goto('/auth/sign-in')
   await page.getByRole('button', { name: 'Continue with Web3 wallet' }).click()
   await page.waitForURL('**/profile')
   await expect(page.getByRole('heading', { name: 'FlareAuth Admin' })).toBeVisible()

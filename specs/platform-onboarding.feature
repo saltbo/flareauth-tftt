@@ -30,13 +30,13 @@ Feature: Platform bootstrap and route access
   Scenario: Root redirects signed-out visitors to hosted sign-in
     Given I am signed out
     When I open /
-    Then I am redirected to /sign-in
+    Then I am redirected to /auth/sign-in
 
   @journey:signed-out-account-redirect
   Scenario: Protected Account Center routes preserve return targets
     Given I am signed out
     When I open /profile
-    Then I am redirected to /sign-in
+    Then I am redirected to /auth/sign-in
     And the return_to query parameter is /profile
 
   @journey:root-signed-in-redirect

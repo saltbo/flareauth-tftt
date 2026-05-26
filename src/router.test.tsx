@@ -12,7 +12,7 @@ vi.mock('@/features/agents/agent-approval', () => ({
   AgentApproval: () => <h1>Agent approval route</h1>,
 }))
 
-vi.mock('@/routes/-onboarding', () => ({
+vi.mock('@/features/auth/onboarding-page', () => ({
   OnboardingRoute: () => <h1>First-admin onboarding</h1>,
 }))
 
@@ -61,6 +61,20 @@ describe('root route', () => {
 
     expect(await screen.findByRole('heading', { name: 'Agent approval route' })).toBeTruthy()
     expect(fetchSpy).toHaveBeenCalledWith('/api/account/profile', { credentials: 'include' })
+  })
+
+  it('serves hosted auth from /auth routes only', async () => {
+    window.history.pushState(null, '', '/auth/sign-in')
+    render(<AppRouter />)
+
+    expect(await screen.findByRole('heading', { name: 'Sign in route' })).toBeTruthy()
+
+    cleanup()
+    window.history.pushState(null, '', '/sign-in')
+    render(<AppRouter />)
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Sign in route' })).toBeNull())
+    expect(document.body.textContent).toContain('Not Found')
   })
 })
 

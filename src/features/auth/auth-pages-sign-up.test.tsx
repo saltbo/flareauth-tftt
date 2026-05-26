@@ -253,7 +253,7 @@ describe('hosted auth pages 2', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
@@ -268,7 +268,7 @@ describe('hosted auth pages 2', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-up?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
@@ -284,7 +284,7 @@ describe('hosted auth pages 2', () => {
     expect(screen.getByText('Create a hosted account to continue to client.example.com.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Already have an account?' }).getAttribute('href')).toBe(
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub' }))
@@ -350,7 +350,7 @@ describe('hosted auth pages 2', () => {
     window.history.pushState(
       null,
       '',
-      '/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/forgot-password?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     vi.spyOn(window, 'fetch').mockResolvedValue(jsonResponse(configz))
 
@@ -359,7 +359,7 @@ describe('hosted auth pages 2', () => {
     expect(await screen.findByRole('heading', { name: 'Recover access for client.example.com.' })).toBeTruthy()
     expect(screen.getByText('Recover your hosted account before continuing to client.example.com.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe(
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
   })
 })

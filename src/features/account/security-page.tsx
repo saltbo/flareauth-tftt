@@ -304,7 +304,7 @@ async function revokeUserSession(session: UserSessionDevice, mutate: MutationHan
     try {
       await signOut()
     } finally {
-      window.location.assign('/sign-in')
+      window.location.assign('/auth/sign-in')
     }
   }
 }

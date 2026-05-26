@@ -62,7 +62,7 @@ export function ConsentPage() {
     }
   }
   const messageState = error !== null || (!loading && !consent)
-  const signInHref = `/sign-in${search}`
+  const signInHref = `/auth/sign-in${search}`
   return (
     <AuthLayout
       backHref={messageState ? signInHref : undefined}
@@ -149,7 +149,7 @@ export function ConsentPage() {
 
 export function signInWithReturnTo() {
   const current = `${window.location.pathname}${window.location.search}`
-  return `/sign-in?return_to=${encodeURIComponent(current)}`
+  return `/auth/sign-in?return_to=${encodeURIComponent(current)}`
 }
 
 function scopeDescription(scope: string) {

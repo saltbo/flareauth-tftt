@@ -171,7 +171,7 @@ describe('console dashboard guards', () => {
 
     render(<AppRouter />)
 
-    await waitFor(() => expect(window.location.pathname).toBe('/sign-in'))
+    await waitFor(() => expect(window.location.pathname).toBe('/auth/sign-in'))
     expect(new URLSearchParams(window.location.search).get('return_to')).toContain('/console/dashboard')
     expect(requests.filter((url) => url.startsWith('/api/management'))).toEqual([])
   })

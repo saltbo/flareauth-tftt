@@ -186,7 +186,7 @@ describe('AuthLayout', () => {
   it('renders compact message states with a back link and icon', () => {
     render(
       <AuthLayout
-        backHref="/sign-in"
+        backHref="/auth/sign-in"
         config={config}
         description="This request is no longer available."
         icon={<span aria-hidden="true">!</span>}
@@ -199,7 +199,7 @@ describe('AuthLayout', () => {
 
     expect(screen.getByRole('main', { name: 'Hosted authentication' }).className).toContain('authShell-message')
     expect(screen.getByRole('region', { name: 'Request expired.' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/sign-in')
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/auth/sign-in')
     expect(screen.getByText('!').closest('.authMessageIcon')).toBeTruthy()
     expect(screen.queryByText('Acme ID')).toBeNull()
   })

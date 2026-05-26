@@ -37,7 +37,7 @@ test('hosted sign-in does not show an empty-method warning when Phone is the onl
 
   const signedOutContext = await browser.newContext({ baseURL })
   const signedOutPage = await signedOutContext.newPage()
-  await signedOutPage.goto('/sign-in')
+  await signedOutPage.goto('/auth/sign-in')
   await expect(signedOutPage.getByRole('button', { name: 'Continue with Phone' })).toBeVisible()
   await expect(
     signedOutPage.getByText('No sign-in methods are enabled. Contact the workspace administrator.'),

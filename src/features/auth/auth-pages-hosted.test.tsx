@@ -165,7 +165,7 @@ describe('hosted auth pages 6', () => {
   })
 
   it('verifies email token links through native auth', async () => {
-    window.history.pushState(null, '', '/email-verification?token=token-1')
+    window.history.pushState(null, '', '/auth/email-verification?token=token-1')
     vi.spyOn(window, 'fetch').mockImplementation((input) => {
       const url = String(input)
       if (url === '/api/configz') return Promise.resolve(jsonResponse(configz))
@@ -192,7 +192,7 @@ describe('hosted auth pages 6', () => {
     render(<AuthCallbackPage />)
     expect(await screen.findByRole('heading', { name: 'Sign-in could not continue.' })).toBeTruthy()
     expect(screen.getByText('Denied')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/sign-in')
+    expect(screen.getByRole('link', { name: 'Back' }).getAttribute('href')).toBe('/auth/sign-in')
 
     cleanup()
     window.history.pushState(null, '', '/auth/callback?error=email_not_found')

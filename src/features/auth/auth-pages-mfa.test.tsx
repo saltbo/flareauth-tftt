@@ -153,7 +153,7 @@ describe('hosted auth pages 4', () => {
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('new-password')
 
     cleanup()
-    window.history.pushState(null, '', '/forgot-password')
+    window.history.pushState(null, '', '/auth/forgot-password')
     render(<ForgotPasswordPage />)
 
     fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'jane@example.com' } })
@@ -287,7 +287,7 @@ describe('hosted auth pages 4', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
@@ -319,7 +319,7 @@ describe('hosted auth pages 4', () => {
     window.history.pushState(
       null,
       '',
-      '/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
+      '/auth/sign-in?client_id=client-1&redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&state=state-1',
     )
     const requests: Array<{ url: string; body: unknown }> = []
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {

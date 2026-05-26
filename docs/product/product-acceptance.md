@@ -78,10 +78,10 @@ FlareAuth 1.0 is production ready only when all of these are true:
 | Route | 1.0 requirement | Gate |
 | --- | --- | --- |
 | `/` | Public product entry with API platform status and setup-aware CTA. | Redirects to `/onboarding` while first admin is required. |
-| `/sign-in` | Hosted sign-in page with enabled identifiers, password, email OTP, social connectors, and sign-up link. | Redirects to `/onboarding` while first admin is required. |
-| `/sign-up` | Hosted sign-up page with enabled identifiers and password requirements. | Redirects to `/onboarding` while first admin is required. |
-| `/forgot-password` | Hosted password recovery with email OTP request and reset completion. | Redirects to `/onboarding` while first admin is required. |
-| `/email-verification` | Hosted email verification request and OTP completion. | Redirects to `/onboarding` while first admin is required. |
+| `/auth/sign-in` | Hosted sign-in page with enabled identifiers, password, email OTP, social connectors, and sign-up link. | Redirects to `/onboarding` while first admin is required. |
+| `/auth/sign-up` | Hosted sign-up page with enabled identifiers and password requirements. | Redirects to `/onboarding` while first admin is required. |
+| `/auth/forgot-password` | Hosted password recovery with email OTP request and reset completion. | Redirects to `/onboarding` while first admin is required. |
+| `/auth/email-verification` | Hosted email verification request and OTP completion. | Redirects to `/onboarding` while first admin is required. |
 | `/oauth/consent` | Hosted consent screen for requested client, redirect URI, and scopes. | Requires authenticated user session after first-admin setup. |
 | `/auth/callback` | Hosted auth callback adapter route. | Uses auth boundary behavior. |
 | `/onboarding` | First-admin bootstrap only. | Reachable only while no admin exists. |
@@ -114,24 +114,24 @@ FlareAuth 1.0 is production ready only when all of these are true:
 
 | Route | 1.0 requirement | Gate |
 | --- | --- | --- |
-| `/admin` | Tenant health dashboard with recent resources and setup health. | Admin session required; redirects to `/admin/onboarding` when setup is incomplete. |
-| `/admin/onboarding` | Setup checklist and first OIDC client creation. Not shown in persistent navigation. | Admin session required; redirects to `/admin` after setup is complete. |
-| `/admin/applications` | Application list, create flow, status toggles, and OIDC metadata. | Admin session and setup gate. |
-| `/admin/applications/:id` | Application detail for redirect URIs, post sign-out URIs, CORS origins, grants, scopes, PKCE, client auth method, secrets, and disable state. | Admin session and setup gate. |
-| `/admin/users` | User list, search, create flow, status, password reset, and admin-role controls. | Admin session and setup gate. |
-| `/admin/users/:id` | User detail for profile, identifiers, sessions, roles, organizations, linked accounts, MFA/passkeys, and administrative flags. | Admin session and setup gate. |
-| `/admin/connectors` | Connector list, provider-template create flow, detail/edit dialog, enable/disable controls, readiness checks, and delete flow. | Admin session and setup gate. |
-| `/admin/connectors/:id` | Connector detail for provider type, client ID, secret binding, scopes, endpoints, enabled state, readiness, and sign-in availability. | Admin session and setup gate. |
-| `/admin/sign-in` | Sign-in experience settings, enabled methods, default app/redirect, and legal/support links. | Admin session and setup gate. |
-| `/admin/branding` | Hosted UI product name, logo, favicon, colors, custom CSS, preview, and deployment-owned branding state. | Admin session and setup gate. |
-| `/admin/security` | MFA mode, passkey relying-party config, allowed origins, session lifetime, fresh-age, cookie cache, and password policy readiness. | Admin session and setup gate. |
-| `/admin/organizations` | Organization list and create flow. | Admin session and setup gate. |
-| `/admin/organizations/:id` | Organization detail for metadata, members, M2M apps, role assignments, and require-MFA toggle. | Admin session and setup gate. |
-| `/admin/roles` | Role list and create flow for global, organization, API-resource, and application roles. | Admin session and setup gate. |
-| `/admin/roles/:id` | Role detail for key, name, scope, permissions, assignments, and system/custom status. | Admin session and setup gate. |
-| `/admin/api-resources` | API resource list and create flow. | Admin session and setup gate. |
-| `/admin/api-resources/:id` | API resource detail for identifier, audience, token lifetime, default API flag, scopes, and role assignments. | Admin session and setup gate. |
-| `/admin/deployment` | Cloudflare bindings, issuer, management API, health checks, migration status, email, queue, R2, and environment metadata. | Admin session and setup gate. |
+| `/console` | Tenant health dashboard with recent resources and setup health. | Admin session required; redirects to `/console/onboarding` when setup is incomplete. |
+| `/console/onboarding` | Setup checklist and first OIDC client creation. Not shown in persistent navigation. | Admin session required; redirects to `/console` after setup is complete. |
+| `/console/applications` | Application list, create flow, status toggles, and OIDC metadata. | Admin session and setup gate. |
+| `/console/applications/:id` | Application detail for redirect URIs, post sign-out URIs, CORS origins, grants, scopes, PKCE, client auth method, secrets, and disable state. | Admin session and setup gate. |
+| `/console/users` | User list, search, create flow, status, password reset, and admin-role controls. | Admin session and setup gate. |
+| `/console/users/:id` | User detail for profile, identifiers, sessions, roles, organizations, linked accounts, MFA/passkeys, and administrative flags. | Admin session and setup gate. |
+| `/console/connectors` | Connector list, provider-template create flow, detail/edit dialog, enable/disable controls, readiness checks, and delete flow. | Admin session and setup gate. |
+| `/console/connectors/:id` | Connector detail for provider type, client ID, secret binding, scopes, endpoints, enabled state, readiness, and sign-in availability. | Admin session and setup gate. |
+| `/console/sign-in-experience/sign-up-and-sign-in` | Sign-in experience settings, enabled methods, default app/redirect, and legal/support links. | Admin session and setup gate. |
+| `/console/sign-in-experience/branding` | Hosted UI product name, logo, favicon, colors, custom CSS, preview, and deployment-owned branding state. | Admin session and setup gate. |
+| `/console/security` | MFA mode, passkey relying-party config, allowed origins, session lifetime, fresh-age, cookie cache, and password policy readiness. | Admin session and setup gate. |
+| `/console/organizations` | Organization list and create flow. | Admin session and setup gate. |
+| `/console/organizations/:id` | Organization detail for metadata, members, M2M apps, role assignments, and require-MFA toggle. | Admin session and setup gate. |
+| `/console/roles` | Role list and create flow for global, organization, API-resource, and application roles. | Admin session and setup gate. |
+| `/console/roles/:id` | Role detail for key, name, scope, permissions, assignments, and system/custom status. | Admin session and setup gate. |
+| `/console/api-resources` | API resource list and create flow. | Admin session and setup gate. |
+| `/console/api-resources/:id` | API resource detail for identifier, audience, token lifetime, default API flag, scopes, and role assignments. | Admin session and setup gate. |
+| `/console/deployment` | Cloudflare bindings, issuer, management API, health checks, migration status, email, queue, R2, and environment metadata. | Admin session and setup gate. |
 
 Detail routes may ship after the current list pages, but they are part of the
 1.0 product contract and must be implemented before production readiness is
@@ -159,7 +159,7 @@ claimed.
 | --- | --- |
 | Applications | Name, slug, client ID, client type, description, homepage/icon, redirect URIs, post sign-out redirect URIs, CORS origins, grant types, scopes, PKCE, token endpoint auth method, secret metadata, first-party/trusted flags, disabled state. |
 | Connectors | Provider type, provider ID, display name, enabled state, client ID, secret binding, scopes, authorization URL, token URL, userinfo URL, icon/logo. |
-| Users | Search, identifiers, display name, avatar, role/admin state, banned state, email verification, password reset action, sessions, linked accounts, organizations, roles, MFA/passkeys. |
+| Users | Search, identifiers, display name, avatar, role/console state, banned state, email verification, password reset action, sessions, linked accounts, organizations, roles, MFA/passkeys. |
 | Sign-in experience | Password, sign-up, social login, email OTP, username, identifier-first, default application, default redirect URI, terms URI, privacy URI, support email, hosted copy. |
 | Branding | Product name, headline/description, logo URL, dark logo URL, favicon URL, primary color, dark primary color, background color, custom CSS, preview evidence. |
 | Security | MFA mode, TOTP enrollment, passkeys enabled, RP ID, RP name, WebAuthn origins, session expiration, session update age, fresh age, cookie cache, password policy readiness. |
@@ -184,7 +184,7 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
       "label": "Create an OIDC application",
       "description": "Register the first client so product routes can complete authorization code flows.",
       "status": "action_needed",
-      "href": "/admin/onboarding",
+      "href": "/console/onboarding",
       "action": "Create client"
     },
     {
@@ -192,7 +192,7 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
       "label": "Enable a sign-in method",
       "description": "Keep at least one hosted sign-in method available for users.",
       "status": "complete",
-      "href": "/admin/sign-in",
+      "href": "/console/sign-in-experience/sign-up-and-sign-in",
       "action": "Review methods"
     }
   ],
@@ -202,13 +202,13 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
       "label": "Confirm email delivery",
       "description": "Email binding and sender settings are needed for verification, OTP, and reset flows.",
       "status": "action_needed",
-      "href": "/admin/deployment",
+      "href": "/console/deployment",
       "action": "Review deployment"
     }
   ],
   "admin": {
     "setupRequired": true,
-    "setupHref": "/admin/onboarding",
+    "setupHref": "/console/onboarding",
     "missing": ["oidc_application"]
   }
 }
@@ -217,9 +217,9 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
 | State | Condition | Route behavior |
 | --- | --- | --- |
 | Fresh deployment | No admin user exists. | Every non-`/onboarding` product route redirects to `/onboarding`. |
-| First admin locked, setup incomplete | Admin exists, but a required readiness item is incomplete. Required items are the first OIDC application and at least one enabled sign-in method. | `/onboarding` redirects to `/admin/onboarding`; protected `/admin/*` routes redirect to `/admin/onboarding` after admin auth. |
-| Recommendations incomplete | Required items are complete, but email delivery, branding, security baseline, or connector status still needs review. | Admin routes are not blocked. `/admin/onboarding` redirects to `/admin`, and the dashboard/setup checklist can still surface recommendations. |
-| Setup complete | All required items are complete. | `/onboarding` and `/admin/onboarding` redirect to `/admin`; product routes are not trapped. |
+| First admin locked, setup incomplete | Admin exists, but a required readiness item is incomplete. Required items are the first OIDC application and at least one enabled sign-in method. | `/onboarding` redirects to `/console/onboarding`; protected `/console/*` routes redirect to `/console/onboarding` after admin auth. |
+| Recommendations incomplete | Required items are complete, but email delivery, branding, security baseline, or connector status still needs review. | Admin routes are not blocked. `/console/onboarding` redirects to `/console`, and the dashboard/setup checklist can still surface recommendations. |
+| Setup complete | All required items are complete. | `/onboarding` and `/console/onboarding` redirect to `/console`; product routes are not trapped. |
 
 ## Page Acceptance Matrix
 
@@ -239,7 +239,7 @@ Admin setup readiness is protected and read from `/api/management/readiness`:
 | Admin dashboard | Shows tenant health, resource counts, recent applications, readiness, and security/sign-in summary. |
 | Applications list/detail | Lists applications, creates clients, toggles disabled state, and detail page exposes redirect URI, post sign-out URI, CORS, grant, scope, PKCE, secret, and metadata controls. |
 | Connectors list/detail | Lists connectors, creates OAuth/OIDC social providers from templates, edits and deletes connector records, toggles enabled state, and detail view exposes provider endpoints, scopes, client ID, secret binding reference, readiness, and sign-in availability without exposing secret values. |
-| Users list/detail | Supports search, create user, password reset, admin-role toggle, and detail page exposes profile, identifiers, sessions, linked accounts, roles, organizations, MFA/passkeys, and ban/admin state. |
+| Users list/detail | Supports search, create user, password reset, admin-role toggle, and detail page exposes profile, identifiers, sessions, linked accounts, roles, organizations, MFA/passkeys, and ban/console state. |
 | Sign-in experience | Shows and persists enabled identifiers/methods, social login, default application/redirect, legal/support links, and hosted copy. |
 | Branding | Shows brand preview and persists product name, logos, favicon, colors, background, and custom CSS. |
 | Security | Shows and persists MFA mode, passkey/WebAuthn config, session policy, fresh-age, cookie cache, and password policy readiness. |
@@ -285,24 +285,24 @@ must include the review-environment acceptance path:
 
 ## Reviewer Acceptance Path
 
-1. Fresh/no-admin state: visit `/`, `/sign-in`, `/sign-up`, `/profile`,
-   `/account`, `/admin`, and `/admin/applications`; each route should
+1. Fresh/no-admin state: visit `/`, `/auth/sign-in`, `/auth/sign-up`, `/profile`,
+   `/account`, `/console`, and `/console/applications`; each route should
    reach `/onboarding`.
 2. Create the first admin at `/onboarding`; the form locks and routes the user
-   toward sign-in for `/admin/onboarding`.
-3. With an admin session and no OIDC application, visit `/admin/applications`;
-   it should redirect to `/admin/onboarding`, and the sidebar must not contain
+   toward sign-in for `/console/onboarding`.
+3. With an admin session and no OIDC application, visit `/console/applications`;
+   it should redirect to `/console/onboarding`, and the sidebar must not contain
    Onboarding.
-4. Create the first OIDC client from `/admin/onboarding`.
-5. With setup complete, visit `/onboarding` and `/admin/onboarding`; both should
-   land on `/admin`.
+4. Create the first OIDC client from `/console/onboarding`.
+5. With setup complete, visit `/onboarding` and `/console/onboarding`; both should
+   land on `/console`.
 6. Visit `/profile`; it should render the account surface and remain on `/profile`.
 7. Visit `/account`, `/account/profile`, `/account/security`,
    `/account/linked-accounts`, `/account/sessions`, and
    `/account/authorized-apps` directly; each route should redirect to
    `/profile`.
-8. Visit `/admin/applications`; create or choose an application, open
-   `/admin/applications/{id}`, edit redirect URIs, disable and re-enable the
+8. Visit `/console/applications`; create or choose an application, open
+   `/console/applications/{id}`, edit redirect URIs, disable and re-enable the
    client, copy the standard OIDC integration details, and verify confidential
    client secret metadata/one-time rotation when using a confidential client.
    Verify a product app can complete authorization code with PKCE from discovery

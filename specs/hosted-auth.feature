@@ -9,7 +9,7 @@ Feature: Hosted authentication
 
   @journey:public-sign-in
   Scenario: Hosted sign-in renders enabled methods
-    When I open /sign-in
+    When I open /auth/sign-in
     Then I see the hosted sign-in card
     And enabled tenant sign-in methods are visible
 
@@ -23,7 +23,7 @@ Feature: Hosted authentication
   @journey:password-sign-in
   Scenario: Password sign-in submits credentials to the real auth endpoint
     Given password sign-in is enabled
-    When I submit valid credentials on /sign-in
+    When I submit valid credentials on /auth/sign-in
     Then I am authenticated
     And I land in Account Center
 
@@ -44,7 +44,7 @@ Feature: Hosted authentication
   @journey:sign-up
   Scenario: Hosted sign-up creates an account
     Given public sign-up is enabled
-    When I submit name, email, username, and password on /sign-up
+    When I submit name, email, username, and password on /auth/sign-up
     Then the account is created through the real auth endpoint
     And the page shows next-step confirmation
 

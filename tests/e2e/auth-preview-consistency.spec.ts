@@ -36,7 +36,7 @@ test('hosted auth previews use the same enabled sign-in methods as the real host
 
   const publicContext = await browser.newContext({ baseURL })
   const publicPage = await publicContext.newPage()
-  await publicPage.goto('/sign-in')
+  await publicPage.goto('/auth/sign-in')
   await expect(publicPage.getByRole('button', { name: 'Continue with Email' })).toBeVisible()
   await expect(publicPage.getByRole('button', { name: 'Continue with Passkey' })).toBeVisible()
   await expect(publicPage.getByRole('button', { name: 'Continue with OneTap' })).toBeVisible()

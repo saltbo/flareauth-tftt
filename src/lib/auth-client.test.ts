@@ -106,7 +106,7 @@ describe('native auth client', () => {
     await signInWithUsername({ username: 'jane', password: 'password-1' })
     await signOut()
     await signUp({ email: 'jane@example.com', name: 'Jane', password: 'password-1', username: 'jane' })
-    await requestPasswordReset({ email: 'jane@example.com', redirectTo: '/forgot-password' })
+    await requestPasswordReset({ email: 'jane@example.com', redirectTo: '/auth/forgot-password' })
     await resetPassword({ token: 'token-1', newPassword: 'new-password' })
     await requestEmailVerification({ email: 'jane@example.com', callbackURL: '/account' })
     await requestEmailOtp({ email: 'jane@example.com', type: 'sign-in' })
