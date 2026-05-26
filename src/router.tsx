@@ -13,7 +13,7 @@ import { OidcCallbackRoute, OidcStartRoute } from '@/routes/oidc-callback'
 import { OnboardingRoute } from '@/routes/onboarding'
 import { SignInRoute } from '@/routes/sign-in'
 import { SignUpRoute } from '@/routes/sign-up'
-import { createConsoleRoutes } from './router/console-routes'
+import { createConsoleRoutes } from './routes/console-routes'
 
 export const queryClient = new QueryClient()
 
