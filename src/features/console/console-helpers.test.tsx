@@ -1,38 +1,34 @@
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { queryClient } from '@/router'
+import { clientConfig, clientTypeLabel, listItems, listValue } from './helpers/helpers-dialogs'
+import { hostedAuthMode, passwordSignupEnabled, previewSignInAction } from './helpers/helpers-preview'
 import {
   apiResourceDetailTabs,
-  clientConfig,
-  clientTypeLabel,
+  navigateConsoleTab,
+  organizationDetailTabs,
+  roleDetailTabs,
+  userDetailTabs,
+} from './helpers/helpers-resource'
+import {
   connectorFieldLabel,
   connectorToForm,
   connectorUpdateForm,
   customCssProperties,
-  dashboardChartLabels,
-  formatDashboardDate,
   formatDate,
   formatRole,
-  hostedAuthMode,
-  listItems,
-  listValue,
-  navigateConsoleTab,
   nullableFormValue,
   nullableString,
-  organizationDetailTabs,
   parseConnectorMetadata,
   parseCustomData,
   parseLineList,
   parseMetadata,
   parseTokenClaims,
-  passwordSignupEnabled,
-  previewSignInAction,
   removeBlankValues,
-  roleDetailTabs,
   shallowEqual,
-  userDetailTabs,
   userDisplayName,
-} from './console'
+} from './helpers/helpers-utils'
+import { dashboardChartLabels, formatDashboardDate } from './pages/dashboard-page'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}

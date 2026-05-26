@@ -10,7 +10,7 @@ import {
   useMutation,
   useState,
   type z,
-} from '../console'
+} from '../console-shared'
 
 export function parseForm<T extends z.ZodType>(schema: T, form: unknown): z.infer<T> {
   const result = schema.safeParse(removeBlankValues(form))

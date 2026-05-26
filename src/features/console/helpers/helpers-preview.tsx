@@ -18,11 +18,8 @@ import {
   DialogTitle,
   type ReactNode,
   RefreshCw,
-  ResourcePage,
-  RoutedSettingsTabs,
   Save,
   SettingRow,
-  SwitchRow,
   TableCell,
   TableRow,
   Trash2,
@@ -30,7 +27,9 @@ import {
   Undo2,
   type WebhookEndpoint,
   type WebhookRequest,
-} from '../console'
+} from '../console-shared'
+import { SwitchRow } from './helpers-dialogs'
+import { ResourcePage, RoutedSettingsTabs } from './helpers-resource'
 
 export function WebhookEndpointRow({
   endpoint,

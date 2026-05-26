@@ -1,14 +1,9 @@
+import { consoleQueryKeys, listRoles } from '@/lib/api/management'
 import {
-  consoleQueryKeys,
   EmptyState,
-  listRoles,
   type OrganizationTemplateSection,
   Plus,
-  ResourcePage,
-  RoutedSettingsTabs,
   SettingRow,
-  SettingsSection,
-  SettingsSections,
   Table,
   TableBody,
   TableCell,
@@ -16,12 +11,13 @@ import {
   TableHeader,
   TableRow,
   TextInput,
-  TokenCustomizationCard,
   tt,
   useEffect,
   useQuery,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { SettingsSection, SettingsSections, TokenCustomizationCard } from '../../helpers/helpers-preview'
+import { ResourcePage, RoutedSettingsTabs } from '../../helpers/helpers-resource'
 
 export function ConsolePlaceholderPage({
   description,

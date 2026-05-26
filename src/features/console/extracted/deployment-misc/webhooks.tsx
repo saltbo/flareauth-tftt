@@ -1,26 +1,21 @@
 import {
-  Button,
   consoleQueryKeys,
   createWebhookEndpoint,
-  createWebhookEndpointRequestSchema,
   deleteWebhookEndpoint,
-  Field,
-  type FormEvent,
-  formatDate,
-  ListToolbar,
   listWebhookEndpoints,
   listWebhookRequests,
-  Plus,
-  RefreshCw,
-  ResourcePage,
-  RoutedSettingsTabs,
   retryWebhookRequest,
   rotateWebhookEndpointSecret,
+  updateWebhookEndpoint,
+} from '@/lib/api/management'
+import {
+  Button,
+  createWebhookEndpointRequestSchema,
+  Field,
+  type FormEvent,
+  Plus,
+  RefreshCw,
   SelectInput,
-  SettingsSection,
-  SettingsSections,
-  StatusBadge,
-  SwitchRow,
   Table,
   TableBody,
   TableCell,
@@ -30,19 +25,24 @@ import {
   TableRow,
   TextInput,
   tt,
-  updateWebhookEndpoint,
-  useAdminMutation,
   useQuery,
   useQueryClient,
   useState,
-  WebhookEndpointRow,
   type WebhookEvent,
   type WebhookRequest,
-  WebhookRequestDialog,
-  WebhookSecretDisclosureDialog,
   type WebhooksSection,
   webhookEvents,
-} from '../../console'
+} from '../../console-shared'
+import { StatusBadge, SwitchRow } from '../../helpers/helpers-dialogs'
+import {
+  SettingsSection,
+  SettingsSections,
+  WebhookEndpointRow,
+  WebhookRequestDialog,
+  WebhookSecretDisclosureDialog,
+} from '../../helpers/helpers-preview'
+import { ListToolbar, ResourcePage, RoutedSettingsTabs } from '../../helpers/helpers-resource'
+import { formatDate, useAdminMutation } from '../../helpers/helpers-utils'
 
 export function WebhooksPage({ section = 'endpoints' }: { section?: WebhooksSection }) {
   const selectedTab = section

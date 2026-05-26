@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ApplicationBrandingPage } from '@/features/console/console'
+import { ApplicationBrandingPage } from '@/features/console/extracted/applications/application-detail-pages'
 
 export const Route = createFileRoute('/console/applications/$applicationId/branding')({
   component: ApplicationBrandingRoute,

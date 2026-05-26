@@ -17,19 +17,18 @@ import {
   type FormEvent,
   type FormState,
   LinkButton,
-  listValue,
   managementCreateUserRequestSchema,
-  parseForm,
   type ReactNode,
   SelectInput,
   SettingRow,
-  setValue,
   TextArea,
   TextInput,
   tt,
   useState,
   type z,
-} from '../console'
+} from '../console-shared'
+import { listValue } from './helpers-dialogs'
+import { parseForm, setValue } from './helpers-utils'
 
 export function CreateApplicationDialog({
   createdApplication,

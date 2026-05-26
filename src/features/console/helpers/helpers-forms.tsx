@@ -3,7 +3,6 @@ import {
   Field,
   type FormState,
   ImageUp,
-  MutationError,
   optionalAuthorizationFieldNames,
   Save,
   TextInput,
@@ -11,7 +10,8 @@ import {
   tt,
   useId,
   useState,
-} from '../console'
+} from '../console-shared'
+import { MutationError } from './helpers-dialogs'
 
 export function AuthorizationForm({
   buttonLabel,

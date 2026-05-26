@@ -1,35 +1,36 @@
 import {
-  AssetUploadControl,
-  ChangesSection,
   consoleQueryKeys,
-  Field,
-  type FormEvent,
   getBrandingSettings,
   getSecurityPolicy,
   getSignInSettings,
-  HostedAuthPreview,
+  updateBrandingSettings,
+  uploadBrandingFavicon,
+  uploadBrandingLogo,
+} from '@/lib/api/management'
+import {
+  Field,
+  type FormEvent,
   type HostedAuthPreviewState,
-  nullableString,
-  removeBlankValues,
-  SettingsSection,
-  SettingsSections,
-  SignInExperienceEditorLayout,
-  SignInExperiencePage,
-  shallowEqual,
   TextArea,
   TextInput,
   tt,
-  updateBrandingSettings,
   updateManagementBrandingSettingsRequestSchema,
-  uploadBrandingFavicon,
-  uploadBrandingLogo,
-  useAdminMutation,
-  useConnectorPreviewProviders,
   useEffect,
   useQuery,
   useQueryClient,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { useConnectorPreviewProviders } from '../../helpers/helpers-dialogs'
+import { AssetUploadControl } from '../../helpers/helpers-forms'
+import {
+  ChangesSection,
+  HostedAuthPreview,
+  SettingsSection,
+  SettingsSections,
+  SignInExperienceEditorLayout,
+  SignInExperiencePage,
+} from '../../helpers/helpers-preview'
+import { nullableString, removeBlankValues, shallowEqual, useAdminMutation } from '../../helpers/helpers-utils'
 
 export function BrandingPage() {
   const query = useQuery({

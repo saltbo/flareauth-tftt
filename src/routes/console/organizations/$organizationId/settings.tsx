@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { OrganizationDetailPage } from '@/features/console/console'
+import { OrganizationDetailPage } from '@/features/console/extracted/organizations'
 
 export const Route = createFileRoute('/console/organizations/$organizationId/settings')({
   component: OrganizationSettingsRoute,

@@ -1,3 +1,4 @@
+import { consoleQueryKeys, listConnectors } from '@/lib/api/management'
 import {
   AlertCircle,
   type ApplicationResponse,
@@ -8,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
   Copy,
-  consoleQueryKeys,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,7 +17,6 @@ import {
   DialogTitle,
   emptyConnectorsResponse,
   Field,
-  listConnectors,
   type ReactNode,
   RefreshCw,
   SettingRow,
@@ -26,7 +25,7 @@ import {
   tt,
   useQuery,
   useState,
-} from '../console'
+} from '../console-shared'
 
 export function SummaryRow({ meta, status, title }: { meta: string; status: ReactNode; title: string }) {
   return (

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, SettingRow, tt } from '../console'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, SettingRow, tt } from '../console-shared'
 
 export function RoleSummaryCard({
   permissionCount,

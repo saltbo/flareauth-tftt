@@ -9,17 +9,13 @@ import {
   CardHeader,
   CardTitle,
   ConsoleActionBar,
-  clientTypeLabel,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreHorizontal,
-  MutationError,
   Save,
-  StatusBadge,
-  SwitchRow,
   Table,
   TableBody,
   TableCell,
@@ -30,7 +26,8 @@ import {
   tt,
   useEffect,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { clientTypeLabel, MutationError, StatusBadge, SwitchRow } from '../../helpers/helpers-dialogs'
 
 type OidcClaimDestination = keyof ApplicationOidcClaims
 type OidcClaimKey = keyof ApplicationOidcClaims[OidcClaimDestination]

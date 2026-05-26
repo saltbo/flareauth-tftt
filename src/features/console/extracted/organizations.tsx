@@ -1,31 +1,22 @@
 import {
-  AssetUploadControl,
-  AuthorizationForm,
+  consoleQueryKeys,
+  createOrganization,
+  getOrganization,
+  listOrganizations,
+  updateOrganization,
+  uploadOrganizationLogo,
+} from '@/lib/api/management'
+import {
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  consoleQueryKeys,
-  createOrganization,
   createOrganizationRequestSchema,
-  DetailTabs,
-  formatDate,
-  getOrganization,
-  ListToolbar,
-  listOrganizations,
-  navigateConsoleTab,
-  nullableString,
-  ObjectHeader,
   type OrganizationDetailSection,
-  organizationDetailTabs,
   Plus,
-  parseForm,
-  ResourcePage,
   SettingRow,
-  SimpleCreateDialog,
-  StatusBadge,
   Table,
   TableBody,
   TableCell,
@@ -36,10 +27,7 @@ import {
   TextInput,
   tt,
   Undo2,
-  updateOrganization,
   updateOrganizationRequestSchema,
-  uploadOrganizationLogo,
-  useAdminMutation,
   useEffect,
   useMutation,
   useNavigate,
@@ -47,7 +35,19 @@ import {
   useQueryClient,
   useState,
   type z,
-} from '../console'
+} from '../console-shared'
+import { SimpleCreateDialog } from '../helpers/helpers-create'
+import { StatusBadge } from '../helpers/helpers-dialogs'
+import { AssetUploadControl, AuthorizationForm } from '../helpers/helpers-forms'
+import {
+  DetailTabs,
+  ListToolbar,
+  navigateConsoleTab,
+  ObjectHeader,
+  organizationDetailTabs,
+  ResourcePage,
+} from '../helpers/helpers-resource'
+import { formatDate, nullableString, parseForm, useAdminMutation } from '../helpers/helpers-utils'
 
 export function OrganizationsPage() {
   const query = useQuery({

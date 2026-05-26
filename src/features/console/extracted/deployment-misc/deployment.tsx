@@ -1,13 +1,6 @@
+import { consoleQueryKeys, getSecurityPolicy } from '@/lib/api/management'
 import {
-  consoleQueryKeys,
-  getSecurityPolicy,
-  PolicyCard,
-  ResourcePage,
-  RoutedSettingsTabs,
   SettingRow,
-  SettingsSection,
-  SettingsSections,
-  StatusBadge,
   Table,
   TableBody,
   TableCell,
@@ -21,7 +14,10 @@ import {
   tt,
   useQuery,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { PolicyCard, StatusBadge } from '../../helpers/helpers-dialogs'
+import { SettingsSection, SettingsSections } from '../../helpers/helpers-preview'
+import { ResourcePage, RoutedSettingsTabs } from '../../helpers/helpers-resource'
 
 export function DeploymentSettingsPage() {
   const query = useQuery({

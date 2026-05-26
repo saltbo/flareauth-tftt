@@ -1,40 +1,31 @@
 import {
-  AuthorizationForm,
   assignApplicationRole,
   assignMemberRole,
-  type assignRoleRequestSchema,
   assignUserRole,
+  consoleQueryKeys,
+  createRole,
+  deleteRole,
+  getRole,
+  listApiPermissions,
+  listApiResources,
+  listRolePermissions,
+  listRoles,
+  replaceRolePermissions,
+  updateRole,
+} from '@/lib/api/management'
+import {
+  type assignRoleRequestSchema,
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  CreateRoleDialog,
-  consoleQueryKeys,
-  createRole,
-  DetailTabs,
-  deleteRole,
   Field,
-  getRole,
-  ListToolbar,
-  listApiPermissions,
-  listApiResources,
-  listRolePermissions,
-  listRoles,
-  MutationError,
-  navigateConsoleTab,
-  ObjectHeader,
   Plus,
-  parseForm,
-  parseTokenClaims,
-  ResourcePage,
   type RoleDetailSection,
-  replaceRolePermissions,
-  roleDetailTabs,
   Save,
   SelectInput,
-  StatusBadge,
   Table,
   TableBody,
   TableCell,
@@ -47,9 +38,7 @@ import {
   Trash2,
   tt,
   Undo2,
-  updateRole,
   updateRoleRequestSchema,
-  useAdminMutation,
   useEffect,
   useMutation,
   useNavigate,
@@ -57,7 +46,19 @@ import {
   useQueryClient,
   useState,
   type z,
-} from '../console'
+} from '../console-shared'
+import { CreateRoleDialog } from '../helpers/helpers-create'
+import { MutationError, StatusBadge } from '../helpers/helpers-dialogs'
+import { AuthorizationForm } from '../helpers/helpers-forms'
+import {
+  DetailTabs,
+  ListToolbar,
+  navigateConsoleTab,
+  ObjectHeader,
+  ResourcePage,
+  roleDetailTabs,
+} from '../helpers/helpers-resource'
+import { parseForm, parseTokenClaims, useAdminMutation } from '../helpers/helpers-utils'
 import { RoleSummaryCard } from './role-summary-card'
 
 export function RolesPage() {

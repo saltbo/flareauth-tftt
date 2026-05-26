@@ -1,35 +1,28 @@
+import { consoleQueryKeys, getSecurityPolicy, updateSecurityPolicy } from '@/lib/api/management'
 import {
-  ChangesSection,
-  consoleQueryKeys,
   Field,
-  getSecurityPolicy,
   KeyRound,
   LifeBuoy,
-  lines,
   Mail,
-  MutationError,
   type ReactNode,
-  ResourcePage,
-  SecuritySectionTabs,
   SelectInput,
   SettingRow,
-  SettingsSection,
-  SettingsSections,
-  SignInSettingsPage,
   Smartphone,
   Switch,
-  SwitchRow,
-  shallowEqual,
   TextArea,
   TextInput,
   tt,
-  updateSecurityPolicy,
   useEffect,
   useMutation,
   useQuery,
   useQueryClient,
   useState,
-} from '../console'
+} from '../console-shared'
+import { MutationError, SwitchRow } from '../helpers/helpers-dialogs'
+import { ChangesSection, SettingsSection, SettingsSections } from '../helpers/helpers-preview'
+import { lines, ResourcePage, SecuritySectionTabs } from '../helpers/helpers-resource'
+import { shallowEqual } from '../helpers/helpers-utils'
+import { SignInSettingsPage } from './sign-in-settings'
 
 export function MfaPage() {
   const query = useQuery({

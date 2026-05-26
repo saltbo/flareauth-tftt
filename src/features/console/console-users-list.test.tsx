@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRouter, queryClient } from '@/router'
-import { UsersPage } from './console'
+import { UsersPage } from './extracted/users/users-list'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}

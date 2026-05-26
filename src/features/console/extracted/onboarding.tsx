@@ -1,5 +1,5 @@
+import { consoleQueryKeys, createApplication, getAdminReadiness } from '@/lib/api/management'
 import {
-  ApplicationTypeCards,
   Badge,
   Button,
   Card,
@@ -8,24 +8,20 @@ import {
   CardHeader,
   CardTitle,
   Copy,
-  consoleQueryKeys,
-  createApplication,
   createApplicationRequestSchema,
   Field,
-  getAdminReadiness,
   Plus,
-  parseForm,
-  ResourcePage,
   SettingRow,
-  SetupChecklist,
   TextArea,
   TextInput,
   tt,
-  useAdminMutation,
   useQuery,
   useQueryClient,
   useState,
-} from '../console'
+} from '../console-shared'
+import { ApplicationTypeCards } from '../helpers/helpers-create'
+import { ResourcePage, SetupChecklist } from '../helpers/helpers-resource'
+import { parseForm, useAdminMutation } from '../helpers/helpers-utils'
 
 export function ConsoleOnboardingPage() {
   const queryClient = useQueryClient()

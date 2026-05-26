@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { queryClient } from '@/router'
-import { ApiResourceDetailPage, ApiResourcesPage, ConsolePlaceholderPage, RoleDetailPage, RolesPage } from './console'
+import { ApiResourceDetailPage, ApiResourcesPage } from './extracted/api-resources'
+import { ConsolePlaceholderPage } from './extracted/deployment-misc/misc'
+import { RoleDetailPage, RolesPage } from './extracted/roles'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}

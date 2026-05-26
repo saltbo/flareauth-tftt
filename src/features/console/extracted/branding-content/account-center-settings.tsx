@@ -1,23 +1,17 @@
+import { consoleQueryKeys, getAccountCenterSettings, updateAccountCenterSettings } from '@/lib/api/management'
 import {
   Button,
-  ChangesSection,
-  consoleQueryKeys,
   ExternalLink,
   type FormEvent,
-  getAccountCenterSettings,
-  SettingsSection,
-  SettingsSections,
-  SignInExperiencePage,
-  SwitchRow,
-  shallowEqual,
   tt,
-  updateAccountCenterSettings,
-  useAdminMutation,
   useEffect,
   useQuery,
   useQueryClient,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { SwitchRow } from '../../helpers/helpers-dialogs'
+import { ChangesSection, SettingsSection, SettingsSections, SignInExperiencePage } from '../../helpers/helpers-preview'
+import { shallowEqual, useAdminMutation } from '../../helpers/helpers-utils'
 
 export function AccountCenterSettingsPage() {
   const query = useQuery({

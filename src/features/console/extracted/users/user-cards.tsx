@@ -8,22 +8,17 @@ import {
   CardTitle,
   Field,
   type FormState,
-  formatDate,
-  formatRole,
   type ManagementUserResponse,
-  MutationError,
   managementUpdateUserRequestSchema,
-  nullableString,
-  parseForm,
   SelectInput,
   SettingRow,
-  SummaryRow,
-  setValue,
   TextInput,
   tt,
   useState,
   type z,
-} from '../../console'
+} from '../../console-shared'
+import { MutationError, SummaryRow } from '../../helpers/helpers-dialogs'
+import { formatDate, formatRole, nullableString, parseForm, setValue } from '../../helpers/helpers-utils'
 
 export function UserProfileCard({
   error,

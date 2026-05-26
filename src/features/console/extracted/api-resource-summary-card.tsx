@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, formatDate, SettingRow, tt } from '../console'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, SettingRow, tt } from '../console-shared'
+import { formatDate } from '../helpers/helpers-utils'
 
 export function ApiResourceSummaryCard({
   permissionsCount,

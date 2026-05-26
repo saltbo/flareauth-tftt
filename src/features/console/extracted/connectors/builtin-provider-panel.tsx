@@ -6,7 +6,6 @@ import {
   SettingRow,
   type SmsProviderId,
   Switch,
-  shallowEqual,
   smsProviderOptions,
   TextInput,
   tt,
@@ -14,7 +13,8 @@ import {
   useEffect,
   useState,
   type z,
-} from '../../console'
+} from '../../console-shared'
+import { shallowEqual } from '../../helpers/helpers-utils'
 import {
   BuiltInProviderSwitch,
   BuiltinProviderForm,

@@ -3,7 +3,6 @@ import {
   Button,
   type CSSProperties,
   cn,
-  customCssProperties,
   Eye,
   type HostedAuthPreviewFlow,
   type HostedAuthPreviewState,
@@ -19,7 +18,8 @@ import {
   TabsTrigger,
   tt,
   useState,
-} from '../console'
+} from '../console-shared'
+import { customCssProperties } from './helpers-utils'
 
 export function HostedAuthPreview({ preview }: { preview: HostedAuthPreviewState }) {
   const [surface, setSurface] = useState<SignInPreviewSurface>('desktop')

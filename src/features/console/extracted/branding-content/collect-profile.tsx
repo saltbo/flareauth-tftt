@@ -1,4 +1,5 @@
-import { SettingRow, SettingsSection, SettingsSections, SignInExperiencePage, tt } from '../../console'
+import { SettingRow, tt } from '../../console-shared'
+import { SettingsSection, SettingsSections, SignInExperiencePage } from '../../helpers/helpers-preview'
 
 export function CollectUserProfilePage() {
   return (

@@ -9,8 +9,6 @@ import {
   createElement,
   type DetailTab,
   EmptyState,
-  ErrorState,
-  LoadingState,
   type ManagementReadinessItem,
   PageHeader,
   type ReactNode,
@@ -18,7 +16,8 @@ import {
   TabsList,
   TabsTrigger,
   useNavigate,
-} from '../console'
+} from '../console-shared'
+import { ErrorState, LoadingState } from './helpers-dialogs'
 
 export function ResourcePage({
   action,

@@ -1,36 +1,38 @@
 import {
-  ChangesSection,
   consoleQueryKeys,
-  Field,
-  type FormEvent,
   getBrandingSettings,
   getSecurityPolicy,
   getSignInSettings,
-  HostedAuthPreview,
+  updateSecurityPolicy,
+  updateSignInSettings,
+} from '@/lib/api/management'
+import {
+  Field,
+  type FormEvent,
   type HostedAuthPreviewState,
-  lines,
   SelectInput,
-  SettingsSection,
-  SettingsSections,
-  SignInExperienceEditorLayout,
-  SignInExperiencePage,
   Switch,
-  SwitchRow,
-  shallowEqual,
   TextArea,
   TextInput,
   tt,
   updateManagementSignInSettingsRequestSchema,
-  updateSecurityPolicy,
-  updateSignInSettings,
-  useAdminMutation,
-  useConnectorPreviewProviders,
   useEffect,
   useMutation,
   useQuery,
   useQueryClient,
   useState,
-} from '../console'
+} from '../console-shared'
+import { SwitchRow, useConnectorPreviewProviders } from '../helpers/helpers-dialogs'
+import {
+  ChangesSection,
+  HostedAuthPreview,
+  SettingsSection,
+  SettingsSections,
+  SignInExperienceEditorLayout,
+  SignInExperiencePage,
+} from '../helpers/helpers-preview'
+import { lines } from '../helpers/helpers-resource'
+import { shallowEqual, useAdminMutation } from '../helpers/helpers-utils'
 
 export function SignInSettingsPage() {
   const query = useQuery({

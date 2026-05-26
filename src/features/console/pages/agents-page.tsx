@@ -18,7 +18,7 @@ import {
   revokeAgentHost,
 } from '@/lib/api/management'
 import { tt } from '@/lib/i18n'
-import { ResourcePage } from '../console'
+import { ResourcePage } from '../helpers/helpers-resource'
 import { MetricCard } from './dashboard-page'
 
 export function AgentsPage() {

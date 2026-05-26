@@ -1,17 +1,15 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { queryClient } from '@/router'
-import {
-  ApiResourcesPage,
-  ApplicationsPage,
-  ConnectorsPage,
-  ConsoleDashboardPage,
-  MfaPage,
-  OrganizationsPage,
-  RolesPage,
-  SignInSettingsPage,
-  UsersPage,
-} from './console'
+import { ApiResourcesPage } from './extracted/api-resources'
+import { ApplicationsPage } from './extracted/applications/applications-list'
+import { ConnectorsPage } from './extracted/connectors'
+import { OrganizationsPage } from './extracted/organizations'
+import { RolesPage } from './extracted/roles'
+import { MfaPage } from './extracted/security-settings'
+import { SignInSettingsPage } from './extracted/sign-in-settings'
+import { UsersPage } from './extracted/users/users-list'
+import { ConsoleDashboardPage } from './pages/dashboard-page'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}

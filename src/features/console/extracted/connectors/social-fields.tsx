@@ -2,15 +2,14 @@ import {
   Button,
   type ConnectorTemplate,
   Copy,
-  connectorFieldLabel,
   Field,
   type FormState,
   type SetStateAction,
-  setValue,
   TextInput,
   tt,
   useId,
-} from '../../console'
+} from '../../console-shared'
+import { connectorFieldLabel, setValue } from '../../helpers/helpers-utils'
 
 export function CallbackUrlField({ value }: { value: string }) {
   const id = useId()

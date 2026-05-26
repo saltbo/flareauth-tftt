@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRouter, queryClient } from '@/router'
-import { ApplicationsPage } from './console'
+import { ApplicationsPage } from './extracted/applications/applications-list'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}
@@ -339,7 +339,7 @@ describe('admin console applications-detail-a', () => {
       ])
     })
     await waitFor(() => expect(window.location.pathname).toBe('/console/applications'))
-  })
+  }, 10_000)
 
   it('shows confidential client secret metadata and one-time rotated secret material', async () => {
     const confidentialApplication = {

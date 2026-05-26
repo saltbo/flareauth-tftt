@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import type { AdminDashboard } from '@/lib/api/management'
 import { consoleQueryKeys, getAdminDashboard } from '@/lib/api/management'
 import { tt } from '@/lib/i18n'
-import { ErrorState, LoadingState } from '../console'
+import { ErrorState, LoadingState } from '../helpers/helpers-dialogs'
 
 export function ConsoleDashboardPage() {
   const query = useQuery({

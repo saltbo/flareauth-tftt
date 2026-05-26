@@ -1,16 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRouter, queryClient } from '@/router'
-import {
-  AccountCenterSettingsPage,
-  BrandingPage,
-  ConnectorsPage,
-  ContentSettingsPage,
-  CustomizeJwtPage,
-  DeploymentSettingsPage,
-  SignInSettingsPage,
-  WebhooksPage,
-} from './console'
+import { AccountCenterSettingsPage } from './extracted/branding-content/account-center-settings'
+import { BrandingPage } from './extracted/branding-content/branding'
+import { ContentSettingsPage } from './extracted/branding-content/content-settings'
+import { ConnectorsPage } from './extracted/connectors'
+import { DeploymentSettingsPage } from './extracted/deployment-misc/deployment'
+import { CustomizeJwtPage } from './extracted/deployment-misc/misc'
+import { WebhooksPage } from './extracted/deployment-misc/webhooks'
+import { SignInSettingsPage } from './extracted/sign-in-settings'
 
 globalThis.ResizeObserver ??= class ResizeObserver {
   disconnect() {}

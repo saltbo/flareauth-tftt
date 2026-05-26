@@ -1,23 +1,14 @@
+import { consoleQueryKeys, createUser, listUsers, requestPasswordReset, updateUser } from '@/lib/api/management'
 import {
   Button,
-  CreateUserDialog,
-  consoleQueryKeys,
-  createUser,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  formatDate,
-  formatRole,
-  ListToolbar,
-  listUsers,
   MoreHorizontal,
   Plus,
-  ResourcePage,
-  requestPasswordReset,
   SelectInput,
-  StatusBadge,
   Table,
   TableBody,
   TableCell,
@@ -27,13 +18,14 @@ import {
   TableRow,
   TextInput,
   tt,
-  updateUser,
-  useAdminMutation,
   useQuery,
   useQueryClient,
-  userDisplayName,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { CreateUserDialog } from '../../helpers/helpers-create'
+import { StatusBadge } from '../../helpers/helpers-dialogs'
+import { ListToolbar, ResourcePage } from '../../helpers/helpers-resource'
+import { formatDate, formatRole, useAdminMutation, userDisplayName } from '../../helpers/helpers-utils'
 
 export function UsersPage() {
   const [search, setSearch] = useState('')

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { UserSecurityPage } from '@/features/console/console'
+import { UserSecurityPage } from '@/features/console/extracted/users/user-detail-pages'
 
 export const Route = createFileRoute('/console/users/$userId/security')({
   component: UserSecurityRoute,

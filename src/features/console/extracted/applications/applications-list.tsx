@@ -1,24 +1,20 @@
+import { consoleQueryKeys, createApplication, listApplications, updateApplication } from '@/lib/api/management'
 import {
   Button,
-  CreateApplicationDialog,
-  consoleQueryKeys,
-  createApplication,
-  ListToolbar,
-  listApplications,
   Plus,
-  ResourcePage,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
   TextInput,
   tt,
-  updateApplication,
-  useAdminMutation,
   useQuery,
   useQueryClient,
   useState,
-} from '../../console'
+} from '../../console-shared'
+import { CreateApplicationDialog } from '../../helpers/helpers-create'
+import { ListToolbar, ResourcePage } from '../../helpers/helpers-resource'
+import { useAdminMutation } from '../../helpers/helpers-utils'
 import { ApplicationsTableContent } from './application-detail-sections'
 
 export function ApplicationsPage() {

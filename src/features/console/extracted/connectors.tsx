@@ -1,25 +1,24 @@
 import {
-  Button,
-  ConfirmDialog,
-  type ConnectorResponse,
-  connectorToForm,
-  connectorUpdateForm,
   consoleQueryKeys,
   createConnector,
-  createManagementConnectorRequestSchema,
   deleteConnector,
-  emptyForm,
-  type FormState,
   getConnector,
   getSecurityPolicy,
   getSignInSettings,
   listConnectors,
   listConnectorTemplates,
+  updateConnector,
+  updateSecurityPolicy,
+  updateSignInSettings,
+} from '@/lib/api/management'
+import {
+  Button,
+  type ConnectorResponse,
+  createManagementConnectorRequestSchema,
+  emptyForm,
+  type FormState,
   type ManagementSignInSettingsResponse,
   ProviderIcon,
-  parseConnectorMetadata,
-  parseForm,
-  ResourcePage,
   type SecurityPolicy,
   Sheet,
   SheetClose,
@@ -27,9 +26,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  StatusBadge,
   Switch,
-  setValue,
   Table,
   TableBody,
   TableCell,
@@ -38,18 +35,25 @@ import {
   TableRow,
   Trash2,
   tt,
-  updateConnector,
   updateManagementConnectorRequestSchema,
   type updateManagementSignInSettingsRequestSchema,
-  updateSecurityPolicy,
-  updateSignInSettings,
-  useAdminMutation,
   useEffect,
   useQuery,
   useQueryClient,
   useState,
   type z,
-} from '../console'
+} from '../console-shared'
+import { ConfirmDialog } from '../helpers/helpers-create'
+import { StatusBadge } from '../helpers/helpers-dialogs'
+import { ResourcePage } from '../helpers/helpers-resource'
+import {
+  connectorToForm,
+  connectorUpdateForm,
+  parseConnectorMetadata,
+  parseForm,
+  setValue,
+  useAdminMutation,
+} from '../helpers/helpers-utils'
 import { BuiltinProviderPanel } from './connectors/builtin-provider-panel'
 import { type ConnectorProviderRow, connectorProviderRows } from './connectors/provider-rows'
 import { CallbackUrlField, ConnectorDynamicFields, connectorCallbackUrl } from './connectors/social-fields'

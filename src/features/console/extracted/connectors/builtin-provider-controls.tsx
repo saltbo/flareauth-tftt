@@ -10,7 +10,7 @@ import {
   Switch,
   TextInput,
   tt,
-} from '../../console'
+} from '../../console-shared'
 
 export function BuiltinProviderForm({
   children,
