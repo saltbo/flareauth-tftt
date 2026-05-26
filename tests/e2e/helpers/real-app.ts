@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { expect, type Page } from '@playwright/test'
+import { e2eFetch } from './http'
 
 export const admin = {
   email: 'admin@example.com',
@@ -401,7 +402,7 @@ export function walletAddressRows(address: string) {
 }
 
 export async function bootstrapAdmin() {
-  const response = await fetch(`${baseURL}/api/onboarding/admin-users`, {
+  const response = await e2eFetch(baseURL, '/api/onboarding/admin-users', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(admin),
