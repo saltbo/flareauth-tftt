@@ -128,6 +128,65 @@ describe('auth device authorization endpoints', () => {
     expect(body.refresh_token).toEqual(expect.any(String))
   })
 
+  it('returns pending and slow_down errors through the OAuth token endpoint', async () => {
+    const auth = createDeviceOAuthAuth()
+    const client = await registerDeviceClient(auth)
+    await requestOAuthDeviceCode(auth, client.client_id)
+
+    const pending = await pollOAuthDeviceToken(auth, client.client_id)
+    expect(pending.status).toBe(400)
+    await expect(pending.json()).resolves.toMatchObject({ error: 'authorization_pending' })
+
+    const slowDown = await pollOAuthDeviceToken(auth, client.client_id)
+    expect(slowDown.status).toBe(400)
+    await expect(slowDown.json()).resolves.toMatchObject({ error: 'slow_down' })
+  })
+
+  it('returns denial and expiration errors through the OAuth token endpoint', async () => {
+    const deniedAuth = createDeviceOAuthAuth()
+    const deniedClient = await registerDeviceClient(deniedAuth)
+    await requestOAuthDeviceCode(deniedAuth, deniedClient.client_id)
+    const deniedCookie = await createBrowserSession(deniedAuth)
+    await requestJson(deniedAuth, '/device?user_code=USERCODE', undefined, { method: 'GET', cookie: deniedCookie })
+    const denial = await requestJson(deniedAuth, '/device/deny', { userCode: 'USERCODE' }, { cookie: deniedCookie })
+    expect(denial.status).toBe(200)
+
+    const deniedToken = await pollOAuthDeviceToken(deniedAuth, deniedClient.client_id)
+    expect(deniedToken.status).toBe(400)
+    await expect(deniedToken.json()).resolves.toMatchObject({ error: 'access_denied' })
+
+    const expiredAuth = createDeviceOAuthAuth({ expiresIn: '1s' })
+    const expiredClient = await registerDeviceClient(expiredAuth)
+    await requestOAuthDeviceCode(expiredAuth, expiredClient.client_id)
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+
+    const expiredToken = await pollOAuthDeviceToken(expiredAuth, expiredClient.client_id)
+    expect(expiredToken.status).toBe(400)
+    await expect(expiredToken.json()).resolves.toMatchObject({ error: 'expired_token' })
+  })
+
+  it('rejects OAuth device-code polling for client mismatch and disallowed grants', async () => {
+    const mismatchAuth = createDeviceOAuthAuth()
+    const codeClient = await registerDeviceClient(mismatchAuth, { client_name: 'Code Client' })
+    const pollingClient = await registerDeviceClient(mismatchAuth, { client_name: 'Polling Client' })
+    await requestOAuthDeviceCode(mismatchAuth, codeClient.client_id)
+
+    const mismatch = await pollOAuthDeviceToken(mismatchAuth, pollingClient.client_id)
+    expect(mismatch.status).toBe(400)
+    await expect(mismatch.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+
+    const grantAuth = createDeviceOAuthAuth()
+    const clientWithoutGrant = await registerDeviceClient(grantAuth, {
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+    })
+    await requestOAuthDeviceCode(grantAuth, clientWithoutGrant.client_id)
+
+    const disallowedGrant = await pollOAuthDeviceToken(grantAuth, clientWithoutGrant.client_id)
+    expect(disallowedGrant.status).toBe(400)
+    await expect(disallowedGrant.json()).resolves.toMatchObject({ error: 'invalid_client' })
+  })
+
   it('returns denial and expiration polling errors through the Better Auth token endpoint', async () => {
     const deniedAuth = createDeviceAuth()
     await requestJson(deniedAuth, '/device/code', { client_id: 'native', scope: 'openid' })
@@ -184,7 +243,7 @@ function createDeviceAuth(options: { clients?: Record<string, ApplicationAggrega
   })
 }
 
-function createDeviceOAuthAuth() {
+function createDeviceOAuthAuth(options: { expiresIn?: '1s' | '30m' } = {}) {
   return betterAuth({
     appName: 'FlareAuth',
     secret: '01234567890123456789012345678901abcdef',
@@ -214,6 +273,7 @@ function createDeviceOAuthAuth() {
       }),
       deviceAuthorization({
         verificationUri: '/device',
+        expiresIn: options.expiresIn ?? '30m',
         deviceCodeLength: 12,
         userCodeLength: 8,
         generateDeviceCode: async () => 'device-code-1',
@@ -241,13 +301,20 @@ function testJwt(payload: Record<string, unknown>) {
   return `${encode({ alg: 'EdDSA', typ: 'JWT' })}.${encode(payload)}.test-signature`
 }
 
-async function registerDeviceClient(auth: TestAuth) {
+async function registerDeviceClient(
+  auth: TestAuth,
+  overrides: Partial<{
+    client_name: string
+    grant_types: string[]
+    response_types: string[]
+  }> = {},
+) {
   const response = await requestJson(auth, '/oauth2/register', {
-    client_name: 'Native Device Client',
+    client_name: overrides.client_name ?? 'Native Device Client',
     redirect_uris: ['com.example.app:/callback'],
     token_endpoint_auth_method: 'none',
-    grant_types: [grantType],
-    response_types: [],
+    grant_types: overrides.grant_types ?? [grantType],
+    response_types: overrides.response_types ?? [],
     scope: 'openid email offline_access',
     type: 'native',
   })
@@ -269,6 +336,23 @@ async function pollDeviceToken(auth: ReturnType<typeof createDeviceAuth>) {
   return requestJson(auth, '/device/token', {
     grant_type: grantType,
     client_id: 'native',
+    device_code: 'device-code-1',
+  })
+}
+
+async function requestOAuthDeviceCode(auth: TestAuth, clientId: string) {
+  const response = await requestJson(auth, '/device/code', {
+    client_id: clientId,
+    scope: 'openid email offline_access',
+  })
+  expect(response.status).toBe(200)
+  return response
+}
+
+async function pollOAuthDeviceToken(auth: TestAuth, clientId: string) {
+  return requestForm(auth, '/oauth2/token', {
+    grant_type: grantType,
+    client_id: clientId,
     device_code: 'device-code-1',
   })
 }
