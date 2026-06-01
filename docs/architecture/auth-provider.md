@@ -218,6 +218,30 @@ The OAuth Provider plugin replaces the old OIDC Provider schema:
 
 The migration intentionally drops the old spike provider tables instead of trying to preserve old OIDC Provider rows because the model names and token storage semantics changed.
 
+## Better Auth Device Approval
+
+FlareAuth installs Better Auth's Device Authorization plugin for guarded public native client approval. This is Better Auth device approval plumbing for a signed-in browser session; it is not currently a standards-compliant FlareAuth OAuth/OIDC device-code token flow.
+
+The hosted verification URI is:
+
+```text
+https://auth.example.com/device
+```
+
+Native clients request a Better Auth device approval code at:
+
+```bash
+curl -X POST "$FLAREAUTH_ORIGIN/api/auth/device/code" \
+  -H 'content-type: application/json' \
+  -d '{"client_id":"native-client-id","scope":"openid profile email offline_access"}'
+```
+
+The response includes `device_code`, `user_code`, `verification_uri`, `verification_uri_complete`, `expires_in`, and `interval`. The browser verification page requires a signed-in FlareAuth session before approval or denial, and hosted sign-in preserves the verification return path.
+
+Only public native clients explicitly configured with Better Auth device approval can start the flow. Public SPA clients, confidential web clients, disabled clients, and clients requesting disallowed scopes are rejected before code issuance.
+
+Better Auth v1.6 does not wire this plugin into `@better-auth/oauth-provider` metadata or `/oauth2/token`; its plugin token endpoint is `/api/auth/device/token` and returns a Better Auth bearer session token. That token response does not include FlareAuth OIDC ID tokens or refresh tokens and is not a JWKS/UserInfo-compatible OAuth token response. FlareAuth therefore does not advertise `device_authorization_endpoint`, does not add the device-code grant to the system CLI client by default, and does not expose the device endpoint through OIDC or `/api/configz` metadata until the OAuth provider can mint UserInfo/JWKS-compatible OAuth token responses for the device grant.
+
 ## v1.0 Better Auth Plugin Matrix
 
 | Plugin | v1.0 decision | Implementation note |
@@ -230,6 +254,7 @@ The migration intentionally drops the old spike provider tables instead of tryin
 | Email OTP | Include | Requires Cloudflare-native email delivery before enabling. |
 | Username | Include | Add username fields and policy before enabling. |
 | Generic OAuth/social | Include | Use `genericOAuth()` for configured social/custom upstream providers. |
+| Device Authorization | Include with limitation | Use Better Auth `deviceAuthorization()` for native-client browser approval; OAuth provider token endpoint support remains unavailable in Better Auth v1.6. |
 | OpenAPI | Include if stable enough | Better Auth v1.6 exposes `openAPI()`; keep it behind review before public exposure. |
 
 ## Explicit Exclusions
