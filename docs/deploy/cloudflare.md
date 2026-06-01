@@ -82,7 +82,7 @@ instance values in that repository, not in the upstream FlareAuth template. See
 
 The upstream FlareAuth repository keeps `wrangler.toml` as the Deploy Button
 template. If upstream maintainers need to deploy their own production Worker,
-they should use `wrangler.production.toml` through `npm run deploy:self`. That
+they should use `wrangler.production.toml` through `pnpm run deploy:self`. That
 configuration uses the Worker `workers.dev` origin and does not include a custom
 domain.
 
@@ -127,22 +127,22 @@ Keep staging and production buckets separate to avoid leaking preview assets int
 Local development:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 Staging preview:
 
 ```bash
-npm run db:migrate:staging
+pnpm run db:migrate:staging
 ```
 
 Production:
 
 ```bash
-npm run db:migrate:prod
+pnpm run db:migrate:prod
 ```
 
-Run migrations before deployment. `npm run deploy` runs remote D1 migrations
+Run migrations before deployment. `pnpm run deploy` runs remote D1 migrations
 through the `DB` binding, builds, and deploys. Using the binding name keeps the
 script compatible with Deploy Button generated database names.
 

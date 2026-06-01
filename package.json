@@ -7,10 +7,10 @@
   "scripts": {
     "dev": "vite dev",
     "build": "[ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"main\" ] && export CF_WRANGLER_CONFIG=wrangler.preview.toml; vite build",
-    "deploy": "npm run db:migrate:remote && npm run build && wrangler deploy",
+    "deploy": "pnpm run db:migrate:remote && pnpm run build && wrangler deploy",
     "deploy:check": "node scripts/check-cloudflare-config.mjs",
-    "deploy:self": "npm run db:migrate:self && npm run build && wrangler deploy --config wrangler.production.toml",
-    "deploy:prod": "npm run deploy:self",
+    "deploy:self": "pnpm run db:migrate:self && pnpm run build && wrangler deploy --config wrangler.production.toml",
+    "deploy:prod": "pnpm run deploy:self",
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
@@ -18,14 +18,14 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:self": "wrangler d1 migrations apply DB --remote --config wrangler.production.toml",
     "db:migrate:staging": "wrangler d1 migrations apply DB --remote --config wrangler.preview.toml",
-    "db:migrate:prod": "npm run db:migrate:remote",
+    "db:migrate:prod": "pnpm run db:migrate:remote",
     "routes:generate": "tsr generate",
-    "typecheck": "npm run routes:generate && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.vitest.json && tsc --noEmit -p tsconfig.e2e.json",
+    "typecheck": "pnpm run routes:generate && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.vitest.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "spec:check": "node scripts/verify-specs.mjs",
-    "test:e2e": "npm run spec:check && node scripts/run-cucumber-e2e.mjs",
-    "test:e2e:report": "npm run test:e2e",
+    "test:e2e": "pnpm run spec:check && node scripts/run-cucumber-e2e.mjs",
+    "test:e2e:report": "pnpm run test:e2e",
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -35,6 +35,7 @@
   "engines": {
     "node": ">=24"
   },
+  "packageManager": "pnpm@10.30.2",
   "dependencies": {
     "@better-auth/agent-auth": "0.5.1",
     "@better-auth/i18n": "^1.6.11",
@@ -115,9 +116,17 @@
   },
   "volta": {
     "node": "24.14.1",
-    "npm": "11.11.0"
+    "pnpm": "10.30.2"
   },
   "overrides": {
     "esbuild": "^0.27.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msw",
+      "sharp",
+      "workerd"
+    ]
   }
 }

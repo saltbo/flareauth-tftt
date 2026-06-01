@@ -30,7 +30,7 @@ Exit criteria for this Go:
 
 - Cucumber E2E base URL defaults to `http://127.0.0.1:4189`.
 - E2E launches the dev server through `scripts/run-cucumber-e2e.mjs` with:
-  `BETTER_AUTH_URL=http://127.0.0.1:4189 TRUSTED_ORIGINS=http://127.0.0.1:4189 E2E_OAUTH_CLIENT_SECRET=e2e-secret npm run dev -- --host 127.0.0.1 --mode e2e --port 4189`
+  `BETTER_AUTH_URL=http://127.0.0.1:4189 TRUSTED_ORIGINS=http://127.0.0.1:4189 E2E_OAUTH_CLIENT_SECRET=e2e-secret pnpm run dev -- --host 127.0.0.1 --mode e2e --port 4189`
 - Admin bootstrap helper uses:
   - username: `admin`
   - email: `admin@example.com`
@@ -229,87 +229,87 @@ For any item in this bucket, record the missing dependency, why it blocks verifi
 
 ## Commands And Evidence
 
-Historical command entries below reference archived direct Playwright specs that have been replaced by the current `specs/*.feature` plus Cucumber workflow. Current E2E execution is `npm run test:e2e`.
+Historical command entries below reference archived direct Playwright specs that have been replaced by the current `specs/*.feature` plus Cucumber workflow. Current E2E execution is `pnpm run test:e2e`.
 
 
-- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
+- `pnpm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
   - Result: 17 passed, 1 failed.
   - Failed: `archived Playwright account-security spec` TOTP enrollment/sign-in path.
-- `npm run test:e2e -- archived Playwright account-security spec -g "TOTP enrollment"`
+- `pnpm run test:e2e -- archived Playwright account-security spec -g "TOTP enrollment"`
   - Result: 1 passed after UI fix.
-- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
+- `pnpm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec`
   - Result: 18 passed.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after first-admin/stale connector-link changes.
-- `npm test -- server/routes/management.test.ts -t "updates managed sign-in"`
+- `pnpm test -- server/routes/management.test.ts -t "updates managed sign-in"`
   - Result: passed after adding `builtInProviders` to the management settings test mock.
-- `npm test -- src/features/console/console-security-signin-a.test.tsx -t "renders independent MFA"`
+- `pnpm test -- src/features/console/console-security-signin-a.test.tsx -t "renders independent MFA"`
   - Result: passed after replacing the deleted passwordless connector page assertion with the new provider table assertion.
-- `npm test -- src/features/account/account-center.test.tsx -t "shows TOTP enrollment setup data"`
+- `pnpm test -- src/features/account/account-center.test.tsx -t "shows TOTP enrollment setup data"`
   - Result: passed after adding backup-code display coverage.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after Backup codes UI changes.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after Web3/OneTap runtime wiring.
-- `npm test -- src/features/auth/auth-pages.test.tsx server/modules/configz/service.test.ts server/routes/configz.test.ts`
+- `pnpm test -- src/features/auth/auth-pages.test.tsx server/modules/configz/service.test.ts server/routes/configz.test.ts`
   - Result: 3 files passed, 54 tests passed after public OneTap/Web3 config and hosted client wiring.
-- `npm run test:e2e -- archived Playwright auth-web3 spec`
+- `pnpm run test:e2e -- archived Playwright auth-web3 spec`
   - Result: 1 passed.
-- `npm run test:e2e -- archived Playwright account-security spec`
+- `pnpm run test:e2e -- archived Playwright account-security spec`
   - Result: 3 passed after updating Account Center email OTP and TOTP setup-code selectors.
-- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec`
+- `pnpm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec`
   - Result: 19 passed.
-- `npm run lint`
+- `pnpm run lint`
   - Result: passed after formatting/import fixes.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after formatting/import fixes.
-- `npm run test:e2e -- archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
+- `pnpm run test:e2e -- archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
   - Result: 3 passed after fixing the test to avoid using password sign-in while Passwordless is intentionally enabled.
-- `npm run test:e2e -- archived Playwright auth-email-connector spec`
+- `pnpm run test:e2e -- archived Playwright auth-email-connector spec`
   - Result: 1 passed.
-- `npm test -- server/app.test.ts src/features/auth/auth-pages.test.tsx`
+- `pnpm test -- server/app.test.ts src/features/auth/auth-pages.test.tsx`
   - Result: 2 files passed, 53 tests passed after Email connector/email-verification boundary fix and Phone-only empty-state coverage.
-- `npm run test:e2e -- archived Playwright auth-email-connector spec`
+- `pnpm run test:e2e -- archived Playwright auth-email-connector spec`
   - Result: 1 passed after adding the email-verification regression path.
-- `npm test -- src/features/auth/auth-pages.test.tsx`
+- `pnpm test -- src/features/auth/auth-pages.test.tsx`
   - Result: 1 file passed, 43 tests passed after Phone-only empty-state fix.
-- `npm run test:e2e -- archived Playwright auth-method-availability spec`
+- `pnpm run test:e2e -- archived Playwright auth-method-availability spec`
   - Result: 1 passed.
-- `npm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec`
+- `pnpm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec`
   - Result: 2 passed after tightening the Email OTP disabled guard.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after Email OTP guard and Phone-only UI fixes.
-- `npm test -- src/features/console/console-branding-content-a.test.tsx -t 'OneTap|hosted sign-in previews'`
+- `pnpm test -- src/features/console/console-branding-content-a.test.tsx -t 'OneTap|hosted sign-in previews'`
   - Result: 2 passed after Live Preview OneTap/Passkey state fixes.
-- `npm run test:e2e -- archived Playwright auth-preview-consistency spec`
+- `pnpm run test:e2e -- archived Playwright auth-preview-consistency spec`
   - Result: 1 passed. Covers real hosted sign-in, Content Live Preview, and Branding Live Preview method consistency for Email, Passkey, and OneTap.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after Live Preview OneTap/Passkey state fixes.
-- `npm test -- src/features/console`
+- `pnpm test -- src/features/console`
   - Result: 112 passed after current product-structure test realignment.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after admin-console test realignment.
-- `npm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec`
+- `pnpm run test:e2e -- archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec`
   - Result: 3 passed.
-- `npm run test:e2e -- archived Playwright auth-provider-enforcement spec`
+- `pnpm run test:e2e -- archived Playwright auth-provider-enforcement spec`
   - Result: 1 passed.
-- `npm test -- server/routes/security.test.ts -t 'enforces password, blocklist'`
+- `pnpm test -- server/routes/security.test.ts -t 'enforces password, blocklist'`
   - Result: 1 passed after native change-password policy enforcement fix.
-- `npm run test:e2e -- archived Playwright auth-password-policy-enforcement spec`
+- `pnpm run test:e2e -- archived Playwright auth-password-policy-enforcement spec`
   - Result: 1 passed.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after native change-password policy enforcement fix.
-- `npm test -- server/routes/security.test.ts server/app.test.ts`
+- `pnpm test -- server/routes/security.test.ts server/app.test.ts`
   - Result: 2 files passed, 27 tests passed.
-- `npm run test:e2e -- archived Playwright auth-mfa-policy-enforcement spec`
+- `pnpm run test:e2e -- archived Playwright auth-mfa-policy-enforcement spec`
   - Result: 1 passed.
-- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec`
+- `pnpm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec`
   - Result: 24 passed.
-- `npm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec archived Playwright auth-mfa-policy-enforcement spec archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
+- `pnpm run test:e2e -- archived Playwright auth spec archived Playwright auth-advanced spec archived Playwright account spec archived Playwright account-security spec archived Playwright connectors spec archived Playwright auth-web3 spec archived Playwright auth-email-connector spec archived Playwright auth-method-availability spec archived Playwright auth-preview-consistency spec archived Playwright auth-provider-enforcement spec archived Playwright auth-password-policy-enforcement spec archived Playwright auth-mfa-policy-enforcement spec archived Playwright auth-sign-in-settings-enforcement spec archived Playwright auth-passkey-sign-in spec`
   - Result: 28 passed.
-- `npm test -- server/routes/security.test.ts server/app.test.ts src/features/console src/features/auth`
+- `pnpm test -- server/routes/security.test.ts server/app.test.ts src/features/console src/features/auth`
   - Result: 4 files passed, 182 tests passed.
-- `npm run lint`
+- `pnpm run lint`
   - Result: passed after Biome formatting/optional-chain cleanup.
-- `npm run typecheck`
+- `pnpm run typecheck`
   - Result: passed after final formatting cleanup.

@@ -50,11 +50,16 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.2
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24.14.1
-          cache: npm
+          cache: pnpm
 
       - name: Merge upstream
         id: merge
@@ -115,7 +120,7 @@ jobs:
 
           if ! git merge --no-edit "$merge_ref"; then
             conflicted="$(git diff --name-only --diff-filter=U | sort | tr '\n' ' ')"
-            if [ "$conflicted" != "package-lock.json package.json " ]; then
+            if [ "$conflicted" != "package.json pnpm-lock.yaml " ]; then
               echo "Automatic merge failed with unsupported conflicts: ${conflicted}"
               exit 1
             fi
@@ -140,17 +145,10 @@ jobs:
           }
           writeJson('package.json', mergedPackage)
 
-          const lockTheirs = readStage(3, 'package-lock.json')
-          lockTheirs.name = mergedPackage.name
-          lockTheirs.version = mergedPackage.version
-          if (lockTheirs.packages?.['']) {
-            lockTheirs.packages[''].name = mergedPackage.name
-            lockTheirs.packages[''].version = mergedPackage.version
-          }
-          writeJson('package-lock.json', lockTheirs)
+          execFileSync('git', ['checkout', '--theirs', 'pnpm-lock.yaml'])
           NODE
 
-            git add package.json package-lock.json
+            git add package.json pnpm-lock.yaml
             git commit --no-edit
           fi
 
@@ -166,7 +164,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.merge.outputs.changed == 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Restish
         if: steps.merge.outputs.changed == 'true'
@@ -182,23 +180,23 @@ jobs:
 
       - name: Typecheck
         if: steps.merge.outputs.changed == 'true'
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
         if: steps.merge.outputs.changed == 'true'
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Test
         if: steps.merge.outputs.changed == 'true'
-        run: npm test
+        run: pnpm test
 
       - name: Build
         if: steps.merge.outputs.changed == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Cucumber E2E
         if: steps.merge.outputs.changed == 'true' && steps.merge.outputs.run_e2e == 'true'
-        run: npm run test:e2e
+        run: pnpm run test:e2e
 
       - name: Push upgrade branch
         if: steps.merge.outputs.changed == 'true'
@@ -224,10 +222,10 @@ jobs:
           Update mode: \`${update_mode}\`
 
           Validation run by this workflow:
-          - \`npm run typecheck\`
-          - \`npm run lint\`
-          - \`npm test\`
-          - \`npm run build\`
+          - \`pnpm run typecheck\`
+          - \`pnpm run lint\`
+          - \`pnpm test\`
+          - \`pnpm run build\`
 
           E2E run: \`${{ steps.merge.outputs.run_e2e }}\`
 

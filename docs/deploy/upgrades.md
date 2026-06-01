@@ -77,11 +77,11 @@ upgrade PR. Manually pinned versions use `flareauth-upgrade/<target>`.
 
 Upgrade PRs are opened after running:
 
-- `npm run typecheck`
-- `npm run lint`
-- `npm test`
-- `npm run build`
-- optionally `npm run test:e2e`
+- `pnpm run typecheck`
+- `pnpm run lint`
+- `pnpm test`
+- `pnpm run build`
+- optionally `pnpm run test:e2e`
 
 Review deployment-specific files such as `wrangler.toml`,
 `wrangler.preview.toml`, and `package.json` before merging the PR. Those files
@@ -95,11 +95,11 @@ Prefer tagged releases for production upgrades:
 ```bash
 git fetch upstream --tags
 git merge v1.0.3
-npm ci
-npm run typecheck
-npm run lint
-npm test
-npm run deploy
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run lint
+pnpm test
+pnpm run deploy
 ```
 
 For fast-moving internal deployments, merge `upstream/main` after checking CI:
@@ -107,11 +107,11 @@ For fast-moving internal deployments, merge `upstream/main` after checking CI:
 ```bash
 git fetch upstream
 git merge upstream/main
-npm ci
-npm run typecheck
-npm run lint
-npm test
-npm run deploy
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run lint
+pnpm test
+pnpm run deploy
 ```
 
 The deploy script applies D1 migrations through the `DB` binding before
