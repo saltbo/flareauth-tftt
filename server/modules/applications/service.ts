@@ -467,6 +467,7 @@ export class ApplicationService {
       oidc: {
         issuer: `${issuer}/api/auth`,
         authorizationEndpoint: `${issuer}/api/auth/oauth2/authorize`,
+        deviceAuthorizationEndpoint: `${issuer}/api/auth/device/code`,
         tokenEndpoint: `${issuer}/api/auth/oauth2/token`,
         jwksUri: `${issuer}/api/auth/jwks`,
         userInfoEndpoint: `${issuer}/api/auth/oauth2/userinfo`,

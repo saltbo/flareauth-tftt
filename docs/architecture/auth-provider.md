@@ -228,7 +228,7 @@ The hosted verification URI is:
 https://auth.example.com/device
 ```
 
-Native clients request a Better Auth device approval code at:
+Native clients request a device authorization code at:
 
 ```bash
 curl -X POST "$FLAREAUTH_ORIGIN/api/auth/device/code" \
@@ -240,7 +240,7 @@ The response includes `device_code`, `user_code`, `verification_uri`, `verificat
 
 Only public native clients explicitly configured with Better Auth device approval can start the flow. Public SPA clients, confidential web clients, disabled clients, and clients requesting disallowed scopes are rejected before code issuance.
 
-Better Auth v1.6 does not wire this plugin into `@better-auth/oauth-provider` metadata or `/oauth2/token`; its plugin token endpoint is `/api/auth/device/token` and returns a Better Auth bearer session token. That token response does not include FlareAuth OIDC ID tokens or refresh tokens and is not a JWKS/UserInfo-compatible OAuth token response. FlareAuth therefore does not advertise `device_authorization_endpoint`, does not add the device-code grant to the system CLI client by default, and does not expose the device endpoint through OIDC or `/api/configz` metadata until the OAuth provider can mint UserInfo/JWKS-compatible OAuth token responses for the device grant.
+FlareAuth patches Better Auth v1.6.10 so `@better-auth/oauth-provider` accepts `urn:ietf:params:oauth:grant-type:device_code` at `/api/auth/oauth2/token` after Better Auth device approval. Successful polling returns OAuth Provider token material: a JWKS-compatible access token when a resource audience is requested, an ID token when `openid` is granted, and a refresh token when `offline_access` is granted. OIDC discovery advertises `device_authorization_endpoint` and the device-code grant.
 
 ## v1.0 Better Auth Plugin Matrix
 
@@ -254,7 +254,7 @@ Better Auth v1.6 does not wire this plugin into `@better-auth/oauth-provider` me
 | Email OTP | Include | Requires Cloudflare-native email delivery before enabling. |
 | Username | Include | Add username fields and policy before enabling. |
 | Generic OAuth/social | Include | Use `genericOAuth()` for configured social/custom upstream providers. |
-| Device Authorization | Include with limitation | Use Better Auth `deviceAuthorization()` for native-client browser approval; OAuth provider token endpoint support remains unavailable in Better Auth v1.6. |
+| Device Authorization | Include | Use Better Auth `deviceAuthorization()` for native-client browser approval and a FlareAuth-maintained Better Auth patch to exchange approved device codes through the OAuth Provider token endpoint. |
 | OpenAPI | Include if stable enough | Better Auth v1.6 exposes `openAPI()`; keep it behind review before public exposure. |
 
 ## Explicit Exclusions

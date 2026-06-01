@@ -250,6 +250,7 @@ export class ConfigzService {
         issuer: `${issuer}/api/auth`,
         discoveryUrl: `${issuer}/api/auth/.well-known/openid-configuration`,
         authorizationEndpoint: `${issuer}/api/auth/oauth2/authorize`,
+        deviceAuthorizationEndpoint: `${issuer}/api/auth/device/code`,
         tokenEndpoint: `${issuer}/api/auth/oauth2/token`,
         jwksUri: `${issuer}/api/auth/jwks`,
         userInfoEndpoint: `${issuer}/api/auth/oauth2/userinfo`,

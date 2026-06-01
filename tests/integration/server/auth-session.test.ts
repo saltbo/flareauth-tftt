@@ -31,19 +31,23 @@ describe('auth.test 1', () => {
     expect(metadata).toMatchObject({
       issuer: 'https://auth.example.com/api/auth',
       authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      device_authorization_endpoint: 'https://auth.example.com/api/auth/device/code',
       token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
       jwks_uri: 'https://auth.example.com/api/auth/jwks',
-      grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'],
+      grant_types_supported: [
+        'authorization_code',
+        'client_credentials',
+        'refresh_token',
+        'urn:ietf:params:oauth:grant-type:device_code',
+      ],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'management:read', 'management:write'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
     })
     expect(metadata.token_endpoint_auth_methods_supported).not.toContain('none')
-    expect(metadata).not.toHaveProperty('device_authorization_endpoint')
-    expect(metadata.grant_types_supported).not.toContain('urn:ietf:params:oauth:grant-type:device_code')
   })
 
-  it('does not accept device-code grants at the OAuth Provider token endpoint', async () => {
+  it('validates device-code grants at the OAuth Provider token endpoint', async () => {
     const auth = createAuth(
       {} as Database,
       '01234567890123456789012345678901',
@@ -58,17 +62,13 @@ describe('auth.test 1', () => {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-        client_id: 'native-client',
-        device_code: 'device-code-1',
       }),
     })
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
-      code: 'VALIDATION_ERROR',
-      message: expect.stringContaining(
-        '[body.grant_type] Invalid option: expected one of "authorization_code"|"client_credentials"|"refresh_token"',
-      ),
+      error: 'invalid_request',
+      error_description: 'client_id is required',
     })
   })
 

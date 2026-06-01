@@ -1,11 +1,16 @@
+import { oauthProvider } from '@better-auth/oauth-provider'
 import { createDeviceAuthorizationOptions } from '@server/auth'
 import type { ApplicationAggregate } from '@server/modules/applications/service'
 import { deviceCodeGrantType } from '@shared/api/applications'
 import { betterAuth } from 'better-auth'
-import { deviceAuthorization } from 'better-auth/plugins'
+import { deviceAuthorization, jwt } from 'better-auth/plugins'
 import { describe, expect, it } from 'vitest'
 
 const grantType = 'urn:ietf:params:oauth:grant-type:device_code'
+
+type TestAuth = {
+  handler: (request: Request) => Response | Promise<Response>
+}
 
 describe('auth device authorization endpoints', () => {
   it('issues Better Auth device codes only for eligible public native clients', async () => {
@@ -86,6 +91,43 @@ describe('auth device authorization endpoints', () => {
     expect(body).not.toHaveProperty('refresh_token')
   })
 
+  it('exchanges approved device codes through the OAuth token endpoint with OIDC token material', async () => {
+    const auth = createDeviceOAuthAuth()
+    const client = await registerDeviceClient(auth)
+
+    const code = await requestJson(auth, '/device/code', {
+      client_id: client.client_id,
+      scope: 'openid email offline_access',
+    })
+    expect(code.status).toBe(200)
+    await expect(code.json()).resolves.toMatchObject({
+      device_code: 'device-code-1',
+      user_code: 'USERCODE',
+    })
+
+    const cookie = await createBrowserSession(auth)
+    const verify = await requestJson(auth, '/device?user_code=USERCODE', undefined, { method: 'GET', cookie })
+    expect(verify.status).toBe(200)
+    const approval = await requestJson(auth, '/device/approve', { userCode: 'USERCODE' }, { cookie })
+    expect(approval.status).toBe(200)
+
+    const token = await requestForm(auth, '/oauth2/token', {
+      grant_type: grantType,
+      client_id: client.client_id,
+      device_code: 'device-code-1',
+      resource: 'https://auth.example.com/api/auth',
+    })
+    expect(token.status).toBe(200)
+    const body = (await token.json()) as Record<string, string>
+    expect(body).toMatchObject({
+      token_type: 'Bearer',
+      scope: 'openid email offline_access',
+    })
+    expect(body.access_token.split('.')).toHaveLength(3)
+    expect(body.id_token.split('.')).toHaveLength(3)
+    expect(body.refresh_token).toEqual(expect.any(String))
+  })
+
   it('returns denial and expiration polling errors through the Better Auth token endpoint', async () => {
     const deniedAuth = createDeviceAuth()
     await requestJson(deniedAuth, '/device/code', { client_id: 'native', scope: 'openid' })
@@ -142,7 +184,78 @@ function createDeviceAuth(options: { clients?: Record<string, ApplicationAggrega
   })
 }
 
-async function createBrowserSession(auth: ReturnType<typeof createDeviceAuth>) {
+function createDeviceOAuthAuth() {
+  return betterAuth({
+    appName: 'FlareAuth',
+    secret: '01234567890123456789012345678901abcdef',
+    baseURL: 'https://auth.example.com/api/auth',
+    trustedOrigins: ['https://auth.example.com'],
+    emailAndPassword: {
+      enabled: true,
+    },
+    session: {
+      cookieCache: {
+        enabled: false,
+      },
+    },
+    plugins: [
+      jwt({
+        jwt: {
+          issuer: 'https://auth.example.com/api/auth',
+          audience: 'https://auth.example.com/api/auth',
+          sign: async (payload) => testJwt(payload),
+        },
+        jwks: {
+          remoteUrl: 'https://auth.example.com/api/auth/jwks',
+          keyPairConfig: {
+            alg: 'EdDSA',
+          },
+        },
+      }),
+      deviceAuthorization({
+        verificationUri: '/device',
+        deviceCodeLength: 12,
+        userCodeLength: 8,
+        generateDeviceCode: async () => 'device-code-1',
+        generateUserCode: async () => 'USERCODE',
+        validateClient: async () => true,
+        schema: {},
+      }),
+      oauthProvider({
+        loginPage: '/auth/sign-in',
+        consentPage: '/oauth/consent',
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        scopes: ['openid', 'profile', 'email', 'offline_access'],
+        silenceWarnings: {
+          oauthAuthServerConfig: true,
+          openidConfig: true,
+        },
+      }),
+    ],
+  })
+}
+
+function testJwt(payload: Record<string, unknown>) {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${encode({ alg: 'EdDSA', typ: 'JWT' })}.${encode(payload)}.test-signature`
+}
+
+async function registerDeviceClient(auth: TestAuth) {
+  const response = await requestJson(auth, '/oauth2/register', {
+    client_name: 'Native Device Client',
+    redirect_uris: ['com.example.app:/callback'],
+    token_endpoint_auth_method: 'none',
+    grant_types: [grantType],
+    response_types: [],
+    scope: 'openid email offline_access',
+    type: 'native',
+  })
+  expect(response.status).toBe(200)
+  return response.json() as Promise<{ client_id: string }>
+}
+
+async function createBrowserSession(auth: TestAuth) {
   const response = await requestJson(auth, '/sign-up/email', {
     email: `user-${crypto.randomUUID()}@example.com`,
     name: 'Device User',
@@ -161,7 +274,7 @@ async function pollDeviceToken(auth: ReturnType<typeof createDeviceAuth>) {
 }
 
 async function requestJson(
-  auth: ReturnType<typeof createDeviceAuth>,
+  auth: TestAuth,
   path: string,
   body?: unknown,
   options: { method?: string; cookie?: string } = {},
@@ -170,10 +283,21 @@ async function requestJson(
     new Request(`https://auth.example.com/api/auth${path}`, {
       method: options.method ?? 'POST',
       headers: {
+        Origin: 'https://auth.example.com',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(options.cookie ? { Cookie: options.cookie } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
+  )
+}
+
+async function requestForm(auth: TestAuth, path: string, body: Record<string, string>) {
+  return auth.handler(
+    new Request(`https://auth.example.com/api/auth${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(body),
     }),
   )
 }

@@ -48,6 +48,7 @@ export const applicationSecretMetadataSchema = z.object({
 export const oidcEndpointMetadataSchema = z.object({
   issuer: z.string(),
   authorizationEndpoint: z.string(),
+  deviceAuthorizationEndpoint: z.string().optional(),
   tokenEndpoint: z.string(),
   jwksUri: z.string(),
   userInfoEndpoint: z.string(),
