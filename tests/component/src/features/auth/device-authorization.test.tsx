@@ -1,17 +1,23 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DeviceVerification } from '@/features/auth/device-authorization'
 import { approveDeviceCode, denyDeviceCode, verifyDeviceCode } from '@/lib/auth-client'
 
 vi.mock('../../../../../src/lib/auth-client', () => ({
-  approveDeviceCode: vi.fn().mockResolvedValue({ success: true }),
-  denyDeviceCode: vi.fn().mockResolvedValue({ success: true }),
-  verifyDeviceCode: vi.fn().mockResolvedValue({ user_code: 'ABCD2345', status: 'pending' }),
+  approveDeviceCode: vi.fn(),
+  denyDeviceCode: vi.fn(),
+  verifyDeviceCode: vi.fn(),
 }))
+
+beforeEach(() => {
+  vi.mocked(approveDeviceCode).mockResolvedValue({ success: true })
+  vi.mocked(denyDeviceCode).mockResolvedValue({ success: true })
+  vi.mocked(verifyDeviceCode).mockResolvedValue({ user_code: 'ABCD2345', status: 'pending' })
+})
 
 afterEach(() => {
   cleanup()
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   vi.unstubAllGlobals()
   window.history.pushState(null, '', '/')
 })
