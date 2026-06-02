@@ -265,7 +265,7 @@ describe('hosted auth pages 3', () => {
     render(<SignInPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continue with Phone' }))
-    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '+15555550123' } })
+    fireEvent.change(await screen.findByLabelText('Phone'), { target: { value: '+15555550123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
     fireEvent.change(await screen.findByLabelText('Verification code'), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))

@@ -1,0 +1,294 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index bbef06ab82c3918ca5e47b82044ce674ba9690b1..6001addbb11a9967b2689ebfe578e356b20a2f29 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -312,6 +312,7 @@ async function userInfoEndpoint(ctx, opts) {
+ }
+ //#endregion
+ //#region src/token.ts
++const deviceCodeGrantType = "urn:ietf:params:oauth:grant-type:device_code";
+ /**
+ * Handles the /oauth2/token endpoint by delegating
+ * the grant types
+@@ -326,6 +327,7 @@ async function tokenEndpoint(ctx, opts) {
+ 		case "authorization_code": return handleAuthorizationCodeGrant(ctx, opts);
+ 		case "client_credentials": return handleClientCredentialsGrant(ctx, opts);
+ 		case "refresh_token": return handleRefreshTokenGrant(ctx, opts);
++		case deviceCodeGrantType: return handleDeviceCodeGrant(ctx, opts);
+ 		case void 0: throw new APIError("BAD_REQUEST", {
+ 			error_description: "missing required grant_type",
+ 			error: "unsupported_grant_type"
+@@ -674,6 +676,125 @@ async function handleAuthorizationCodeGrant(ctx, opts) {
+ 		verificationValue
+ 	});
+ }
++async function handleDeviceCodeGrant(ctx, opts) {
++	let { client_id, client_secret, device_code } = ctx.body;
++	const authorization = ctx.request?.headers.get("authorization") || null;
++	if (authorization?.startsWith("Basic ")) {
++		const res = basicToClientCredentials(authorization);
++		client_id = res?.client_id;
++		client_secret = res?.client_secret;
++	}
++	if (!client_id) throw new APIError("BAD_REQUEST", {
++		error_description: "client_id is required",
++		error: "invalid_request"
++	});
++	if (!device_code) throw new APIError("BAD_REQUEST", {
++		error_description: "device_code is required",
++		error: "invalid_request"
++	});
++	const deviceCodeRecord = await ctx.context.adapter.findOne({
++		model: "deviceCode",
++		where: [{
++			field: "deviceCode",
++			value: device_code
++		}]
++	});
++	if (!deviceCodeRecord) throw new APIError("BAD_REQUEST", {
++		error_description: "Invalid device code",
++		error: "invalid_grant"
++	});
++	if (deviceCodeRecord.clientId && deviceCodeRecord.clientId !== client_id) throw new APIError("BAD_REQUEST", {
++		error_description: "Client ID mismatch",
++		error: "invalid_grant"
++	});
++	const scopes = (deviceCodeRecord.scope || "openid").split(/\s+/).filter(Boolean);
++	const client = await validateClientCredentials(ctx, opts, client_id, client_secret, scopes);
++	if (client.grantTypes && !client.grantTypes.includes(deviceCodeGrantType)) throw new APIError("BAD_REQUEST", {
++		error_description: `client does not allow grant type ${deviceCodeGrantType}`,
++		error: "invalid_client"
++	});
++	if (deviceCodeRecord.lastPolledAt && deviceCodeRecord.pollingInterval && Date.now() - new Date(deviceCodeRecord.lastPolledAt).getTime() < deviceCodeRecord.pollingInterval) throw new APIError("BAD_REQUEST", {
++		error_description: "Polling too frequently",
++		error: "slow_down"
++	});
++	await ctx.context.adapter.update({
++		model: "deviceCode",
++		where: [{
++			field: "id",
++			value: deviceCodeRecord.id
++		}],
++		update: { lastPolledAt: /* @__PURE__ */ new Date() }
++	});
++	if (deviceCodeRecord.expiresAt < /* @__PURE__ */ new Date()) {
++		await ctx.context.adapter.delete({
++			model: "deviceCode",
++			where: [{
++				field: "id",
++				value: deviceCodeRecord.id
++			}]
++		});
++		throw new APIError("BAD_REQUEST", {
++			error_description: "Device code has expired",
++			error: "expired_token"
++		});
++	}
++	if (deviceCodeRecord.status === "pending") throw new APIError("BAD_REQUEST", {
++		error_description: "Authorization pending",
++		error: "authorization_pending"
++	});
++	if (deviceCodeRecord.status === "denied") {
++		await ctx.context.adapter.delete({
++			model: "deviceCode",
++			where: [{
++				field: "id",
++				value: deviceCodeRecord.id
++			}]
++		});
++		throw new APIError("BAD_REQUEST", {
++			error_description: "Access denied",
++			error: "access_denied"
++		});
++	}
++	if (deviceCodeRecord.status === "approved" && deviceCodeRecord.userId) {
++		const user = await ctx.context.internalAdapter.findUserById(deviceCodeRecord.userId);
++		if (!user) throw new APIError("INTERNAL_SERVER_ERROR", {
++			error_description: "User not found",
++			error: "server_error"
++		});
++		const session = await ctx.context.internalAdapter.createSession(user.id);
++		if (!session) throw new APIError("INTERNAL_SERVER_ERROR", {
++			error_description: "Failed to create session",
++			error: "server_error"
++		});
++		ctx.context.setNewSession({
++			session,
++			user
++		});
++		if (ctx.context.options.secondaryStorage) await ctx.context.secondaryStorage?.set(session.token, JSON.stringify({
++			user,
++			session
++		}), Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1e3));
++		await ctx.context.adapter.delete({
++			model: "deviceCode",
++			where: [{
++				field: "id",
++				value: deviceCodeRecord.id
++			}]
++		});
++		return createUserTokens(ctx, opts, {
++			client,
++			scopes,
++			user,
++			grantType: deviceCodeGrantType,
++			sessionId: session.id,
++			authTime: resolveSessionAuthTime(session)
++		});
++	}
++	throw new APIError("INTERNAL_SERVER_ERROR", {
++		error_description: "Invalid device code status",
++		error: "server_error"
++	});
++}
+ /**
+ * Grant that allows direct access to an API using the application's credentials
+ * This grant is for M2M so the concept of a user id does not exist on the token.
+@@ -1645,7 +1766,8 @@ const adminCreateOAuthClient = (opts) => createAuthEndpoint("/admin/oauth2/creat
+ 		grant_types: z.array(z.enum([
+ 			"authorization_code",
+ 			"client_credentials",
+-			"refresh_token"
++			"refresh_token",
++			deviceCodeGrantType
+ 		])).default(["authorization_code"]).optional(),
+ 		response_types: z.array(z.enum(["code"])).default(["code"]).optional(),
+ 		type: z.enum([
+@@ -1754,7 +1876,8 @@ const adminCreateOAuthClient = (opts) => createAuthEndpoint("/admin/oauth2/creat
+ 								enum: [
+ 									"authorization_code",
+ 									"client_credentials",
+-									"refresh_token"
++									"refresh_token",
++									deviceCodeGrantType
+ 								]
+ 							},
+ 							description: "Requested authentication method for the token endpoint"
+@@ -1829,7 +1952,8 @@ const createOAuthClient = (opts) => createAuthEndpoint("/oauth2/create-client",
+ 		grant_types: z.array(z.enum([
+ 			"authorization_code",
+ 			"client_credentials",
+-			"refresh_token"
++			"refresh_token",
++			deviceCodeGrantType
+ 		])).default(["authorization_code"]).optional(),
+ 		response_types: z.array(z.enum(["code"])).default(["code"]).optional(),
+ 		type: z.enum([
+@@ -2031,7 +2155,8 @@ const adminUpdateOAuthClient = (opts) => createAuthEndpoint("/admin/oauth2/updat
+ 			grant_types: z.array(z.enum([
+ 				"authorization_code",
+ 				"client_credentials",
+-				"refresh_token"
++				"refresh_token",
++				deviceCodeGrantType
+ 			])).optional(),
+ 			response_types: z.array(z.enum(["code"])).optional(),
+ 			type: z.enum([
+@@ -2073,7 +2198,8 @@ const updateOAuthClient = (opts) => createAuthEndpoint("/oauth2/update-client",
+ 			grant_types: z.array(z.enum([
+ 				"authorization_code",
+ 				"client_credentials",
+-				"refresh_token"
++				"refresh_token",
++				deviceCodeGrantType
+ 			])).optional(),
+ 			response_types: z.array(z.enum(["code"])).optional(),
+ 			type: z.enum([
+@@ -2765,7 +2891,8 @@ const oauthProvider = (options) => {
+ 		grantTypes: [
+ 			"authorization_code",
+ 			"client_credentials",
+-			"refresh_token"
++			"refresh_token",
++			deviceCodeGrantType
+ 		],
+ 		...options,
+ 		scopes: Array.from(scopes),
+@@ -3051,11 +3178,13 @@ const oauthProvider = (options) => {
+ 					grant_type: z.enum([
+ 						"authorization_code",
+ 						"client_credentials",
+-						"refresh_token"
++						"refresh_token",
++						deviceCodeGrantType
+ 					]),
+ 					client_id: z.string().optional(),
+ 					client_secret: z.string().optional(),
+ 					code: z.string().optional(),
++					device_code: z.string().optional(),
+ 					code_verifier: z.string().optional(),
+ 					redirect_uri: SafeUrlSchema.optional(),
+ 					refresh_token: z.string().optional(),
+@@ -3076,7 +3205,8 @@ const oauthProvider = (options) => {
+ 										enum: [
+ 											"authorization_code",
+ 											"client_credentials",
+-											"refresh_token"
++											"refresh_token",
++											deviceCodeGrantType
+ 										],
+ 										description: "OAuth2 grant type"
+ 									},
+@@ -3092,6 +3222,10 @@ const oauthProvider = (options) => {
+ 										type: "string",
+ 										description: "Authorization code (for authorization_code grant)"
+ 									},
++									device_code: {
++										type: "string",
++										description: "Device code (for device_code grant)"
++									},
+ 									code_verifier: {
+ 										type: "string",
+ 										description: "PKCE code verifier (for authorization_code grant)"
+@@ -3499,7 +3633,8 @@ const oauthProvider = (options) => {
+ 					grant_types: z.array(z.enum([
+ 						"authorization_code",
+ 						"client_credentials",
+-						"refresh_token"
++						"refresh_token",
++						deviceCodeGrantType
+ 					])).default(["authorization_code"]).optional(),
+ 					response_types: z.array(z.enum(["code"])).default(["code"]).optional(),
+ 					type: z.enum([
+@@ -3978,12 +4113,14 @@ function authServerMetadata(ctx, opts, overrides) {
+ 		registration_endpoint: `${baseURL}/oauth2/register`,
+ 		introspection_endpoint: `${baseURL}/oauth2/introspect`,
+ 		revocation_endpoint: `${baseURL}/oauth2/revoke`,
++		...overrides?.grant_types_supported?.includes(deviceCodeGrantType) ? { device_authorization_endpoint: `${baseURL}/device/code` } : {},
+ 		response_types_supported: overrides?.grant_types_supported && !overrides.grant_types_supported.includes("authorization_code") ? [] : ["code"],
+ 		response_modes_supported: ["query"],
+ 		grant_types_supported: overrides?.grant_types_supported ?? [
+ 			"authorization_code",
+ 			"client_credentials",
+-			"refresh_token"
++			"refresh_token",
++			deviceCodeGrantType
+ 		],
+ 		token_endpoint_auth_methods_supported: [
+ 			...overrides?.public_client_supported ? ["none"] : [],
+diff --git a/dist/oauth-CqgT-XaR.d.mts b/dist/oauth-CqgT-XaR.d.mts
+index 9382ec7146d8a95632f2a6d1ebefc47373f5702d..0db2ce5a68cc93e4b90b554db0be5c42d6d43330 100644
+--- a/dist/oauth-CqgT-XaR.d.mts
++++ b/dist/oauth-CqgT-XaR.d.mts
+@@ -1336,7 +1336,7 @@ type OAuthConsent<Scopes extends readonly Scope[] = InternallySupportedScopes[]>
+ /**
+  * Supported grant types of the token endpoint
+  */
+-type GrantType = "authorization_code" | "client_credentials" | "refresh_token";
++type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "urn:ietf:params:oauth:grant-type:device_code";
+ type AuthMethod = "client_secret_basic" | "client_secret_post";
+ type TokenEndpointAuthMethod = AuthMethod | "none";
+ type BearerMethodsSupported = "header" | "body";
+@@ -1366,6 +1366,12 @@ interface AuthServerMetadata {
+    * @default `/oauth2/token`
+    */
+   token_endpoint: string;
++  /**
++   * The URL of the OAuth 2.0 Device Authorization endpoint.
++   *
++   * @default `/device/code`
++   */
++  device_authorization_endpoint?: string;
+   /**
+    * The URL of the jwks_uri endpoint.
+    *

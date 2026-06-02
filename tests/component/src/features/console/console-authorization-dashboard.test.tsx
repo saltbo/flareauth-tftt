@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiResourcesPage } from '@/features/console/extracted/api-resources'
 import { ApplicationsPage } from '@/features/console/extracted/applications/applications-list'
@@ -42,6 +42,8 @@ import {
   signInSettings,
   user,
 } from './console.test-utils'
+
+const deviceCodeGrantType = 'urn:ietf:params:oauth:grant-type:device_code'
 
 describe('console authorization dashboard', () => {
   it('renders admin variants for empty, disabled, and unset states', async () => {
@@ -195,5 +197,60 @@ describe('console authorization dashboard', () => {
     expect(await screen.findByRole('heading', { name: 'Create API resource' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('heading', { name: 'Create API resource' })).toBeNull()
+  })
+
+  it('creates native applications with device login enabled from the applications page', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === '/api/management/applications' && init?.method === 'POST') {
+        requests.push({ url, body: JSON.parse(String(init.body)) })
+        return Promise.resolve(
+          jsonResponse(
+            {
+              ...application,
+              id: 'app-device',
+              name: 'Runner CLI',
+              slug: 'runner-cli',
+              clientType: 'public_native',
+              allowedGrantTypes: ['authorization_code', 'refresh_token', deviceCodeGrantType],
+            },
+            201,
+          ),
+        )
+      }
+      if (url === '/api/management/applications') {
+        return Promise.resolve(jsonResponse({ applications: [], pagination: emptyPagination }))
+      }
+      return consoleSharedFetch(input, init)
+    })
+
+    renderWithQuery(<ApplicationsPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New application' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Runner CLI' } })
+    fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'runner-cli' } })
+    fireEvent.click(screen.getByRole('button', { name: /Native app/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Device login' }))
+    fireEvent.change(screen.getByLabelText('Redirect URIs'), {
+      target: { value: 'com.example.runner:/callback' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(requests).toEqual([
+        {
+          url: '/api/management/applications',
+          body: {
+            name: 'Runner CLI',
+            slug: 'runner-cli',
+            clientType: 'public_native',
+            firstParty: true,
+            allowedGrantTypes: ['authorization_code', 'refresh_token', deviceCodeGrantType],
+            redirectUris: ['com.example.runner:/callback'],
+          },
+        },
+      ])
+    })
   })
 })

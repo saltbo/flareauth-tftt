@@ -13,7 +13,7 @@ checklist for product validation.
 2. Run staging migrations:
 
 ```bash
-npm run db:migrate:staging
+pnpm run db:migrate:staging
 ```
 
 3. Open the preview URL and confirm `/api/health` returns `{ "ok": true, "service": "flareauth" }`.
@@ -34,7 +34,7 @@ npm run db:migrate:staging
 ## Production
 
 1. Confirm production secrets and bindings use production resources.
-2. Run `npm run deploy:prod`.
+2. Run `pnpm run deploy:prod`.
 3. Run first-admin onboarding only for a fresh production database.
 4. Repeat the preview journey on the production custom domain.
 5. Confirm the production validation still satisfies the product acceptance

@@ -24,10 +24,16 @@ describe('app.test 1', () => {
     const getOAuthServerConfig = vi.fn().mockResolvedValue({
       issuer: 'https://auth.example.com/api/auth',
       authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      device_authorization_endpoint: 'https://auth.example.com/api/auth/device/code',
       token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
       jwks_uri: 'https://auth.example.com/api/auth/jwks',
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
+      grant_types_supported: [
+        'authorization_code',
+        'refresh_token',
+        'client_credentials',
+        'urn:ietf:params:oauth:grant-type:device_code',
+      ],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
     })
@@ -45,7 +51,12 @@ describe('app.test 1', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       issuer: 'https://auth.example.com/api/auth',
-      grant_types_supported: ['authorization_code', 'refresh_token', 'client_credentials'],
+      grant_types_supported: [
+        'authorization_code',
+        'refresh_token',
+        'client_credentials',
+        'urn:ietf:params:oauth:grant-type:device_code',
+      ],
       code_challenge_methods_supported: ['S256'],
     })
     expect(getOAuthServerConfig).toHaveBeenCalledWith({

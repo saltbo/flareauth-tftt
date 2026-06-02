@@ -29,7 +29,7 @@ FLAREAUTH_URL=https://auth.example.com \
 FLAREAUTH_ADMIN_EMAIL=admin@example.com \
 FLAREAUTH_ADMIN_PASSWORD='replace-with-a-long-password' \
 FLAREAUTH_ADMIN_NAME='Admin User' \
-npm run bootstrap:admin
+pnpm run bootstrap:admin
 ```
 
 The endpoint creates the first admin user and credential account only when the user table is empty. Later calls return `403`.
@@ -41,8 +41,8 @@ After admin sign-in, open `/console/onboarding` to create the first OIDC client 
 Before opening a review PR:
 
 ```bash
-npm run deploy:check
-npm run typecheck
-npm run lint
-npm test
+pnpm run deploy:check
+pnpm run typecheck
+pnpm run lint
+pnpm test
 ```

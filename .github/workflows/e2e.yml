@@ -23,14 +23,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.2
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24.14.1
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Restish
         run: |
@@ -44,10 +49,10 @@ jobs:
           restish --version
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Cucumber E2E
-        run: npm run test:e2e
+        run: pnpm run test:e2e
 
       - name: Upload Cucumber evidence
         if: always()
