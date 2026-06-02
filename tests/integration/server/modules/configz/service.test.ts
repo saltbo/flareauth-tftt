@@ -76,6 +76,7 @@ describe('ConfigzService', () => {
         issuer: 'https://auth.example.com/api/auth',
         discoveryUrl: 'https://auth.example.com/api/auth/.well-known/openid-configuration',
         authorizationEndpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+        deviceAuthorizationEndpoint: 'https://auth.example.com/api/auth/device/code',
         tokenEndpoint: 'https://auth.example.com/api/auth/oauth2/token',
         jwksUri: 'https://auth.example.com/api/auth/jwks',
         userInfoEndpoint: 'https://auth.example.com/api/auth/oauth2/userinfo',

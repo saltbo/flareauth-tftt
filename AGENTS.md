@@ -28,7 +28,7 @@ behavior:
 3. Add `@e2e` and the journey id to `specs/e2e-coverage.json` when automated
    Cucumber verification is required.
 4. Implement or update Cucumber steps in `tests/e2e`.
-5. Run `npm run spec:check`.
+5. Run `pnpm run spec:check`.
 
 If implementation reveals a new user-facing behavior, update the spec before
 continuing.
@@ -52,17 +52,17 @@ Spec index:
 
 Use the narrowest meaningful command for the change:
 
-- Typecheck: `npm run typecheck`
-- Spec coverage: `npm run spec:check`
-- Tests: `npm test`
-- Lint: `npm run lint`
-- Format/fix: `npm run lint:fix`
-- Build: `npm run build`
+- Typecheck: `pnpm run typecheck`
+- Spec coverage: `pnpm run spec:check`
+- Tests: `pnpm test`
+- Lint: `pnpm run lint`
+- Format/fix: `pnpm run lint:fix`
+- Build: `pnpm run build`
 
 The project has a Husky pre-commit hook at `.husky/pre-commit` that runs:
 
 ```bash
-npm run typecheck && npx lint-staged
+pnpm run typecheck && pnpm exec lint-staged
 ```
 
 Do not rely on CI for checks that can be run locally before commit.

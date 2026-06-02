@@ -25,19 +25,51 @@ describe('auth.test 1', () => {
     expect(response.status).toBe(200)
     const metadata = (await response.json()) as {
       token_endpoint_auth_methods_supported: string[]
+      grant_types_supported: string[]
     }
 
     expect(metadata).toMatchObject({
       issuer: 'https://auth.example.com/api/auth',
       authorization_endpoint: 'https://auth.example.com/api/auth/oauth2/authorize',
+      device_authorization_endpoint: 'https://auth.example.com/api/auth/device/code',
       token_endpoint: 'https://auth.example.com/api/auth/oauth2/token',
       jwks_uri: 'https://auth.example.com/api/auth/jwks',
-      grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'],
+      grant_types_supported: [
+        'authorization_code',
+        'client_credentials',
+        'refresh_token',
+        'urn:ietf:params:oauth:grant-type:device_code',
+      ],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'management:read', 'management:write'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
     })
     expect(metadata.token_endpoint_auth_methods_supported).not.toContain('none')
+  })
+
+  it('validates device-code grants at the OAuth Provider token endpoint', async () => {
+    const auth = createAuth(
+      {} as Database,
+      '01234567890123456789012345678901',
+      'https://auth.example.com',
+      ['https://auth.example.com'],
+      createEmailSenderMock(),
+      createSecurityPolicy(),
+    )
+
+    const response = await createApp(auth).request('/api/auth/oauth2/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'invalid_request',
+      error_description: 'client_id is required',
+    })
   })
 
   it('passes mounted authorize query parameters to Better Auth', async () => {

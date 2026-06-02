@@ -47,6 +47,7 @@ Feature: Admin Console
   Scenario: Applications page creates an OIDC client
     When I create an application from Console
     Then the new OIDC client appears in inventory
+    And native clients can be created with device login enabled
 
   @entrypoint:product-ui @journey:admin-application-detail
   Scenario: Application detail manages lifecycle, redirects, integration details, and secret rotation

@@ -25,6 +25,15 @@ Feature: Management API Restish entry
     And Management API requests with a non-admin Bearer token are rejected
 
 
+  @entrypoint:restish @journey:management-native-device-approval
+  Scenario: Native clients request OAuth device authorization codes when explicitly configured
+    Given a public native application is configured with the OAuth device-code grant
+    When a native client requests a device authorization code for openid profile email offline_access scopes
+    Then FlareAuth returns a device code, user code, verification URI, expiry, and polling interval
+    And the native client can poll the OAuth token endpoint for OIDC-compatible tokens after browser approval
+    And confidential, disabled, or non-native clients cannot use device authorization
+
+
   @e2e @entrypoint:restish @journey:management-restish-oauth-crud
   Scenario: Restish manages applications through the Management API
     Given I authenticate the Restish CLI through the built-in OAuth client
