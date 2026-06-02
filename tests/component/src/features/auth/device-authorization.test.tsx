@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DeviceVerification } from '@/features/auth/device-authorization'
 import { approveDeviceCode, denyDeviceCode, verifyDeviceCode } from '@/lib/auth-client'
@@ -85,6 +85,45 @@ describe('DeviceVerification', () => {
     render(<DeviceVerification mode="approval" userCode="EXPIRED1" />)
 
     expect(await screen.findByText('Device code is invalid or expired.')).toBeTruthy()
+  })
+
+  it('ignores successful verification after approval unmounts', async () => {
+    let resolveVerification: (value: { user_code: string; status: 'pending' | 'approved' | 'denied' }) => void =
+      () => {}
+    vi.mocked(verifyDeviceCode).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveVerification = resolve
+      }),
+    )
+
+    const { unmount } = render(<DeviceVerification mode="approval" userCode="ABCD-2345" />)
+
+    await waitFor(() => expect(verifyDeviceCode).toHaveBeenCalledWith({ userCode: 'ABCD-2345' }))
+    unmount()
+    await act(async () => {
+      resolveVerification({ user_code: 'ABCD2345', status: 'pending' })
+    })
+
+    expect(screen.queryByText('ABCD2345')).toBeNull()
+  })
+
+  it('ignores failed verification after approval unmounts', async () => {
+    let rejectVerification: (reason: unknown) => void = () => {}
+    vi.mocked(verifyDeviceCode).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectVerification = reject
+      }),
+    )
+
+    const { unmount } = render(<DeviceVerification mode="approval" userCode="ABCD-2345" />)
+
+    await waitFor(() => expect(verifyDeviceCode).toHaveBeenCalledWith({ userCode: 'ABCD-2345' }))
+    unmount()
+    await act(async () => {
+      rejectVerification(new Error('Device code expired.'))
+    })
+
+    expect(screen.queryByText('Device code expired.')).toBeNull()
   })
 
   it('surfaces approval failures and allows retry', async () => {
