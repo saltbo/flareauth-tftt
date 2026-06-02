@@ -28,6 +28,19 @@ describe('DeviceVerification', () => {
     expect(assign).toHaveBeenCalledWith('/device/approve?user_code=ABCD2345')
   })
 
+  it('keeps entry submission local until a code is entered', () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    render(<DeviceVerification mode="entry" />)
+
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Continue' })
+    expect(button.disabled).toBe(true)
+
+    fireEvent.submit(button.closest('form')!)
+
+    expect(assign).not.toHaveBeenCalled()
+  })
+
   it('claims and approves a verified device code', async () => {
     render(<DeviceVerification mode="approval" userCode="ABCD-2345" />)
 
@@ -66,6 +79,14 @@ describe('DeviceVerification', () => {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Approve' }).disabled).toBe(true)
   })
 
+  it('uses the default verification failure message for unknown errors', async () => {
+    vi.mocked(verifyDeviceCode).mockRejectedValueOnce('expired')
+
+    render(<DeviceVerification mode="approval" userCode="EXPIRED1" />)
+
+    expect(await screen.findByText('Device code is invalid or expired.')).toBeTruthy()
+  })
+
   it('surfaces approval failures and allows retry', async () => {
     vi.mocked(approveDeviceCode).mockRejectedValueOnce(new Error('Approval failed.'))
     render(<DeviceVerification mode="approval" userCode="ABCD-2345" />)
@@ -75,6 +96,16 @@ describe('DeviceVerification', () => {
 
     expect(await screen.findByText('Approval failed.')).toBeTruthy()
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Approve' }).disabled).toBe(false)
+  })
+
+  it('uses the default decision failure message for unknown errors', async () => {
+    vi.mocked(approveDeviceCode).mockRejectedValueOnce('rejected')
+    render(<DeviceVerification mode="approval" userCode="ABCD-2345" />)
+
+    await waitFor(() => expect(verifyDeviceCode).toHaveBeenCalledWith({ userCode: 'ABCD-2345' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    expect(await screen.findByText('Unable to update device access.')).toBeTruthy()
   })
 
   it('surfaces denial failures and allows retry', async () => {

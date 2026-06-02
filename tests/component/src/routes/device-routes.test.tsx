@@ -23,8 +23,13 @@ vi.mock('../../../../src/features/auth/hooks', () => ({
   useConfigz: () => ({ data: null }),
 }))
 
+vi.mock('../../../../src/lib/route-auth', () => ({
+  requireAccountProfile: vi.fn().mockResolvedValue({ id: 'user-1' }),
+}))
+
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
   window.history.pushState(null, '', '/')
 })
 
@@ -39,6 +44,15 @@ describe('device routes', () => {
     expect(screen.getByText('Device verification ABCD-1234').getAttribute('data-mode')).toBe('entry')
   })
 
+  it('renders the device entry route without a query user code', () => {
+    window.history.pushState(null, '', '/device')
+    const Component = DeviceRoute.options.component!
+
+    render(<Component />)
+
+    expect(screen.getByText('Device verification').getAttribute('data-mode')).toBe('entry')
+  })
+
   it('renders the authenticated device approval route with the query user code', () => {
     window.history.pushState(null, '', '/device/approve?user_code=ABCD-1234')
     const Component = DeviceApprovalRoute.options.component!
@@ -47,5 +61,24 @@ describe('device routes', () => {
 
     expect(screen.getByRole('heading', { name: 'Approve device' })).toBeTruthy()
     expect(screen.getByText('Device verification ABCD-1234').getAttribute('data-mode')).toBe('approval')
+  })
+
+  it('renders the authenticated device approval route without a query user code', () => {
+    window.history.pushState(null, '', '/device/approve')
+    const Component = DeviceApprovalRoute.options.component!
+
+    render(<Component />)
+
+    expect(screen.getByText('Device verification').getAttribute('data-mode')).toBe('approval')
+  })
+
+  it('requires an account profile before approving a device code', async () => {
+    const { requireAccountProfile } = await import('../../../../src/lib/route-auth')
+
+    await DeviceApprovalRoute.options.beforeLoad?.({
+      location: { href: 'https://auth.example.com/device/approve?user_code=ABCD-1234' },
+    } as never)
+
+    expect(requireAccountProfile).toHaveBeenCalledWith('https://auth.example.com/device/approve?user_code=ABCD-1234')
   })
 })
