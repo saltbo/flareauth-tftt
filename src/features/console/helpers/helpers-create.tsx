@@ -1,3 +1,4 @@
+import { deviceCodeGrantType } from '@shared/api/applications'
 import {
   type ApplicationResponse,
   applicationTypeOptions,
@@ -27,8 +28,15 @@ import {
   useState,
   type z,
 } from '../console-shared'
-import { listValue } from './helpers-dialogs'
+import { listValue, SwitchRow } from './helpers-dialogs'
 import { parseForm, setValue } from './helpers-utils'
+
+export function createApplicationGrantTypes(clientType: string, deviceLoginEnabled: boolean) {
+  if (clientType === 'public_native' && deviceLoginEnabled) {
+    return ['authorization_code', 'refresh_token', deviceCodeGrantType]
+  }
+  return ['authorization_code', 'refresh_token']
+}
 
 export function CreateApplicationDialog({
   createdApplication,
@@ -53,6 +61,7 @@ export function CreateApplicationDialog({
     clientType: 'public_spa',
     redirectUris: '',
   })
+  const [deviceLoginEnabled, setDeviceLoginEnabled] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   return (
     <Dialog open={open}>
@@ -102,6 +111,7 @@ export function CreateApplicationDialog({
                 parseForm(createApplicationRequestSchema, {
                   ...form,
                   firstParty: true,
+                  allowedGrantTypes: createApplicationGrantTypes(form.clientType, deviceLoginEnabled),
                   redirectUris: form.redirectUris.split('\n').filter(Boolean),
                 }),
               )
@@ -122,9 +132,19 @@ export function CreateApplicationDialog({
             />
           </Field>
           <ApplicationTypeCards
-            onChange={(clientType) => setValue(setForm, 'clientType', clientType)}
+            onChange={(clientType) => {
+              setValue(setForm, 'clientType', clientType)
+              if (clientType !== 'public_native') setDeviceLoginEnabled(false)
+            }}
             value={form.clientType}
           />
+          {form.clientType === 'public_native' ? (
+            <SwitchRow
+              checked={deviceLoginEnabled}
+              label={tt('Device login')}
+              onCheckedChange={setDeviceLoginEnabled}
+            />
+          ) : null}
           <Field label={tt('Redirect URIs')} help={tt('One URI per line.')}>
             <TextArea onChange={(event) => setValue(setForm, 'redirectUris', event.target.value)} required />
           </Field>

@@ -19,7 +19,8 @@ import {
   useQueryClient,
   useState,
 } from '../console-shared'
-import { ApplicationTypeCards } from '../helpers/helpers-create'
+import { ApplicationTypeCards, createApplicationGrantTypes } from '../helpers/helpers-create'
+import { SwitchRow } from '../helpers/helpers-dialogs'
 import { ResourcePage, SetupChecklist } from '../helpers/helpers-resource'
 import { parseForm, useAdminMutation } from '../helpers/helpers-utils'
 
@@ -33,6 +34,7 @@ export function ConsoleOnboardingPage() {
     name: 'Customer portal',
     slug: 'customer-portal',
     clientType: 'public_spa',
+    deviceLoginEnabled: false,
     redirectUris: `${window.location.origin}/oidc/callback`,
   })
   const createMutation = useAdminMutation({
@@ -98,6 +100,7 @@ export function ConsoleOnboardingPage() {
                     slug: form.slug,
                     clientType: form.clientType,
                     firstParty: true,
+                    allowedGrantTypes: createApplicationGrantTypes(form.clientType, form.deviceLoginEnabled),
                     redirectUris: form.redirectUris.split('\n').filter(Boolean),
                   }),
                 )
@@ -108,10 +111,23 @@ export function ConsoleOnboardingPage() {
                   setForm((value) => ({
                     ...value,
                     clientType,
+                    deviceLoginEnabled: clientType === 'public_native' ? value.deviceLoginEnabled : false,
                   }))
                 }
                 value={form.clientType}
               />
+              {form.clientType === 'public_native' ? (
+                <SwitchRow
+                  checked={form.deviceLoginEnabled}
+                  label={tt('Device login')}
+                  onCheckedChange={(deviceLoginEnabled) =>
+                    setForm((value) => ({
+                      ...value,
+                      deviceLoginEnabled,
+                    }))
+                  }
+                />
+              ) : null}
               <Field label={tt('Application name')}>
                 <TextInput
                   onChange={(event) =>
