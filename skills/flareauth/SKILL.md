@@ -10,9 +10,8 @@ Use this skill for two related tasks:
 - Operating a FlareAuth deployment through the Management API.
 - Guiding product OIDC clients that integrate with FlareAuth.
 
-For Management API command details, read `references/restish-commands.md`.
-For OIDC client type and device-login guidance, read
-`references/oidc-client-guide.md`.
+For the full Management API Restish command list, read
+`references/restish-commands.md`.
 
 ## Setup
 
@@ -51,11 +50,169 @@ authorization script to refresh the local profile and cached auth.
 
 ## OIDC Client Integration
 
-When asked how a product OIDC client should integrate with FlareAuth, which
-client type to create, or how device login works, read
-`references/oidc-client-guide.md`. Keep that guide as the source of truth for
-public SPA, public native, confidential web, and device authorization client
-configuration.
+Use the FlareAuth deployment issuer for product clients:
+
+```text
+AUTH_ORIGIN/api/auth
+```
+
+Prefer discovery metadata instead of hard-coding endpoints:
+
+```text
+AUTH_ORIGIN/api/auth/.well-known/openid-configuration
+```
+
+Common product scopes are `openid profile email`. Add `offline_access` only
+when the client needs refresh tokens. Management scopes are reserved for the
+system CLI client and are not accepted on ordinary product clients.
+
+Choose the client type by where the application runs:
+
+| Client type | Use for | Secret | Typical grants |
+| --- | --- | --- | --- |
+| `public_spa` | Browser apps that cannot hold secrets | No | `authorization_code`, `refresh_token` |
+| `public_native` | Mobile, desktop, CLI, runner, daemon clients | No | `authorization_code`, `refresh_token`, device-code grant |
+| `confidential_web` | Server-side web apps and backends that can hold secrets | Yes | `authorization_code`, `refresh_token`, `client_credentials` when needed |
+
+All authorization-code clients should use PKCE where their OIDC library
+supports it. Public clients use `tokenEndpointAuthMethod: none`; confidential
+clients use a client secret.
+
+## Creating OIDC Clients
+
+Authorize and sync a `PROFILE_NAME` before running these examples. Distinguish
+the FlareAuth deployment origin from the consuming product origin.
+`AUTH_ORIGIN` is where FlareAuth runs; `APP_ORIGIN` is the product application's
+origin used in OIDC redirect URIs.
+
+Create a public SPA application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Customer Portal",
+  "slug": "customer-portal",
+  "clientType": "public_spa",
+  "redirectUris": ["https://APP_ORIGIN/oidc/callback"],
+  "postLogoutRedirectUris": ["https://APP_ORIGIN/signed-out"],
+  "corsOrigins": ["https://APP_ORIGIN"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a public native authorization-code application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Desktop App",
+  "slug": "desktop-app",
+  "clientType": "public_native",
+  "redirectUris": ["com.example.desktop:/callback", "http://127.0.0.1:8484/callback"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a public native device-login application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Runner CLI",
+  "slug": "runner-cli",
+  "clientType": "public_native",
+  "redirectUris": ["com.example.runner:/callback"],
+  "allowedGrantTypes": ["urn:ietf:params:oauth:grant-type:device_code"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a confidential web application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Admin Backend",
+  "slug": "admin-backend",
+  "clientType": "confidential_web",
+  "redirectUris": ["https://ADMIN_ORIGIN/oidc/callback"],
+  "postLogoutRedirectUris": ["https://ADMIN_ORIGIN/signed-out"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+For confidential clients, store the returned `clientSecret` immediately. It is
+shown only once. Add `client_credentials` only when that backend must act
+without a user.
+
+## Device Authorization Flow
+
+Use device authorization only with `public_native` clients.
+
+The discovery document advertises the device authorization endpoint and
+device-code grant when supported:
+
+```text
+device_authorization_endpoint: AUTH_ORIGIN/api/auth/device/code
+token_endpoint: AUTH_ORIGIN/api/auth/oauth2/token
+grant_type: urn:ietf:params:oauth:grant-type:device_code
+```
+
+Device flow:
+
+1. Request a device code from `/api/auth/device/code` with `client_id` and
+   scopes such as `openid profile email offline_access`.
+2. Show `user_code` and `verification_uri` to the user.
+3. The user opens `/device`, signs in, and approves or denies the request.
+4. Poll `/api/auth/oauth2/token` with the device-code grant.
+5. Handle RFC 8628 polling errors: `authorization_pending`, `slow_down`,
+   `access_denied`, and `expired_token`.
+6. On success, consume the OAuth/OIDC token response. `openid` returns an
+   `id_token`; `offline_access` returns a `refresh_token`.
+
+Device-code request:
+
+```bash
+curl -sS -X POST "$AUTH_ORIGIN/api/auth/device/code" \
+  -H "content-type: application/json" \
+  --data '{"client_id":"CLIENT_ID","scope":"openid profile email offline_access"}'
+```
+
+Token polling request:
+
+```bash
+curl -sS -X POST "$AUTH_ORIGIN/api/auth/oauth2/token" \
+  -H "content-type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:device_code" \
+  --data-urlencode "client_id=CLIENT_ID" \
+  --data-urlencode "device_code=DEVICE_CODE"
+```
+
+For generic OIDC client libraries, prefer discovery metadata and the library's
+device authorization support.
 
 ## Guardrails
 
