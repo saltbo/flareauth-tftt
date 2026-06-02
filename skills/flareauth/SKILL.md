@@ -73,6 +73,11 @@ redirect_url: http://localhost:8484/callback
 scopes: openid profile email offline_access management:read management:write
 ```
 
+This built-in client is for Restish/Management API automation through the
+standard authorization-code browser callback. Do not assume it is the product
+OIDC device-login client, and do not modify the system-managed `flareauth-cli`
+application to add product-specific grants.
+
 The authorization script runs:
 
 ```bash
@@ -92,6 +97,95 @@ Do not use product OIDC client credentials for Management API automation. The Ma
 
 If the user has already authorized this Restish profile, they can rerun the same
 authorization script to refresh the local profile and cached auth.
+
+## OIDC Device Authorization Clients
+
+FlareAuth supports standard OAuth 2.0 Device Authorization Grant for product
+CLI, desktop, daemon, and runner clients through the OIDC/OAuth provider.
+
+Use this flow when the user asks how an external product, CLI, runner, or
+standards-compliant OIDC client should integrate device login. This is separate
+from Restish Management API automation above.
+
+The client must be a public native application:
+
+```json
+{
+  "clientType": "public_native",
+  "redirectUris": ["com.example.app:/callback"],
+  "allowedGrantTypes": ["urn:ietf:params:oauth:grant-type:device_code"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"]
+}
+```
+
+Rules:
+
+- The device-code grant is only valid for `public_native` clients.
+- Public SPA and confidential web clients must not use the device-code grant.
+- `offline_access` is required when the product expects refresh tokens.
+- Management scopes are reserved for the system CLI client and are not accepted
+  on ordinary product clients.
+- Use a standards-compliant OIDC/OAuth client library when possible. Point it at
+  FlareAuth discovery metadata instead of hard-coding endpoints.
+
+The OIDC issuer is:
+
+```text
+AUTH_ORIGIN/api/auth
+```
+
+Discovery is available at:
+
+```text
+AUTH_ORIGIN/api/auth/.well-known/openid-configuration
+```
+
+For device login, clients should discover or use:
+
+```text
+device_authorization_endpoint: AUTH_ORIGIN/api/auth/device/code
+token_endpoint: AUTH_ORIGIN/api/auth/oauth2/token
+grant_type: urn:ietf:params:oauth:grant-type:device_code
+```
+
+Device login sequence:
+
+1. Request a device code from `/device/code` with `client_id` and scopes such as
+   `openid profile email offline_access`.
+2. Show the returned `user_code` and `verification_uri` to the user.
+3. The user opens `/device`, signs in, and approves or denies the device.
+4. Poll `/oauth2/token` with
+   `urn:ietf:params:oauth:grant-type:device_code`, `client_id`, and
+   `device_code`.
+5. Handle RFC 8628 polling errors: `authorization_pending`, `slow_down`,
+   `access_denied`, and `expired_token`.
+6. On success, consume the OAuth/OIDC token response. `openid` returns an
+   `id_token`; `offline_access` returns a `refresh_token`.
+
+Example device-code request:
+
+```bash
+curl -sS -X POST "$AUTH_ORIGIN/api/auth/device/code" \
+  -H "content-type: application/json" \
+  --data '{"client_id":"CLIENT_ID","scope":"openid profile email offline_access"}'
+```
+
+Example token polling request:
+
+```bash
+curl -sS -X POST "$AUTH_ORIGIN/api/auth/oauth2/token" \
+  -H "content-type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:device_code" \
+  --data-urlencode "client_id=CLIENT_ID" \
+  --data-urlencode "device_code=DEVICE_CODE"
+```
+
+FlareAuth currently carries a temporary pnpm patch for
+`@better-auth/oauth-provider` to provide this OAuth Provider device-code token
+exchange. Track removal through the FlareAuth issue that references the
+upstream BetterAuth oauth-provider conformance issue. Do not remove the patch
+until upstream BetterAuth ships equivalent device-code token endpoint and
+discovery behavior and FlareAuth CI passes without the patch.
 
 ## Command Style
 
@@ -133,6 +227,25 @@ restish PROFILE_NAME create-application \
   "slug": "customer-portal",
   "clientType": "public_spa",
   "redirectUris": ["https://APP_ORIGIN/oidc/callback"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a public native OIDC client for device login:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Runner CLI",
+  "slug": "runner-cli",
+  "clientType": "public_native",
+  "redirectUris": ["com.example.runner:/callback"],
+  "allowedGrantTypes": ["urn:ietf:params:oauth:grant-type:device_code"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
   "firstParty": true,
   "trusted": true
 }
