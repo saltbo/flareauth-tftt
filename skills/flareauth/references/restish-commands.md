@@ -1,7 +1,10 @@
-# Restish Commands
+# Restish Command Reference
 
-Use Restish against the FlareAuth Management API. The public Management API base
-path is:
+Use this reference to discover the Restish commands supported by the FlareAuth
+Management API. Product-specific OIDC client configuration examples belong in
+the OIDC client guide.
+
+The public Management API base path is:
 
 ```text
 /api/management
@@ -64,7 +67,7 @@ application for product OIDC device login.
 
 ## Command Style
 
-After `api sync`, prefer generated operation commands because they match the
+After `api sync`, use generated operation commands. They are generated from the
 OpenAPI `operationId`s:
 
 ```bash
@@ -73,137 +76,7 @@ restish PROFILE_NAME list-applications
 restish PROFILE_NAME get-application app_123
 ```
 
-When generated commands are awkward or unavailable, use Restish generic verbs
-with resource paths:
-
-```bash
-restish get PROFILE_NAME/applications
-restish get PROFILE_NAME/applications/app_123
-restish post PROFILE_NAME/applications < app.json
-restish patch PROFILE_NAME/applications/app_123 < patch.json
-restish delete PROFILE_NAME/applications/app_123
-```
-
-Use `-o json` when another tool or script will consume the result.
-
-## Common Operations
-
-For application configuration, distinguish the FlareAuth deployment origin from
-the consuming product origin. `AUTH_ORIGIN` is where the Management API lives;
-`APP_ORIGIN` is the product application's origin used in OIDC redirect URIs.
-Never copy placeholder callback domains into a real application.
-
-Check deployment readiness:
-
-```bash
-restish PROFILE_NAME get-readiness -o json
-```
-
-Create a public SPA application:
-
-```bash
-restish PROFILE_NAME create-application \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "name": "Customer Portal",
-  "slug": "customer-portal",
-  "clientType": "public_spa",
-  "redirectUris": ["https://APP_ORIGIN/oidc/callback"],
-  "allowedGrantTypes": ["authorization_code", "refresh_token"],
-  "allowedScopes": ["openid", "profile", "email", "offline_access"],
-  "firstParty": true,
-  "trusted": true
-}
-JSON
-```
-
-Create a public native authorization-code application:
-
-```bash
-restish PROFILE_NAME create-application \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "name": "Desktop App",
-  "slug": "desktop-app",
-  "clientType": "public_native",
-  "redirectUris": ["com.example.desktop:/callback", "http://127.0.0.1:8484/callback"],
-  "allowedGrantTypes": ["authorization_code", "refresh_token"],
-  "allowedScopes": ["openid", "profile", "email", "offline_access"],
-  "firstParty": true,
-  "trusted": true
-}
-JSON
-```
-
-Create a public native device-login application:
-
-```bash
-restish PROFILE_NAME create-application \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "name": "Runner CLI",
-  "slug": "runner-cli",
-  "clientType": "public_native",
-  "redirectUris": ["com.example.runner:/callback"],
-  "allowedGrantTypes": ["urn:ietf:params:oauth:grant-type:device_code"],
-  "allowedScopes": ["openid", "profile", "email", "offline_access"],
-  "firstParty": true,
-  "trusted": true
-}
-JSON
-```
-
-Create a confidential web application:
-
-```bash
-restish PROFILE_NAME create-application \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "name": "Admin Backend",
-  "slug": "admin-backend",
-  "clientType": "confidential_web",
-  "redirectUris": ["https://ADMIN_ORIGIN/oidc/callback"],
-  "allowedGrantTypes": ["authorization_code", "refresh_token"],
-  "allowedScopes": ["openid", "profile", "email", "offline_access"],
-  "firstParty": true,
-  "trusted": true
-}
-JSON
-```
-
-Update an application:
-
-```bash
-restish PROFILE_NAME update-application app_123 \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "name": "Customer Portal Updated"
-}
-JSON
-```
-
-Create a draft connector:
-
-```bash
-restish PROFILE_NAME create-connector \
-  -H "Content-Type: application/json" \
-  -o json <<'JSON'
-{
-  "slug": "google",
-  "providerType": "social",
-  "providerId": "google",
-  "displayName": "Google",
-  "enabled": false
-}
-JSON
-```
-
-Generic JSON create/update pattern:
+For JSON bodies, pass content through stdin:
 
 ```bash
 restish PROFILE_NAME create-application \
@@ -211,8 +84,149 @@ restish PROFILE_NAME create-application \
   -o json < application.json
 ```
 
+When generated commands are awkward or unavailable, use Restish generic verbs
+with resource paths:
+
 ```bash
-restish PROFILE_NAME update-application app_123 \
-  -H "Content-Type: application/json" \
-  -o json < patch.json
+restish get PROFILE_NAME/applications
+restish get PROFILE_NAME/applications/app_123
+restish post PROFILE_NAME/applications < application.json
+restish patch PROFILE_NAME/applications/app_123 < patch.json
+restish delete PROFILE_NAME/applications/app_123
 ```
+
+Use `-o json` when another tool or script will consume the result.
+
+## Discovery And Readiness
+
+- `get-management-open-api`
+- `get-readiness`
+
+## Applications
+
+- `list-applications`
+- `create-application`
+- `get-application`
+- `update-application`
+- `delete-application`
+- `upload-application-logo`
+- `list-redirect-uris`
+- `replace-redirect-uris`
+- `list-client-secrets`
+- `rotate-client-secret`
+
+## API Resources
+
+- `list-api-resources`
+- `create-api-resource`
+- `get-api-resource`
+- `update-api-resource`
+- `delete-api-resource`
+- `list-api-resource-scopes`
+- `create-api-resource-scope`
+- `update-api-resource-scope`
+- `delete-api-resource-scope`
+- `list-api-resource-permissions`
+- `create-api-resource-permission`
+- `update-api-resource-permission`
+- `delete-api-resource-permission`
+
+## Organizations
+
+- `list-organizations`
+- `create-organization`
+- `get-organization`
+- `update-organization`
+- `delete-organization`
+- `upload-organization-logo`
+- `list-organization-members`
+- `create-organization-member`
+- `update-organization-member`
+- `delete-organization-member`
+- `list-organization-invitations`
+- `create-organization-invitation`
+- `delete-organization-invitation`
+
+## Roles
+
+- `list-roles`
+- `create-role`
+- `get-role`
+- `update-role`
+- `delete-role`
+- `list-role-permissions`
+- `replace-role-permissions`
+
+## Connectors
+
+- `list-connectors`
+- `create-connector`
+- `get-connector`
+- `update-connector`
+- `delete-connector`
+- `list-connector-readiness`
+- `list-connector-templates`
+
+## Settings
+
+- `get-sign-in-settings`
+- `update-sign-in-settings`
+- `get-branding-settings`
+- `update-branding-settings`
+- `get-account-center-settings`
+- `update-account-center-settings`
+- `upload-branding-logo`
+- `upload-branding-favicon`
+
+## Agent Protocol
+
+- `get-agent-protocol-inventory`
+- `revoke-agent`
+- `revoke-agent-host`
+- `revoke-agent-capability-grant`
+
+## Webhooks
+
+- `list-webhook-endpoints`
+- `create-webhook-endpoint`
+- `get-webhook-endpoint`
+- `update-webhook-endpoint`
+- `delete-webhook-endpoint`
+- `rotate-webhook-endpoint-secret`
+- `list-webhook-requests`
+- `get-webhook-request`
+- `retry-webhook-request`
+
+## Users
+
+- `list-users`
+- `create-user`
+- `get-user`
+- `update-user`
+- `delete-user`
+- `ban-user`
+- `ban-user-compatibility`
+- `unban-user`
+- `unban-user-compatibility`
+- `request-user-password-reset-compatibility`
+- `create-user-password-reset-request`
+- `create-user-password-reset-request-by-id`
+- `list-user-sessions`
+- `delete-user-sessions`
+- `delete-user-session`
+- `list-user-linked-accounts`
+- `list-user-applications`
+- `get-user-security`
+- `list-user-passkeys`
+- `delete-user-passkey`
+
+## Security
+
+- `get-security-policy`
+- `update-security-policy`
+- `get-security-user`
+- `list-security-user-sessions`
+- `delete-security-user-sessions`
+- `delete-security-user-session`
+- `list-security-user-passkeys`
+- `delete-security-user-passkey`

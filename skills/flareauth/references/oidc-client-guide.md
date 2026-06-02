@@ -48,6 +48,92 @@ All authorization-code clients should use PKCE where their OIDC library
 supports it. Public clients use `tokenEndpointAuthMethod: none`; confidential
 clients use a client secret.
 
+## Creating Clients With Restish
+
+Use the Restish command reference to authorize and sync a `PROFILE_NAME` before
+running these examples. Distinguish the FlareAuth deployment origin from the
+consuming product origin. `AUTH_ORIGIN` is where the Management API lives;
+`APP_ORIGIN` is the product application's origin used in OIDC redirect URIs.
+
+Create a public SPA application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Customer Portal",
+  "slug": "customer-portal",
+  "clientType": "public_spa",
+  "redirectUris": ["https://APP_ORIGIN/oidc/callback"],
+  "postLogoutRedirectUris": ["https://APP_ORIGIN/signed-out"],
+  "corsOrigins": ["https://APP_ORIGIN"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a public native authorization-code application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Desktop App",
+  "slug": "desktop-app",
+  "clientType": "public_native",
+  "redirectUris": ["com.example.desktop:/callback", "http://127.0.0.1:8484/callback"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a public native device-login application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Runner CLI",
+  "slug": "runner-cli",
+  "clientType": "public_native",
+  "redirectUris": ["com.example.runner:/callback"],
+  "allowedGrantTypes": ["urn:ietf:params:oauth:grant-type:device_code"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
+Create a confidential web application:
+
+```bash
+restish PROFILE_NAME create-application \
+  -H "Content-Type: application/json" \
+  -o json <<'JSON'
+{
+  "name": "Admin Backend",
+  "slug": "admin-backend",
+  "clientType": "confidential_web",
+  "redirectUris": ["https://ADMIN_ORIGIN/oidc/callback"],
+  "postLogoutRedirectUris": ["https://ADMIN_ORIGIN/signed-out"],
+  "allowedGrantTypes": ["authorization_code", "refresh_token"],
+  "allowedScopes": ["openid", "profile", "email", "offline_access"],
+  "firstParty": true,
+  "trusted": true
+}
+JSON
+```
+
 ## Public SPA
 
 Use `public_spa` for browser-only products.
