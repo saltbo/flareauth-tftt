@@ -14,11 +14,23 @@ export const systemCliClientId = 'flareauth-cli'
 export const managementApplicationScopes = ['management:read', 'management:write'] as const
 export const userConfigurableApplicationScopes = ['openid', 'profile', 'email', 'offline_access'] as const
 export const applicationScopes = [...userConfigurableApplicationScopes, ...managementApplicationScopes] as const
+export const customApplicationScopeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[A-Za-z0-9._-]+:[A-Za-z0-9:._-]+$/)
+  .refine((value) => !managementApplicationScopes.includes(value as (typeof managementApplicationScopes)[number]), {
+    message: 'Management scopes are reserved.',
+  })
 
 export const applicationClientTypeSchema = z.enum(applicationClientTypes)
 export const applicationGrantTypeSchema = z.enum(applicationGrantTypes)
-export const applicationScopeSchema = z.enum(applicationScopes)
-export const userConfigurableApplicationScopeSchema = z.enum(userConfigurableApplicationScopes)
+export const applicationScopeSchema = z.union([z.enum(applicationScopes), customApplicationScopeSchema])
+export const userConfigurableApplicationScopeSchema = z.union([
+  z.enum(userConfigurableApplicationScopes),
+  customApplicationScopeSchema,
+])
 
 const nonEmptyString = z.string().trim().min(1)
 const optionalUrl = z.url().optional()

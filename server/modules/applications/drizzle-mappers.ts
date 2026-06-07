@@ -255,6 +255,7 @@ export function isScope(value: string): value is ApplicationAggregate['allowedSc
     value === 'email' ||
     value === 'offline_access' ||
     value === 'management:read' ||
-    value === 'management:write'
+    value === 'management:write' ||
+    /^[A-Za-z0-9._-]+:[A-Za-z0-9:._-]{1,119}$/.test(value)
   )
 }
