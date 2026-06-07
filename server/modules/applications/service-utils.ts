@@ -1,7 +1,7 @@
 import {
   type ApplicationResponse,
   applicationGrantTypes,
-  applicationScopes,
+  applicationScopeSchema,
   deviceCodeGrantType,
   managementApplicationScopes,
   type PaginationQuery,
@@ -44,7 +44,7 @@ export function normalizeClientSettings(
     normalizedScopes.push('offline_access')
   }
   for (const scope of normalizedScopes) {
-    if (!applicationScopes.includes(scope)) {
+    if (!applicationScopeSchema.safeParse(scope).success) {
       throw badRequest(`Unsupported scope: ${scope}`)
     }
     if (
