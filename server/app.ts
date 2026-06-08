@@ -21,7 +21,11 @@ import type { ConfigzBindings } from './modules/configz/context'
 import type { OnboardingRepository } from './modules/onboarding/repository'
 import type { SecurityRepository } from './modules/security/repository'
 import { createTokenExchangeService, type TokenExchangeBindings } from './modules/token-exchange/context'
-import { parseBasicClientAuthorization, tokenExchangeGrantType } from './modules/token-exchange/service'
+import {
+  parseBasicClientAuthorization,
+  refreshTokenGrantType,
+  tokenExchangeGrantType,
+} from './modules/token-exchange/service'
 import type { UserRepository } from './modules/users/repository'
 import type { WalletRepository } from './modules/wallets/repository'
 import { managementOpenApiForRequest, managementOpenApiLinkHeader, managementOpenApiPath } from './openapi/management'
@@ -272,10 +276,15 @@ async function maybeHandleTokenExchange(c: Context, factory: TokenExchangeServic
     .catch(() => null)
   if (!form) return null
 
-  if (c.req.path === '/api/auth/oauth2/token' && formString(form, 'grant_type') !== tokenExchangeGrantType) return null
+  const grantType = formString(form, 'grant_type')
+  const tokenExchangeRefresh =
+    grantType === refreshTokenGrantType && (formString(form, 'refresh_token') ?? '').startsWith('fatr_')
+  if (c.req.path === '/api/auth/oauth2/token' && grantType !== tokenExchangeGrantType && !tokenExchangeRefresh) {
+    return null
+  }
 
   const client = readClientAuthentication(c.req.raw.headers, form)
-  if (!client) {
+  if (!client && !tokenExchangeRefresh) {
     return c.json({ error: 'invalid_client', error_description: 'Client authentication is required.' }, 401, {
       'WWW-Authenticate': 'Basic realm="FlareAuth token endpoint"',
     })
@@ -283,9 +292,22 @@ async function maybeHandleTokenExchange(c: Context, factory: TokenExchangeServic
 
   const service = factory(c as unknown as Context<{ Bindings: TokenExchangeBindings }>)
   if (c.req.path === '/api/auth/oauth2/token') {
+    if (tokenExchangeRefresh) {
+      const response = await service.refresh({
+        grantType: grantType ?? '',
+        refreshToken: formString(form, 'refresh_token') ?? '',
+        scope: formString(form, 'scope') ?? undefined,
+      })
+      return c.json(response)
+    }
+    if (!client) {
+      return c.json({ error: 'invalid_client', error_description: 'Client authentication is required.' }, 401, {
+        'WWW-Authenticate': 'Basic realm="FlareAuth token endpoint"',
+      })
+    }
     const response = await service.exchange(
       {
-        grantType: formString(form, 'grant_type') ?? '',
+        grantType: grantType ?? '',
         subjectToken: formString(form, 'subject_token') ?? '',
         subjectTokenType: formString(form, 'subject_token_type') ?? '',
         audience: formString(form, 'audience') ?? '',
@@ -297,6 +319,11 @@ async function maybeHandleTokenExchange(c: Context, factory: TokenExchangeServic
     return c.json(response)
   }
 
+  if (!client) {
+    return c.json({ error: 'invalid_client', error_description: 'Client authentication is required.' }, 401, {
+      'WWW-Authenticate': 'Basic realm="FlareAuth token endpoint"',
+    })
+  }
   const introspection = await service.introspect(formString(form, 'token') ?? '', client)
   if (!introspection.active) return null
   return c.json(introspection)
