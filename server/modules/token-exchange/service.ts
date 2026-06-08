@@ -3,13 +3,28 @@ import { badRequest, unauthorized } from '../../lib/errors'
 import { hashProviderSecret } from '../applications/service-utils'
 
 export const tokenExchangeGrantType = 'urn:ietf:params:oauth:grant-type:token-exchange'
+export const refreshTokenGrantType = 'refresh_token'
 export const accessTokenType = 'urn:ietf:params:oauth:token-type:access_token'
 export const jwtTokenType = 'urn:ietf:params:oauth:token-type:jwt'
 
 const defaultExpiresInSeconds = 60 * 60
+const defaultRefreshExpiresInSeconds = 30 * 24 * 60 * 60
+const refreshTokenPrefix = 'fatr_'
 
 type TrustedIssuerRow = typeof trustedExternalIssuer.$inferSelect
 type TokenRow = typeof tokenExchangeAccessToken.$inferSelect
+type RefreshTokenPayload = {
+  typ: 'token_exchange_refresh'
+  clientId: string
+  issuerId: string
+  subject: string
+  subjectTokenIssuer: string
+  audience: string
+  scopes: string[]
+  claims: Record<string, unknown>
+  exp: number
+  iat: number
+}
 
 export interface OAuthClientRecord {
   clientId: string
@@ -50,6 +65,13 @@ export interface TokenExchangeResponse {
   token_type: 'Bearer'
   expires_in: number
   scope: string
+  refresh_token?: string
+}
+
+export interface TokenRefreshRequest {
+  grantType: string
+  refreshToken: string
+  scope?: string
 }
 
 export interface IntrospectionResponse {
@@ -80,18 +102,22 @@ export class TokenExchangeService {
     }
 
     const oauthClient = await this.authenticateClient(client.clientId, client.clientSecret)
-    if (!parseList(oauthClient.grantTypes).includes(tokenExchangeGrantType)) {
+    const allowedGrantTypes = parseList(oauthClient.grantTypes)
+    if (!allowedGrantTypes.includes(tokenExchangeGrantType)) {
       throw unauthorized('Client is not allowed to use token exchange.')
     }
 
     const scopes = normalizeScopes(input.scope, parseList(oauthClient.scopes))
+    if (scopes.includes('offline_access') && !allowedGrantTypes.includes(refreshTokenGrantType)) {
+      throw badRequest('Client is not allowed to issue refresh tokens.')
+    }
     const assertion = parseJwt(input.subjectToken)
     const issuerValue = readString(assertion.payload.iss)
     const subject = readString(assertion.payload.sub)
     if (!issuerValue || !subject) throw unauthorized('Subject token is missing required claims.')
 
     const issuer = await this.repository.findTrustedIssuer(issuerValue)
-    if (!issuer || !issuer.enabled) throw unauthorized('Subject token issuer is not trusted.')
+    if (!issuer?.enabled) throw unauthorized('Subject token issuer is not trusted.')
     if (issuer.allowedAudiences?.length && !issuer.allowedAudiences.includes(input.audience)) {
       throw unauthorized('Audience is not allowed for this issuer.')
     }
@@ -116,12 +142,63 @@ export class TokenExchangeService {
       expiresAt,
     })
 
-    return {
+    const response: TokenExchangeResponse = {
       access_token: accessToken,
       issued_token_type: accessTokenType,
       token_type: 'Bearer',
       expires_in: expiresIn,
       scope: scopes.join(' '),
+    }
+    if (scopes.includes('offline_access')) {
+      response.refresh_token = await issueRefreshToken(oauthClient, {
+        issuerId: issuer.id,
+        subject,
+        subjectTokenIssuer: issuer.issuer,
+        audience: input.audience,
+        scopes,
+        claims,
+      })
+    }
+    return response
+  }
+
+  async refresh(input: TokenRefreshRequest) {
+    if (input.grantType !== refreshTokenGrantType) {
+      throw badRequest('Unsupported grant_type.')
+    }
+    const oauthClient = await this.authenticateRefreshClient(input.refreshToken)
+    if (!parseList(oauthClient.grantTypes).includes(refreshTokenGrantType)) {
+      throw unauthorized('Client is not allowed to use refresh tokens.')
+    }
+
+    const payload = await verifyRefreshToken(input.refreshToken, oauthClient)
+    if (payload.clientId !== oauthClient.clientId) {
+      throw unauthorized('Refresh token client does not match.')
+    }
+    const requestedScopes = input.scope ? normalizeScopes(input.scope, payload.scopes) : payload.scopes
+    const expiresIn = defaultExpiresInSeconds
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + expiresIn * 1000)
+    const accessToken = `fatx_${base64Url(randomBytes(32))}`
+    await this.repository.storeAccessToken({
+      id: createId('tex'),
+      tokenHash: await hashProviderSecret(accessToken),
+      clientId: oauthClient.clientId,
+      issuerId: payload.issuerId,
+      subject: payload.subject,
+      subjectTokenIssuer: payload.subjectTokenIssuer,
+      audience: payload.audience,
+      scopes: requestedScopes,
+      claims: payload.claims,
+      expiresAt,
+    })
+
+    return {
+      access_token: accessToken,
+      issued_token_type: accessTokenType,
+      token_type: 'Bearer',
+      expires_in: expiresIn,
+      scope: requestedScopes.join(' '),
     } satisfies TokenExchangeResponse
   }
 
@@ -165,6 +242,13 @@ export class TokenExchangeService {
     }
     return client
   }
+
+  private async authenticateRefreshClient(refreshToken: string) {
+    const payload = readUnsignedRefreshPayload(refreshToken)
+    const client = await this.repository.findClient(payload.clientId)
+    if (!client || client.disabled || !client.clientSecret) throw unauthorized('Invalid refresh token.')
+    return client
+  }
 }
 
 export function parseBasicClientAuthorization(header: string | null) {
@@ -186,6 +270,90 @@ function normalizeScopes(scope: string | undefined, allowedScopes: string[]) {
     if (!allowedScopes.includes(item)) throw badRequest(`Scope is not allowed for this client: ${item}`)
   }
   return scopes
+}
+
+async function issueRefreshToken(
+  client: OAuthClientRecord,
+  input: Omit<RefreshTokenPayload, 'typ' | 'clientId' | 'exp' | 'iat'>,
+) {
+  const now = Math.floor(Date.now() / 1000)
+  const payload: RefreshTokenPayload = {
+    typ: 'token_exchange_refresh',
+    clientId: client.clientId,
+    ...input,
+    iat: now,
+    exp: now + defaultRefreshExpiresInSeconds,
+  }
+  return `${refreshTokenPrefix}${await signRefreshPayload(payload, client)}`
+}
+
+async function verifyRefreshToken(token: string, client: OAuthClientRecord): Promise<RefreshTokenPayload> {
+  if (!token.startsWith(refreshTokenPrefix)) throw unauthorized('Invalid refresh token.')
+  const compact = token.slice(refreshTokenPrefix.length)
+  const parts = compact.split('.')
+  if (parts.length !== 2) throw unauthorized('Invalid refresh token.')
+  const [payloadPart, signaturePart] = parts
+  const expected = await signRefreshPayloadPart(payloadPart, client)
+  if (!(await timingSafeEqual(signaturePart, expected))) throw unauthorized('Invalid refresh token.')
+  const payload = readJsonPart(payloadPart)
+  if (!isRefreshTokenPayload(payload)) throw unauthorized('Invalid refresh token.')
+  if (payload.typ !== 'token_exchange_refresh') throw unauthorized('Invalid refresh token.')
+  if (payload.exp <= Math.floor(Date.now() / 1000)) throw unauthorized('Refresh token is expired.')
+  return payload
+}
+
+function readUnsignedRefreshPayload(token: string) {
+  if (!token.startsWith(refreshTokenPrefix)) throw unauthorized('Invalid refresh token.')
+  const compact = token.slice(refreshTokenPrefix.length)
+  const parts = compact.split('.')
+  if (parts.length !== 2) throw unauthorized('Invalid refresh token.')
+  const payload = readJsonPart(parts[0])
+  if (!isRefreshTokenPayload(payload)) throw unauthorized('Invalid refresh token.')
+  return payload
+}
+
+async function signRefreshPayload(payload: RefreshTokenPayload, client: OAuthClientRecord) {
+  const payloadPart = base64Url(new TextEncoder().encode(JSON.stringify(payload)))
+  return `${payloadPart}.${await signRefreshPayloadPart(payloadPart, client)}`
+}
+
+async function signRefreshPayloadPart(payloadPart: string, client: OAuthClientRecord) {
+  if (!client.clientSecret) throw unauthorized('Invalid client credentials.')
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(client.clientSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadPart))
+  return base64Url(new Uint8Array(signature))
+}
+
+async function timingSafeEqual(a: string, b: string) {
+  const left = new TextEncoder().encode(a)
+  const right = new TextEncoder().encode(b)
+  if (left.length !== right.length) return false
+  let diff = 0
+  for (let i = 0; i < left.length; i += 1) diff |= left[i] ^ right[i]
+  return diff === 0
+}
+
+function isRefreshTokenPayload(value: unknown): value is RefreshTokenPayload {
+  return (
+    isRecord(value) &&
+    value.typ === 'token_exchange_refresh' &&
+    typeof value.clientId === 'string' &&
+    typeof value.issuerId === 'string' &&
+    typeof value.subject === 'string' &&
+    typeof value.subjectTokenIssuer === 'string' &&
+    typeof value.audience === 'string' &&
+    Array.isArray(value.scopes) &&
+    value.scopes.every((item) => typeof item === 'string') &&
+    isRecord(value.claims) &&
+    typeof value.exp === 'number' &&
+    typeof value.iat === 'number'
+  )
 }
 
 function parseJwt(token: string) {

@@ -4,6 +4,7 @@ import {
   jwtTokenType,
   type OAuthClientRecord,
   parseBasicClientAuthorization,
+  refreshTokenGrantType,
   type TokenExchangeRepository,
   TokenExchangeService,
   tokenExchangeGrantType,
@@ -93,6 +94,75 @@ describe('token exchange service', () => {
       service.introspect(exchanged.access_token, { clientId: 'runner-client', clientSecret }),
     ).resolves.toEqual({
       active: false,
+    })
+  })
+
+  it('refreshes token-exchange access tokens with a signed refresh token', async () => {
+    const repository = new InMemoryTokenExchangeRepository()
+    const service = new TokenExchangeService(repository)
+    const clientSecret = 'runner-client-secret'
+    repository.client = {
+      clientId: 'runner-client',
+      clientSecret: await hashProviderSecret(clientSecret),
+      disabled: false,
+      grantTypes: JSON.stringify([tokenExchangeGrantType, refreshTokenGrantType]),
+      scopes: JSON.stringify(['runner:connect', 'offline_access']),
+    }
+    await service.createTrustedIssuer({
+      name: 'External Platform',
+      issuer: 'https://platform.example.com',
+      sharedSecret: 'external-platform-secret',
+      allowedAudiences: ['https://ama.example.com'],
+    })
+
+    const subjectToken = await signHs256Jwt(
+      {
+        iss: 'https://platform.example.com',
+        sub: 'org_1:runner_1',
+        aud: 'https://ama.example.com',
+        exp: Math.floor(Date.now() / 1000) + 60,
+        ama_project_id: 'project_1',
+        ama_environment_id: 'env_1',
+      },
+      'external-platform-secret',
+    )
+
+    const exchanged = await service.exchange(
+      {
+        grantType: tokenExchangeGrantType,
+        subjectToken,
+        subjectTokenType: jwtTokenType,
+        requestedTokenType: accessTokenType,
+        audience: 'https://ama.example.com',
+        scope: 'runner:connect offline_access',
+      },
+      { clientId: 'runner-client', clientSecret },
+    )
+
+    expect(exchanged.refresh_token).toMatch(/^fatr_/)
+    const refreshed = await service.refresh({
+      grantType: refreshTokenGrantType,
+      refreshToken: exchanged.refresh_token!,
+      scope: 'runner:connect',
+    })
+
+    expect(refreshed).toMatchObject({
+      issued_token_type: accessTokenType,
+      token_type: 'Bearer',
+      scope: 'runner:connect',
+    })
+    expect(refreshed.access_token).toMatch(/^fatx_/)
+    await expect(
+      service.introspect(refreshed.access_token, { clientId: 'runner-client', clientSecret }),
+    ).resolves.toMatchObject({
+      active: true,
+      iss: 'https://platform.example.com',
+      sub: 'org_1:runner_1',
+      aud: 'https://ama.example.com',
+      client_id: 'runner-client',
+      scope: 'runner:connect',
+      ama_project_id: 'project_1',
+      ama_environment_id: 'env_1',
     })
   })
 
