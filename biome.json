@@ -13,7 +13,7 @@
       "scripts/**/*.mjs",
       "src/**/*.ts",
       "src/**/*.tsx",
-      "tests/e2e/**/*.ts"
+      "e2e/**/*.ts"
     ],
     "ignoreUnknown": true
   },

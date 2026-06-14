@@ -11,10 +11,10 @@ export const admin = {
 }
 
 export const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${process.env.PLAYWRIGHT_PORT ?? '4189'}`
-const e2eWranglerConfig = process.env.E2E_WRANGLER_CONFIG ?? 'tests/e2e/wrangler.toml'
-const e2ePersistStatePath = process.env.CF_PERSIST_STATE_PATH ?? 'tests/e2e/.wrangler/state'
+const e2eWranglerConfig = process.env.E2E_WRANGLER_CONFIG ?? 'e2e/wrangler.toml'
+const e2ePersistStatePath = process.env.CF_PERSIST_STATE_PATH ?? 'e2e/.wrangler/state'
 const e2eD1Database = process.env.E2E_D1_DATABASE ?? 'flareauth-db-e2e'
-const repoRoot = fileURLToPath(new URL('../../..', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 export async function resetAndBootstrap() {
   resetState()

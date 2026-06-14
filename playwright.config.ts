@@ -9,17 +9,17 @@ import { defineConfig, devices } from '@playwright/test'
 // live here — no external dependency, just SPA + Worker + local D1 + auth.
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 4189)
 const baseURL = `http://localhost:${PORT}`
-const persistStatePath = process.env.CF_PERSIST_STATE_PATH ?? 'tests/e2e/.wrangler/state'
+const persistStatePath = process.env.CF_PERSIST_STATE_PATH ?? 'e2e/.wrangler/state'
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
-  globalSetup: './tests/e2e/global-setup.ts',
+  globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -31,7 +31,7 @@ export default defineConfig({
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
     env: {
-      CF_WRANGLER_CONFIG: process.env.E2E_WRANGLER_CONFIG ?? 'tests/e2e/wrangler.toml',
+      CF_WRANGLER_CONFIG: process.env.E2E_WRANGLER_CONFIG ?? 'e2e/wrangler.toml',
       CF_PERSIST_STATE_PATH: persistStatePath,
       PLAYWRIGHT_PORT: String(PORT),
     },

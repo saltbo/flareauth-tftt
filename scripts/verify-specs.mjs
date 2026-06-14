@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const specsDir = join(repoRoot, 'specs')
 // Tests are co-located beside source (server/, src/, shared/) and the Playwright
-// crown lives in tests/; breadcrumbs can appear in any of them.
-const breadcrumbDirs = ['tests', 'server', 'src', 'shared'].map((dir) => join(repoRoot, dir))
+// crown lives in e2e/; breadcrumbs can appear in any of them.
+const breadcrumbDirs = ['e2e', 'server', 'src', 'shared'].map((dir) => join(repoRoot, dir))
 
 const supportedEntrypoints = new Set(['product-ui', 'restish'])
 const scenarios = readScenarios(specsDir)

@@ -14,7 +14,7 @@
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
-    "db:migrate:e2e": "wrangler d1 migrations apply flareauth-db-e2e --local --config tests/e2e/wrangler.toml --persist-to tests/e2e/.wrangler/state",
+    "db:migrate:e2e": "wrangler d1 migrations apply flareauth-db-e2e --local --config e2e/wrangler.toml --persist-to e2e/.wrangler/state",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:self": "wrangler d1 migrations apply DB --remote --config wrangler.production.toml",
     "db:migrate:staging": "wrangler d1 migrations apply DB --remote --config wrangler.preview.toml",

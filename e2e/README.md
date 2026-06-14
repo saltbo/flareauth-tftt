@@ -1,6 +1,6 @@
 # Playwright E2E
 
-The product behaviour is described behaviour-first in `../../specs/*.feature`
+The product behaviour is described behaviour-first in `../specs/*.feature`
 (Gherkin docs, no runner). This directory holds the hermetic Playwright crown:
 the journeys that genuinely need the whole stack — real SPA + Worker + isolated
 local D1 + Better Auth — with NO external dependency.

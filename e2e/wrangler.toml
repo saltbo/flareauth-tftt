@@ -1,5 +1,5 @@
 name = "flareauth-e2e"
-main = "../../server/worker.ts"
+main = "../server/worker.ts"
 compatibility_date = "2026-04-12"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
@@ -15,7 +15,7 @@ E2E_OAUTH_CLIENT_SECRET = "e2e-secret"
 
 [assets]
 binding = "ASSETS"
-directory = "../../dist/client"
+directory = "../dist/client"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/.well-known/*"]
 
@@ -31,7 +31,7 @@ bucket_name = "flareauth-assets-e2e"
 binding = "DB"
 database_name = "flareauth-db-e2e"
 database_id = "00000000-0000-0000-0000-0000000000e2"
-migrations_dir = "../../migrations"
+migrations_dir = "../migrations"
 
 [[queues.producers]]
 binding = "EMAIL_QUEUE"
