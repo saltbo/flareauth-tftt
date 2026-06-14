@@ -2,6 +2,14 @@ import { agentAuth } from '@better-auth/agent-auth'
 import { i18n } from '@better-auth/i18n'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
+import type { TransactionalEmailSender } from '@server/adapters/gateways/email/sender'
+import { createDrizzleAgentRepository } from '@server/adapters/repos/agents'
+import { createDrizzleApplicationRepository } from '@server/adapters/repos/applications'
+import { createDrizzleAuthorizationRepository } from '@server/adapters/repos/authorization'
+import { executeReadOnlyCapability } from '@server/usecases/agents'
+import type { AuthConnectorConfig } from '@server/usecases/connectors'
+import type { Deps } from '@server/usecases/deps'
+import type { ApplicationRepository } from '@server/usecases/ports'
 import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import {
@@ -28,6 +36,7 @@ import {
 } from '../shared/api/applications'
 import type { ManagementSignInSettingsResponse } from '../shared/api/management'
 import type { SecurityPolicy } from '../shared/api/security'
+import { agentCapabilities } from './auth-capabilities'
 import {
   buildOAuthAccessTokenClaims,
   buildOAuthIdTokenClaims,
@@ -43,20 +52,12 @@ import {
 import { betterAuthTranslations } from './auth-i18n'
 import type { Database } from './db/client'
 import * as schema from './db/schema'
-import type { TransactionalEmailSender } from './lib/email/sender'
-import { hashPassword, verifyPassword } from './lib/password'
-import { agentCapabilities, areKnownAgentCapabilities } from './modules/agents/capabilities'
-import { createDrizzleAgentRepository } from './modules/agents/repository'
-import { AgentService } from './modules/agents/service'
-import { createDrizzleApplicationRepository } from './modules/applications/drizzle-repository'
-import type { ApplicationRepository } from './modules/applications/service'
-import { createDrizzleAuthorizationRepository } from './modules/authorization/drizzle-repository'
-import { AuthorizationService } from './modules/authorization/service'
-import type { AuthConnectorConfig } from './modules/connectors/service'
+import { areKnownAgentCapabilities } from './domain/agents/capabilities'
+import { hashPassword, verifyPassword } from './domain/password'
 
 export { buildOAuthAccessTokenClaims, buildOAuthIdTokenClaims, buildOAuthUserInfoClaims } from './auth-helpers'
 
-import { createUserRepository } from './modules/users/repository'
+import { createUserRepository } from '@server/adapters/repos/users'
 
 const oauthScopes = ['openid', 'profile', 'email', 'offline_access', ...managementApplicationScopes]
 const organizationAccessControl = createAccessControl({
@@ -110,9 +111,14 @@ export function createAuth(
     validAudiences?: string[]
   } = {},
 ) {
-  const authorization = new AuthorizationService(createDrizzleAuthorizationRepository(db))
   const applications = createDrizzleApplicationRepository(db)
-  const agents = new AgentService(createUserRepository(db), createDrizzleAgentRepository(db))
+  // The better-auth boundary builds its own repos; only the slices the token-claim
+  // and agent-capability usecases read are populated here.
+  const deps = {
+    authorization: createDrizzleAuthorizationRepository(db),
+    users: createUserRepository(db),
+    agents: createDrizzleAgentRepository(db),
+  } as unknown as Deps
 
   return betterAuth({
     appName: 'FlareAuth',
@@ -260,7 +266,7 @@ export function createAuth(
         capabilities: agentCapabilities,
         validateCapabilities: areKnownAgentCapabilities,
         onExecute: ({ capability, arguments: args, agentSession }) =>
-          agents.executeReadOnlyCapability({ capability, arguments: args, agentSession }),
+          executeReadOnlyCapability(deps, { capability, arguments: args, agentSession }),
       }),
       deviceAuthorization({
         verificationUri: '/device',
@@ -367,11 +373,11 @@ export function createAuth(
         consentPage: '/oauth/consent',
         scopes: oauthScopes,
         validAudiences: options.validAudiences,
-        customAccessTokenClaims: (input) => buildOAuthAccessTokenClaims(authorization, input),
+        customAccessTokenClaims: (input) => buildOAuthAccessTokenClaims(deps, input),
         customUserInfoClaims: async ({ user, scopes, jwt }) => {
           const clientId = readString(jwt, 'client_id') ?? readString(jwt, 'azp')
           if (clientId !== systemCliClientId) {
-            return buildOAuthUserInfoClaims(authorization, applications, { clientId, user, scopes, jwt })
+            return buildOAuthUserInfoClaims(deps, applications, { clientId, user, scopes, jwt })
           }
           if (!hasManagementScope(scopes)) return {}
           return {
@@ -382,7 +388,7 @@ export function createAuth(
             roles: jwt.roles,
           }
         },
-        customIdTokenClaims: (input) => buildOAuthIdTokenClaims(authorization, input),
+        customIdTokenClaims: (input) => buildOAuthIdTokenClaims(deps, input),
         clientRegistrationDefaultScopes: ['openid', 'profile', 'email'],
         clientRegistrationAllowedScopes: [...userConfigurableApplicationScopes],
         storeClientSecret: 'hashed',
