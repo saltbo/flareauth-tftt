@@ -1,11 +1,12 @@
-import { badRequest, unauthorized } from '@server/domain/errors'
+import { badRequest, notFound, unauthorized } from '@server/domain/errors'
 import { hashProviderSecret } from '@server/usecases/applications-utils'
 import type { Deps } from '@server/usecases/deps'
 import type {
+  CreateFederatedCredentialInput,
   JwksGateway,
   OAuthClientRecord,
-  TokenExchangeRepository,
-  TrustedExternalIssuerRecord,
+  ResolvedFederatedCredential,
+  UpdateFederatedCredentialInput,
 } from '@server/usecases/ports'
 
 export const tokenExchangeGrantType = 'urn:ietf:params:oauth:grant-type:token-exchange'
@@ -20,7 +21,7 @@ const refreshTokenPrefix = 'fatr_'
 type RefreshTokenPayload = {
   typ: 'token_exchange_refresh'
   clientId: string
-  issuerId: string
+  credentialId: string
   subject: string
   subjectTokenIssuer: string
   audience: string
@@ -97,13 +98,15 @@ export async function exchangeToken(
   const subject = readString(assertion.payload.sub)
   if (!issuerValue || !subject) throw unauthorized('Subject token is missing required claims.')
 
-  const issuer = await deps.tokenExchange.findTrustedIssuer(issuerValue)
-  if (!issuer?.enabled) throw unauthorized('Subject token issuer is not trusted.')
-  if (issuer.allowedAudiences?.length && !issuer.allowedAudiences.includes(input.audience)) {
-    throw unauthorized('Audience is not allowed for this issuer.')
+  // Trust is scoped to the authenticated client's application: only a credential
+  // registered under THIS application can be exchanged. The minted token then
+  // represents the application, not the self-asserted external subject.
+  const credential = await resolveCredential(deps, oauthClient.clientId, issuerValue, subject)
+  if (credential.audience !== input.audience) {
+    throw unauthorized('Requested audience does not match the federated credential.')
   }
 
-  await verifySubjectToken(input.subjectToken, assertion, issuer, input.audience, deps.jwks)
+  await verifySubjectToken(input.subjectToken, assertion, credential, deps.jwks)
 
   const expiresIn = defaultExpiresInSeconds
   const now = new Date()
@@ -114,10 +117,10 @@ export async function exchangeToken(
     id: createId('tex'),
     tokenHash: await hashProviderSecret(accessToken),
     clientId: oauthClient.clientId,
-    issuerId: issuer.id,
+    credentialId: credential.id,
     subject,
-    subjectTokenIssuer: issuer.issuer,
-    audience: input.audience,
+    subjectTokenIssuer: credential.issuer,
+    audience: credential.audience,
     scopes,
     claims,
     expiresAt,
@@ -132,15 +135,22 @@ export async function exchangeToken(
   }
   if (scopes.includes('offline_access')) {
     response.refresh_token = await issueRefreshToken(oauthClient, {
-      issuerId: issuer.id,
+      credentialId: credential.id,
       subject,
-      subjectTokenIssuer: issuer.issuer,
-      audience: input.audience,
+      subjectTokenIssuer: credential.issuer,
+      audience: credential.audience,
       scopes,
       claims,
     })
   }
   return response
+}
+
+async function resolveCredential(deps: Deps, applicationClientId: string, issuer: string, subject: string) {
+  const candidates = await deps.tokenExchange.findFederatedCredentials(applicationClientId, issuer)
+  const credential = candidates.find((item) => item.enabled && subjectMatches(item.subject, subject))
+  if (!credential) throw unauthorized('No federated credential matches the subject token.')
+  return credential
 }
 
 export async function refreshToken(deps: Deps, input: TokenRefreshRequest) {
@@ -165,7 +175,7 @@ export async function refreshToken(deps: Deps, input: TokenRefreshRequest) {
     id: createId('tex'),
     tokenHash: await hashProviderSecret(accessToken),
     clientId: oauthClient.clientId,
-    issuerId: payload.issuerId,
+    credentialId: payload.credentialId,
     subject: payload.subject,
     subjectTokenIssuer: payload.subjectTokenIssuer,
     audience: payload.audience,
@@ -207,18 +217,57 @@ export async function introspectToken(
   } satisfies IntrospectionResponse
 }
 
-export async function createTrustedIssuer(
-  deps: Deps,
-  input: Parameters<TokenExchangeRepository['createTrustedIssuer']>[0],
-) {
-  if (!input.jwksUrl && !input.sharedSecret) {
-    throw badRequest('Trusted issuers require either jwksUrl or sharedSecret.')
-  }
-  return deps.tokenExchange.createTrustedIssuer(input)
+export async function listFederatedCredentials(deps: Deps, applicationId: string) {
+  await ensureApplication(deps, applicationId)
+  return deps.tokenExchange.listFederatedCredentials(applicationId)
 }
 
-export function listTrustedIssuers(deps: Deps) {
-  return deps.tokenExchange.listTrustedIssuers()
+export async function getFederatedCredential(deps: Deps, applicationId: string, id: string) {
+  const row = await deps.tokenExchange.getFederatedCredential(applicationId, id)
+  if (!row) throw notFound('Federated credential not found.')
+  return row
+}
+
+export async function createFederatedCredential(
+  deps: Deps,
+  applicationId: string,
+  input: CreateFederatedCredentialInput,
+) {
+  await ensureApplication(deps, applicationId)
+  if (!input.jwksUrl && !(input.publicKeys && input.publicKeys.length > 0)) {
+    throw badRequest('A federated credential requires either jwksUrl or publicKeys.')
+  }
+  await ensureAudienceResource(deps, input.audienceResourceId)
+  return deps.tokenExchange.createFederatedCredential(applicationId, input)
+}
+
+export async function updateFederatedCredential(
+  deps: Deps,
+  applicationId: string,
+  id: string,
+  input: UpdateFederatedCredentialInput,
+) {
+  if (input.audienceResourceId) await ensureAudienceResource(deps, input.audienceResourceId)
+  const row = await deps.tokenExchange.updateFederatedCredential(applicationId, id, input)
+  if (!row) throw notFound('Federated credential not found.')
+  return row
+}
+
+export async function deleteFederatedCredential(deps: Deps, applicationId: string, id: string) {
+  const deleted = await deps.tokenExchange.deleteFederatedCredential(applicationId, id)
+  if (!deleted) throw notFound('Federated credential not found.')
+}
+
+async function ensureApplication(deps: Deps, applicationId: string) {
+  const application = await deps.applications.findById(applicationId)
+  if (!application) throw notFound('Application not found.')
+}
+
+async function ensureAudienceResource(deps: Deps, id: string) {
+  const resource = await deps.authorization.findResource(id)
+  if (!resource?.enabled) {
+    throw badRequest('audienceResourceId must reference an enabled API resource.')
+  }
 }
 
 async function authenticateClient(deps: Deps, clientId: string, clientSecret: string | null) {
@@ -331,7 +380,7 @@ function isRefreshTokenPayload(value: unknown): value is RefreshTokenPayload {
     isRecord(value) &&
     value.typ === 'token_exchange_refresh' &&
     typeof value.clientId === 'string' &&
-    typeof value.issuerId === 'string' &&
+    typeof value.credentialId === 'string' &&
     typeof value.subject === 'string' &&
     typeof value.subjectTokenIssuer === 'string' &&
     typeof value.audience === 'string' &&
@@ -355,8 +404,7 @@ function parseJwt(token: string) {
 async function verifySubjectToken(
   token: string,
   assertion: ReturnType<typeof parseJwt>,
-  issuer: TrustedExternalIssuerRecord,
-  audience: string,
+  credential: ResolvedFederatedCredential,
   jwks: JwksGateway,
 ) {
   const now = Math.floor(Date.now() / 1000)
@@ -364,17 +412,31 @@ async function verifySubjectToken(
   const nbf = readNumber(assertion.payload.nbf)
   if (exp === null || exp <= now) throw unauthorized('Subject token is expired or missing an exp claim.')
   if (nbf !== null && nbf > now) throw unauthorized('Subject token is not active yet.')
-  if (!audienceMatches(assertion.payload.aud, audience)) throw unauthorized('Subject token audience is invalid.')
+  if (!audienceMatches(assertion.payload.aud, credential.audience)) {
+    throw unauthorized('Subject token audience is invalid.')
+  }
 
   const alg = readString(assertion.header.alg)
   if (!alg || alg === 'none') throw unauthorized('Subject token algorithm is invalid.')
   const data = new TextEncoder().encode(assertion.signingInput)
 
+  // Asymmetric (preferred): inline public JWK set or a fetched JWKS endpoint.
+  if (alg === 'RS256' || alg === 'ES256') {
+    const jwk = await selectCredentialJwk(credential, jwks, readString(assertion.header.kid), alg)
+    const key = await importVerificationKey(jwk, alg)
+    const algorithm = verificationAlgorithm(alg)
+    if (!(await crypto.subtle.verify(algorithm, key, assertion.signature, data))) {
+      throw unauthorized('Subject token signature is invalid.')
+    }
+    return token
+  }
+
+  // Legacy symmetric fallback (not exposed by the create API).
   if (alg === 'HS256') {
-    if (!issuer.sharedSecret) throw unauthorized('Subject token issuer does not allow HS256.')
+    if (!credential.sharedSecret) throw unauthorized('Federated credential does not allow HS256.')
     const key = await crypto.subtle.importKey(
       'raw',
-      new TextEncoder().encode(issuer.sharedSecret),
+      new TextEncoder().encode(credential.sharedSecret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify'],
@@ -385,22 +447,31 @@ async function verifySubjectToken(
     return token
   }
 
-  if (!issuer.jwksUrl) throw unauthorized('Subject token issuer does not expose JWKS.')
-  const jwk = await selectJwk(jwks, issuer.jwksUrl, readString(assertion.header.kid), alg)
-  const key = await importVerificationKey(jwk, alg)
-  const algorithm = verificationAlgorithm(alg)
-  if (!(await crypto.subtle.verify(algorithm, key, assertion.signature, data))) {
-    throw unauthorized('Subject token signature is invalid.')
-  }
-  return token
+  throw unauthorized(`Unsupported subject token algorithm: ${alg}`)
 }
 
-async function selectJwk(jwks: JwksGateway, jwksUrl: string, kid: string | null, alg: string) {
-  const body = await jwks.fetchKeys(jwksUrl)
-  if (!isRecord(body) || !Array.isArray(body.keys)) throw unauthorized('Trusted issuer JWKS is invalid.')
-  const key = body.keys.find((item) => isRecord(item) && (!kid || item.kid === kid) && (!item.alg || item.alg === alg))
+async function selectCredentialJwk(
+  credential: ResolvedFederatedCredential,
+  jwks: JwksGateway,
+  kid: string | null,
+  alg: string,
+) {
+  const keys = credential.publicKeys ?? (credential.jwksUrl ? await fetchJwksKeys(jwks, credential.jwksUrl) : null)
+  if (!keys) throw unauthorized('Federated credential has no verification key.')
+  const key = keys.find((item) => isRecord(item) && (!kid || item.kid === kid) && (!item.alg || item.alg === alg))
   if (!isRecord(key)) throw unauthorized('Subject token signing key was not found.')
   return key as JsonWebKey
+}
+
+async function fetchJwksKeys(jwks: JwksGateway, jwksUrl: string): Promise<Record<string, unknown>[]> {
+  const body = await jwks.fetchKeys(jwksUrl)
+  if (!isRecord(body) || !Array.isArray(body.keys)) throw unauthorized('Federated credential JWKS is invalid.')
+  return body.keys as Record<string, unknown>[]
+}
+
+function subjectMatches(pattern: string, subject: string) {
+  if (pattern.endsWith('*')) return subject.startsWith(pattern.slice(0, -1))
+  return pattern === subject
 }
 
 async function importVerificationKey(jwk: JsonWebKey, alg: string) {

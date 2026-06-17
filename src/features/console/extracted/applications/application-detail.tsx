@@ -63,6 +63,7 @@ import {
   useAdminMutation,
 } from '../../helpers/helpers-utils'
 import { ApplicationBrandingCard } from './application-branding-card'
+import { ApplicationFederatedCredentialsPanel } from './application-federated-credentials'
 
 export function ApplicationDetailPage({
   applicationId,
@@ -173,6 +174,7 @@ export function ApplicationDetailPage({
             <TabsList aria-label={tt('Application detail sections')}>
               <TabsTrigger value="settings">{tt('Settings')}</TabsTrigger>
               <TabsTrigger value="branding">{tt('Branding')}</TabsTrigger>
+              <TabsTrigger value="federated-credentials">{tt('Federated credentials')}</TabsTrigger>
             </TabsList>
             <TabsContent className="mt-4" value="settings">
               <div className="applicationSettingsStack">
@@ -462,6 +464,9 @@ export function ApplicationDetailPage({
                 errorMessage={logoMutation.errorMessage}
                 onLogo={(file) => logoMutation.mutate(file)}
               />
+            </TabsContent>
+            <TabsContent className="mt-4" value="federated-credentials">
+              <ApplicationFederatedCredentialsPanel applicationId={applicationId} />
             </TabsContent>
           </Tabs>
         </ConsoleDetailStack>

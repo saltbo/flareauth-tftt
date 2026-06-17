@@ -8,12 +8,25 @@ import {
   rotateApplicationSecret,
   updateApplication,
 } from '@server/usecases/applications'
+import type { FederatedCredentialRecord } from '@server/usecases/ports'
+import {
+  createFederatedCredential,
+  deleteFederatedCredential,
+  listFederatedCredentials,
+  updateFederatedCredential,
+} from '@server/usecases/token-exchange'
 import {
   createApplicationRequestSchema,
   paginationQuerySchema,
   replaceRedirectUrisRequestSchema,
   updateApplicationRequestSchema,
 } from '@shared/api/applications'
+import {
+  createManagementFederatedCredentialRequestSchema,
+  createManagementFederatedCredentialResponseSchema,
+  listManagementFederatedCredentialsResponseSchema,
+  updateManagementFederatedCredentialRequestSchema,
+} from '@shared/api/management'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { requireAdmin } from '../../middleware/admin'
@@ -87,6 +100,60 @@ managementApplicationsRoute.post('/:applicationId/client-secrets', async (c) => 
   const secret = await rotateApplicationSecret(getDeps(c), c.req.param('applicationId'), user?.id ?? 'system')
   return c.json(secret, 201)
 })
+
+// Workload identity federation credentials are children of an application.
+managementApplicationsRoute.get('/:applicationId/federated-credentials', async (c) => {
+  const credentials = await listFederatedCredentials(getDeps(c), c.req.param('applicationId'))
+  return c.json(
+    listManagementFederatedCredentialsResponseSchema.parse({
+      credentials: credentials.map(federatedCredentialResponse),
+    }),
+  )
+})
+
+managementApplicationsRoute.post('/:applicationId/federated-credentials', async (c) => {
+  const body = await readJson(c, createManagementFederatedCredentialRequestSchema)
+  const credential = await createFederatedCredential(getDeps(c), c.req.param('applicationId'), body)
+  return c.json(
+    createManagementFederatedCredentialResponseSchema.parse({ credential: federatedCredentialResponse(credential) }),
+    201,
+  )
+})
+
+managementApplicationsRoute.patch('/:applicationId/federated-credentials/:credentialId', async (c) => {
+  const body = await readJson(c, updateManagementFederatedCredentialRequestSchema)
+  const credential = await updateFederatedCredential(
+    getDeps(c),
+    c.req.param('applicationId'),
+    c.req.param('credentialId'),
+    body,
+  )
+  return c.json(
+    createManagementFederatedCredentialResponseSchema.parse({ credential: federatedCredentialResponse(credential) }),
+  )
+})
+
+managementApplicationsRoute.delete('/:applicationId/federated-credentials/:credentialId', async (c) => {
+  await deleteFederatedCredential(getDeps(c), c.req.param('applicationId'), c.req.param('credentialId'))
+  return c.body(null, 204)
+})
+
+function federatedCredentialResponse(credential: FederatedCredentialRecord) {
+  return {
+    id: credential.id,
+    applicationId: credential.applicationId,
+    name: credential.name,
+    issuer: credential.issuer,
+    subject: credential.subject,
+    audienceResourceId: credential.audienceResourceId,
+    jwksUrl: credential.jwksUrl,
+    publicKeys: credential.publicKeys,
+    enabled: credential.enabled,
+    metadata: credential.metadata ?? {},
+    createdAt: credential.createdAt.toISOString(),
+    updatedAt: credential.updatedAt.toISOString(),
+  }
+}
 
 function issuerFor(c: Context) {
   const url = new URL(c.req.url)

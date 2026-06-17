@@ -48,10 +48,10 @@ export {
 export { connectorReadinessResponseSchema, listConnectorTemplatesResponseSchema } from '@shared/api/connectors'
 export {
   createManagementConnectorRequestSchema,
-  createManagementTrustedIssuerRequestSchema,
-  createManagementTrustedIssuerResponseSchema,
+  createManagementFederatedCredentialRequestSchema,
+  createManagementFederatedCredentialResponseSchema,
   listManagementConnectorsResponseSchema,
-  listManagementTrustedIssuersResponseSchema,
+  listManagementFederatedCredentialsResponseSchema,
   listManagementUserApplicationsResponseSchema,
   listManagementUserLinkedAccountsResponseSchema,
   listManagementUserPasskeysResponseSchema,
@@ -73,6 +73,7 @@ export {
   updateManagementAccountCenterSettingsRequestSchema,
   updateManagementBrandingSettingsRequestSchema,
   updateManagementConnectorRequestSchema,
+  updateManagementFederatedCredentialRequestSchema,
   updateManagementSignInSettingsRequestSchema,
 } from '@shared/api/management'
 export { securityPolicySchema, updateSecurityPolicySchema } from '@shared/api/security'
@@ -135,6 +136,7 @@ export function params(...names: string[]) {
 }
 export const idParam = params('id')
 export const applicationIdParam = params('applicationId')
+export const federatedCredentialParam = params('applicationId', 'credentialId')
 export const organizationIdParam = params('organizationId')
 export const userIdParam = params('id')
 export const userSessionParam = params('id', 'sessionId')

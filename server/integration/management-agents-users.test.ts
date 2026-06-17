@@ -244,43 +244,76 @@ describe('user management over real D1', () => {
   })
 })
 
-describe('trusted issuer management over real D1', () => {
+describe('federated credential management over real D1', () => {
   let harness: Harness
 
   beforeEach(async () => {
     harness = await createHarness()
   })
 
+  async function createAppAndResource(cookie: string) {
+    const createApp = await harness.request('/api/management/applications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        name: 'Federation Client',
+        slug: 'federation-client',
+        clientType: 'confidential_web',
+        redirectUris: ['http://localhost/callback'],
+        allowedGrantTypes: ['urn:ietf:params:oauth:grant-type:token-exchange'],
+      }),
+    })
+    const application = (await createApp.json()) as { id: string }
+    const createResource = await harness.request('/api/management/api-resources', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        identifier: 'https://api.example.com',
+        name: 'Example API',
+        audience: 'https://api.example.com',
+      }),
+    })
+    const resource = (await createResource.json()) as { id: string }
+    return { applicationId: application.id, audienceResourceId: resource.id }
+  }
+
   it('rejects anonymous reads with 401', async () => {
-    expect((await harness.request('/api/management/trusted-issuers')).status).toBe(401)
+    expect((await harness.request('/api/management/applications/app_x/federated-credentials')).status).toBe(401)
   })
 
-  it('creates and lists a trusted issuer through real SQL', async () => {
+  it('creates and lists a federated credential through real SQL', async () => {
     const cookie = await signInAdmin(harness)
+    const { applicationId, audienceResourceId } = await createAppAndResource(cookie)
 
-    const created = await harness.request('/api/management/trusted-issuers', {
+    const created = await harness.request(`/api/management/applications/${applicationId}/federated-credentials`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({
         name: 'Partner IdP',
         issuer: 'https://idp.partner.example.com',
+        subject: 'machine:*',
+        audienceResourceId,
         jwksUrl: 'https://idp.partner.example.com/.well-known/jwks.json',
-        allowedAudiences: ['https://api.example.com'],
       }),
     })
     expect(created.status, await created.clone().text()).toBe(201)
 
-    const list = await harness.request('/api/management/trusted-issuers', { headers: { cookie } })
+    const list = await harness.request(`/api/management/applications/${applicationId}/federated-credentials`, {
+      headers: { cookie },
+    })
     expect(list.status).toBe(200)
-    expect(((await list.json()) as { issuers: unknown[] }).issuers.length).toBe(1)
+    expect(((await list.json()) as { credentials: unknown[] }).credentials.length).toBe(1)
   })
 
-  it('rejects an invalid trusted issuer payload with 400', async () => {
+  it('rejects an invalid federated credential payload with 400', async () => {
     const cookie = await signInAdmin(harness)
-    const response = await harness.request('/api/management/trusted-issuers', {
+    const { applicationId, audienceResourceId } = await createAppAndResource(cookie)
+
+    // Neither jwksUrl nor publicKeys provided.
+    const response = await harness.request(`/api/management/applications/${applicationId}/federated-credentials`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'No issuer URL' }),
+      body: JSON.stringify({ name: 'No key', issuer: 'https://x.example.com', subject: 'm:*', audienceResourceId }),
     })
     expect(response.status).toBe(400)
   })

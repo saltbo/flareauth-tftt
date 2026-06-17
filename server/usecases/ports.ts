@@ -658,24 +658,60 @@ export interface OAuthClientRecord {
   scopes: string | null
 }
 
-export interface TrustedExternalIssuerRecord {
+// A federated credential as managed (never exposes the legacy shared secret).
+export interface FederatedCredentialRecord {
   id: string
-  issuer: string
+  applicationId: string
   name: string
+  issuer: string
+  subject: string
+  audienceResourceId: string
   jwksUrl: string | null
-  sharedSecret: string | null
-  allowedAudiences: string[] | null
+  publicKeys: Record<string, unknown>[] | null
   enabled: boolean
   metadata: Record<string, unknown> | null
   createdAt: Date
   updatedAt: Date
 }
 
+// A federated credential resolved with its owning application's oauth client id
+// and its target api-resource audience — all the exchange needs in one shot.
+export interface ResolvedFederatedCredential {
+  id: string
+  applicationId: string
+  applicationClientId: string
+  name: string
+  issuer: string
+  subject: string
+  audience: string
+  jwksUrl: string | null
+  publicKeys: Record<string, unknown>[] | null
+  sharedSecret: string | null
+  enabled: boolean
+}
+
+export interface CreateFederatedCredentialInput {
+  name: string
+  issuer: string
+  subject: string
+  audienceResourceId: string
+  jwksUrl?: string | null
+  publicKeys?: Record<string, unknown>[] | null
+  metadata?: Record<string, unknown> | null
+}
+
+export type UpdateFederatedCredentialInput = Partial<
+  Pick<
+    CreateFederatedCredentialInput,
+    'name' | 'subject' | 'audienceResourceId' | 'jwksUrl' | 'publicKeys' | 'metadata'
+  >
+> & { enabled?: boolean }
+
 export interface TokenExchangeAccessTokenRecord {
   id: string
   tokenHash: string
   clientId: string
-  issuerId: string
+  credentialId: string
   subject: string
   subjectTokenIssuer: string
   audience: string
@@ -688,16 +724,22 @@ export interface TokenExchangeAccessTokenRecord {
 
 export interface TokenExchangeRepository {
   findClient(clientId: string): Promise<OAuthClientRecord | null>
-  findTrustedIssuer(issuer: string): Promise<TrustedExternalIssuerRecord | null>
-  createTrustedIssuer(input: {
-    name: string
-    issuer: string
-    jwksUrl?: string | null
-    sharedSecret?: string | null
-    allowedAudiences?: string[] | null
-    metadata?: Record<string, unknown> | null
-  }): Promise<TrustedExternalIssuerRecord>
-  listTrustedIssuers(): Promise<TrustedExternalIssuerRecord[]>
+  // Enabled credentials under the application owning `applicationClientId` that match
+  // `issuer`, resolved with their api-resource audience. Subject-pattern matching is
+  // done in the usecase.
+  findFederatedCredentials(applicationClientId: string, issuer: string): Promise<ResolvedFederatedCredential[]>
+  listFederatedCredentials(applicationId: string): Promise<FederatedCredentialRecord[]>
+  getFederatedCredential(applicationId: string, id: string): Promise<FederatedCredentialRecord | null>
+  createFederatedCredential(
+    applicationId: string,
+    input: CreateFederatedCredentialInput,
+  ): Promise<FederatedCredentialRecord>
+  updateFederatedCredential(
+    applicationId: string,
+    id: string,
+    input: UpdateFederatedCredentialInput,
+  ): Promise<FederatedCredentialRecord | null>
+  deleteFederatedCredential(applicationId: string, id: string): Promise<boolean>
   storeAccessToken(input: Omit<TokenExchangeAccessTokenRecord, 'createdAt' | 'revokedAt'>): Promise<void>
   findAccessTokenByHash(tokenHash: string): Promise<TokenExchangeAccessTokenRecord | null>
 }

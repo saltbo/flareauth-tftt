@@ -1,10 +1,16 @@
 import { createJwksGateway } from '@server/adapters/gateways/jwks'
 import { hashProviderSecret } from '@server/usecases/applications-utils'
 import type { Deps } from '@server/usecases/deps'
-import type { OAuthClientRecord, TokenExchangeRepository } from '@server/usecases/ports'
+import type {
+  CreateFederatedCredentialInput,
+  FederatedCredentialRecord,
+  OAuthClientRecord,
+  ResolvedFederatedCredential,
+  TokenExchangeAccessTokenRecord,
+  TokenExchangeRepository,
+} from '@server/usecases/ports'
 import {
   accessTokenType,
-  createTrustedIssuer,
   exchangeToken,
   jwtTokenType,
   refreshToken,
@@ -12,6 +18,9 @@ import {
   tokenExchangeGrantType,
 } from '@server/usecases/token-exchange'
 import { describe, expect, it } from 'vitest'
+
+const applicationClientId = 'runner-client'
+const defaultAudience = 'https://ama.example.com'
 
 describe('token exchange refresh and assertion boundaries', () => {
   it('rejects offline_access scopes when the client cannot issue refresh tokens', async () => {
@@ -36,9 +45,9 @@ describe('token exchange refresh and assertion boundaries', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
-  it('rejects exchanges when the trusted issuer is disabled', async () => {
+  it('rejects exchanges when the federated credential is disabled', async () => {
     const { deps, clientSecret, repository } = await fixture()
-    repository.disableIssuer()
+    repository.disableCredentials()
     const subjectToken = await signHs256Jwt(validClaims(), 'external-platform-secret')
 
     await expect(
@@ -77,7 +86,7 @@ describe('token exchange refresh and assertion boundaries', () => {
   })
 
   it('rejects subject tokens whose audience claim does not match the requested audience', async () => {
-    const { deps, clientSecret } = await fixture({ allowedAudiences: null })
+    const { deps, clientSecret } = await fixture()
     const subjectToken = await signHs256Jwt(
       {
         iss: 'https://platform.example.com',
@@ -405,62 +414,82 @@ function validClaims() {
   }
 }
 
-async function fixture(options: { grantTypes?: string[]; scopes?: string[]; allowedAudiences?: string[] | null } = {}) {
+async function fixture(options: { grantTypes?: string[]; scopes?: string[] } = {}) {
   const repository = new InMemoryRepository()
   const deps = { tokenExchange: repository, jwks: createJwksGateway() } as unknown as Deps
   const clientSecret = 'runner-client-secret'
   repository.client = {
-    clientId: 'runner-client',
+    clientId: applicationClientId,
     clientSecret: await hashProviderSecret(clientSecret),
     disabled: false,
     grantTypes: JSON.stringify(options.grantTypes ?? [tokenExchangeGrantType]),
     scopes: JSON.stringify(options.scopes ?? ['runner:connect']),
   }
-  await createTrustedIssuer(deps, {
-    name: 'External Platform',
-    issuer: 'https://platform.example.com',
-    sharedSecret: 'external-platform-secret',
-    allowedAudiences: options.allowedAudiences === undefined ? ['https://ama.example.com'] : options.allowedAudiences,
-  })
+  repository.seedCredential('https://platform.example.com', 'external-platform-secret')
   return { repository, deps, clientSecret }
 }
 
+/**
+ * In-memory federated-credential repository. The resolved credential keeps the
+ * legacy shared secret so the HS256 verify path stays exercisable.
+ */
 class InMemoryRepository implements TokenExchangeRepository {
   client: OAuthClientRecord | null = null
-  private issuer: Awaited<ReturnType<TokenExchangeRepository['createTrustedIssuer']>> | null = null
-  private tokens = new Map<string, Awaited<ReturnType<TokenExchangeRepository['findAccessTokenByHash']>>>()
+  private credentials: ResolvedFederatedCredential[] = []
+  private nextId = 1
+  private tokens = new Map<string, TokenExchangeAccessTokenRecord | null>()
 
   async findClient(clientId: string) {
     return this.client?.clientId === clientId ? this.client : null
   }
 
-  async findTrustedIssuer(issuer: string) {
-    return this.issuer?.issuer === issuer ? this.issuer : null
+  async findFederatedCredentials(applicationClientIdValue: string, issuer: string) {
+    return this.credentials.filter(
+      (item) => item.applicationClientId === applicationClientIdValue && item.issuer === issuer,
+    )
   }
 
-  async createTrustedIssuer(input: Parameters<TokenExchangeRepository['createTrustedIssuer']>[0]) {
-    const now = new Date()
-    this.issuer = {
-      id: 'tei_1',
-      issuer: input.issuer,
-      name: input.name,
-      jwksUrl: input.jwksUrl ?? null,
-      sharedSecret: input.sharedSecret ?? null,
-      allowedAudiences: input.allowedAudiences ?? null,
+  async listFederatedCredentials(): Promise<FederatedCredentialRecord[]> {
+    return []
+  }
+
+  async getFederatedCredential(): Promise<FederatedCredentialRecord | null> {
+    return null
+  }
+
+  async createFederatedCredential(
+    _applicationId: string,
+    _input: CreateFederatedCredentialInput,
+  ): Promise<FederatedCredentialRecord> {
+    throw new Error('not implemented')
+  }
+
+  async updateFederatedCredential(): Promise<FederatedCredentialRecord | null> {
+    return null
+  }
+
+  async deleteFederatedCredential() {
+    return false
+  }
+
+  seedCredential(issuer: string, sharedSecret: string) {
+    this.credentials.push({
+      id: `fcr_${this.nextId++}`,
+      applicationId: 'app_1',
+      applicationClientId,
+      name: 'External Platform',
+      issuer,
+      subject: 'org_1:*',
+      audience: defaultAudience,
+      jwksUrl: null,
+      publicKeys: null,
+      sharedSecret,
       enabled: true,
-      metadata: input.metadata ?? null,
-      createdAt: now,
-      updatedAt: now,
-    }
-    return this.issuer
+    })
   }
 
-  async listTrustedIssuers() {
-    return this.issuer ? [this.issuer] : []
-  }
-
-  disableIssuer() {
-    if (this.issuer) this.issuer = { ...this.issuer, enabled: false }
+  disableCredentials() {
+    this.credentials = this.credentials.map((item) => ({ ...item, enabled: false }))
   }
 
   async storeAccessToken(input: Parameters<TokenExchangeRepository['storeAccessToken']>[0]) {

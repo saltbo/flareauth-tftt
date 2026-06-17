@@ -16,7 +16,6 @@ import { createManagementReadinessRoute } from './readiness'
 import { managementRolesRoute } from './roles'
 import { managementSecurityRoutes } from './security'
 import { createManagementSettingsRoutes } from './settings'
-import { createTrustedIssuerRoutes } from './trusted-issuers'
 import { managementUserRoutes } from './users'
 import { createManagementWebhookRoutes } from './webhooks'
 
@@ -33,7 +32,6 @@ export function createManagementRoutes(options: ManagementRoutesOptions) {
   app.route('/', managementAgentsRoute)
   app.route('/organizations', managementOrganizationsRoute)
   app.route('/roles', managementRolesRoute)
-  app.route('/trusted-issuers', createTrustedIssuerRoutes())
   app.post('/user-role-assignments', requireAdmin(), async (c) => {
     const { user } = getAuthContext(c)
     await assignUserRole(getDeps(c), await readJson(c, assignRoleRequestSchema), user!.id)

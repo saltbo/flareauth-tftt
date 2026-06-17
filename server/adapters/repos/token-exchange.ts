@@ -1,44 +1,131 @@
-import type { OAuthClientRecord, TokenExchangeRepository } from '@server/usecases/ports'
-import { desc, eq } from 'drizzle-orm'
+import type {
+  CreateFederatedCredentialInput,
+  FederatedCredentialRecord,
+  OAuthClientRecord,
+  ResolvedFederatedCredential,
+  TokenExchangeRepository,
+  UpdateFederatedCredentialInput,
+} from '@server/usecases/ports'
+import { and, desc, eq } from 'drizzle-orm'
 import type { Database } from '../../db/client'
-import { oauthClient, tokenExchangeAccessToken, trustedExternalIssuer } from '../../db/schema'
+import { apiResource, application, federatedCredential, oauthClient, tokenExchangeAccessToken } from '../../db/schema'
+
+type CredentialRow = typeof federatedCredential.$inferSelect
+
+function toRecord(row: CredentialRow): FederatedCredentialRecord {
+  return {
+    id: row.id,
+    applicationId: row.applicationId,
+    name: row.name,
+    issuer: row.issuer,
+    subject: row.subject,
+    audienceResourceId: row.audienceResourceId,
+    jwksUrl: row.jwksUrl,
+    publicKeys: row.publicKeys,
+    enabled: row.enabled,
+    metadata: row.metadata,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
 
 export function createTokenExchangeRepository(db: Database): TokenExchangeRepository {
+  async function getCredential(applicationId: string, id: string): Promise<FederatedCredentialRecord | null> {
+    const rows = await db
+      .select()
+      .from(federatedCredential)
+      .where(and(eq(federatedCredential.id, id), eq(federatedCredential.applicationId, applicationId)))
+      .limit(1)
+    return rows[0] ? toRecord(rows[0]) : null
+  }
+
   return {
     async findClient(clientId: string): Promise<OAuthClientRecord | null> {
       const rows = await db.select().from(oauthClient).where(eq(oauthClient.clientId, clientId)).limit(1)
       return rows[0] ?? null
     },
 
-    async findTrustedIssuer(issuer: string) {
-      const rows = await db
-        .select()
-        .from(trustedExternalIssuer)
-        .where(eq(trustedExternalIssuer.issuer, issuer))
-        .limit(1)
-      return rows[0] ?? null
+    async findFederatedCredentials(
+      applicationClientId: string,
+      issuer: string,
+    ): Promise<ResolvedFederatedCredential[]> {
+      return db
+        .select({
+          id: federatedCredential.id,
+          applicationId: federatedCredential.applicationId,
+          applicationClientId: application.oauthClientId,
+          name: federatedCredential.name,
+          issuer: federatedCredential.issuer,
+          subject: federatedCredential.subject,
+          audience: apiResource.audience,
+          jwksUrl: federatedCredential.jwksUrl,
+          publicKeys: federatedCredential.publicKeys,
+          sharedSecret: federatedCredential.sharedSecret,
+          enabled: federatedCredential.enabled,
+        })
+        .from(federatedCredential)
+        .innerJoin(application, eq(application.id, federatedCredential.applicationId))
+        .innerJoin(apiResource, eq(apiResource.id, federatedCredential.audienceResourceId))
+        .where(and(eq(application.oauthClientId, applicationClientId), eq(federatedCredential.issuer, issuer)))
     },
 
-    async createTrustedIssuer(input) {
+    async listFederatedCredentials(applicationId: string) {
+      const rows = await db
+        .select()
+        .from(federatedCredential)
+        .where(eq(federatedCredential.applicationId, applicationId))
+        .orderBy(desc(federatedCredential.createdAt))
+      return rows.map(toRecord)
+    },
+
+    getFederatedCredential(applicationId: string, id: string) {
+      return getCredential(applicationId, id)
+    },
+
+    async createFederatedCredential(applicationId: string, input: CreateFederatedCredentialInput) {
       const now = new Date()
-      const row = {
-        id: `tei_${crypto.randomUUID().replaceAll('-', '')}`,
-        issuer: input.issuer,
+      const row: CredentialRow = {
+        id: `fcr_${crypto.randomUUID().replaceAll('-', '')}`,
+        applicationId,
         name: input.name,
+        issuer: input.issuer,
+        subject: input.subject,
+        audienceResourceId: input.audienceResourceId,
         jwksUrl: input.jwksUrl ?? null,
-        sharedSecret: input.sharedSecret ?? null,
-        allowedAudiences: input.allowedAudiences ?? null,
+        publicKeys: input.publicKeys ?? null,
+        sharedSecret: null,
         enabled: true,
         metadata: input.metadata ?? null,
         createdAt: now,
         updatedAt: now,
       }
-      await db.insert(trustedExternalIssuer).values(row)
-      return row
+      await db.insert(federatedCredential).values(row)
+      return toRecord(row)
     },
 
-    async listTrustedIssuers() {
-      return db.select().from(trustedExternalIssuer).orderBy(desc(trustedExternalIssuer.createdAt))
+    async updateFederatedCredential(applicationId: string, id: string, input: UpdateFederatedCredentialInput) {
+      const patch: Partial<CredentialRow> = { updatedAt: new Date() }
+      if (input.name !== undefined) patch.name = input.name
+      if (input.subject !== undefined) patch.subject = input.subject
+      if (input.audienceResourceId !== undefined) patch.audienceResourceId = input.audienceResourceId
+      if (input.jwksUrl !== undefined) patch.jwksUrl = input.jwksUrl
+      if (input.publicKeys !== undefined) patch.publicKeys = input.publicKeys
+      if (input.metadata !== undefined) patch.metadata = input.metadata
+      if (input.enabled !== undefined) patch.enabled = input.enabled
+      await db
+        .update(federatedCredential)
+        .set(patch)
+        .where(and(eq(federatedCredential.id, id), eq(federatedCredential.applicationId, applicationId)))
+      return getCredential(applicationId, id)
+    },
+
+    async deleteFederatedCredential(applicationId: string, id: string) {
+      const existing = await getCredential(applicationId, id)
+      if (!existing) return false
+      await db
+        .delete(federatedCredential)
+        .where(and(eq(federatedCredential.id, id), eq(federatedCredential.applicationId, applicationId)))
+      return true
     },
 
     async storeAccessToken(input) {

@@ -59,7 +59,10 @@ import type {
 } from '@shared/api/connectors'
 import type {
   CreateManagementConnectorRequest,
+  CreateManagementFederatedCredentialRequest,
+  CreateManagementFederatedCredentialResponse,
   ListManagementConnectorsResponse,
+  ListManagementFederatedCredentialsResponse,
   ListManagementUserApplicationsResponse,
   ListManagementUserLinkedAccountsResponse,
   ListManagementUserPasskeysResponse,
@@ -81,6 +84,7 @@ import type {
   UpdateManagementAccountCenterSettingsRequest,
   UpdateManagementBrandingSettingsRequest,
   UpdateManagementConnectorRequest,
+  UpdateManagementFederatedCredentialRequest,
   UpdateManagementSignInSettingsRequest,
 } from '@shared/api/management'
 import type { OnboardingAdminRequest } from '@shared/api/onboarding'
@@ -235,6 +239,21 @@ export type RpcSchema = {
   }
   '/api/management/applications/:applicationId/logo': {
     $post: RpcEndpoint<{ param: { applicationId: string } } & RpcFileUploadInput, UploadedAssetResponse, 201>
+  }
+  '/api/management/applications/:applicationId/federated-credentials': {
+    $get: RpcEndpoint<{ param: { applicationId: string } }, ListManagementFederatedCredentialsResponse>
+    $post: RpcEndpoint<
+      { param: { applicationId: string }; json: CreateManagementFederatedCredentialRequest },
+      CreateManagementFederatedCredentialResponse,
+      201
+    >
+  }
+  '/api/management/applications/:applicationId/federated-credentials/:credentialId': {
+    $patch: RpcEndpoint<
+      { param: { applicationId: string; credentialId: string }; json: UpdateManagementFederatedCredentialRequest },
+      CreateManagementFederatedCredentialResponse
+    >
+    $delete: RpcEndpoint<{ param: { applicationId: string; credentialId: string } }, EmptyResponse>
   }
   '/api/management/users': {
     $get: RpcEndpoint<{ query: Partial<Record<keyof ManagementUserListQuery, string>> }, ListManagementUsersResponse>

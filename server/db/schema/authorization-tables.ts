@@ -359,3 +359,79 @@ export const memberRoleAssignment = sqliteTable(
     index('memberRoleAssignment_memberId_idx').on(table.memberId),
   ],
 )
+
+// Workload identity federation (RFC 8693 token exchange). A federated credential
+// is a child of an Application: an external issuer + subject whose self-signed
+// assertions are exchanged for a token that represents THIS application (not the
+// external subject). The trust belongs to the application principal — never a
+// global registry — so its blast radius is exactly that one application.
+export const federatedCredential = sqliteTable(
+  'federated_credential',
+  {
+    id: text('id').primaryKey(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => application.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    // Logical issuer identity (matches the subject token `iss`). Opaque key, not
+    // dereferenced; keep stable and decoupled from transport/host/port.
+    issuer: text('issuer').notNull(),
+    // Allowed subject (exact, or a trailing-`*` prefix pattern e.g. `machine:*`).
+    subject: text('subject').notNull(),
+    // The minted token's audience comes from this registered API resource.
+    audienceResourceId: text('audience_resource_id')
+      .notNull()
+      .references(() => apiResource.id, { onDelete: 'restrict' }),
+    // Asymmetric verification (preferred): a JWKS endpoint to fetch, or an inline
+    // static JWK set (for issuers that are not publicly reachable, e.g. local dev).
+    jwksUrl: text('jwks_url'),
+    publicKeys: text('public_keys', { mode: 'json' }).$type<Record<string, unknown>[] | null>(),
+    // Legacy symmetric fallback — not exposed by the create API, dev/migration only.
+    sharedSecret: text('shared_secret'),
+    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
+    metadata: text('metadata', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('federatedCredential_app_issuer_subject_unique').on(table.applicationId, table.issuer, table.subject),
+    index('federatedCredential_issuer_idx').on(table.issuer),
+    index('federatedCredential_applicationId_idx').on(table.applicationId),
+    index('federatedCredential_enabled_idx').on(table.enabled),
+  ],
+)
+
+// Audit log of minted token-exchange access tokens (also used for introspection).
+export const tokenExchangeAccessToken = sqliteTable(
+  'token_exchange_access_token',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => federatedCredential.id, { onDelete: 'cascade' }),
+    subject: text('subject').notNull(),
+    subjectTokenIssuer: text('subject_token_issuer').notNull(),
+    audience: text('audience').notNull(),
+    scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull(),
+    claims: text('claims', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    index('tokenExchangeAccessToken_clientId_idx').on(table.clientId),
+    index('tokenExchangeAccessToken_credentialId_idx').on(table.credentialId),
+    index('tokenExchangeAccessToken_expiresAt_idx').on(table.expiresAt),
+  ],
+)

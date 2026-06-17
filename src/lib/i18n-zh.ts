@@ -310,6 +310,29 @@ export const zhFlatTranslations: Record<string, string> = {
   'Current account': '当前账户',
   'Provider metadata must be a JSON object.': '提供商元数据必须是 JSON 对象。',
   'Custom data JSON must be an object.': '自定义数据 JSON 必须是对象。',
+  'Federated credentials': '联合凭据',
+  'Add federated credential': '添加联合凭据',
+  'Add credential': '添加凭据',
+  'JWKS URL': 'JWKS URL',
+  'Public keys': '公钥',
+  'Select an API resource': '选择一个 API 资源',
+  'No federated credentials yet.': '暂无联合凭据。',
+  'public key(s)': '个公钥',
+  'Let an external workload exchange its own OIDC token for an access token, with no client secret to manage.':
+    '让外部工作负载用自身的 OIDC 令牌换取访问令牌，无需管理客户端密钥。',
+  'Trusted issuer and subject pairs that may request tokens for this application.':
+    '可为此应用请求令牌的受信任签发方与主体组合。',
+  'Logical issuer identity, an opaque string. Not dereferenced as a URL.':
+    '逻辑签发方标识，为不透明字符串，不会作为 URL 解析。',
+  'Exact subject, or a prefix ending in * to match a range.': '精确主体，或以 * 结尾的前缀以匹配一个范围。',
+  'The API resource this credential may request tokens for.': '此凭据可为其请求令牌的 API 资源。',
+  'Public keys are fetched from this URL.': '将从此 URL 获取公钥。',
+  'Or paste a JWK or JWK Set as JSON. Provide a JWKS URL or public keys, not both.':
+    '或以 JSON 形式粘贴 JWK 或 JWK Set。提供 JWKS URL 或公钥，但不要同时提供两者。',
+  'Provide either a JWKS URL or inline public keys, not both.': '请提供 JWKS URL 或内联公钥，但不要同时提供两者。',
+  'A federated credential requires either a JWKS URL or one or more public keys.':
+    '联合凭据需要 JWKS URL 或一个及以上公钥。',
+  'Public keys must be a valid JWK or JWK Set in JSON format.': '公钥必须是有效的 JWK 或 JWK Set（JSON 格式）。',
 }
 
 Object.assign(zhFlatTranslations, zhFlatTranslationsExtraA, zhFlatTranslationsExtraB)

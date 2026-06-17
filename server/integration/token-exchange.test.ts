@@ -31,6 +31,30 @@ async function hs256Jwt(secret: string, payload: Record<string, unknown>): Promi
   return `${signingInput}.${base64Url(new Uint8Array(signature))}`
 }
 
+/** Generates an ES256 keypair and the matching public JWK (with kid + alg). */
+async function es256KeyAndPublicJwk(): Promise<{ privateKey: CryptoKey; publicJwk: Record<string, unknown> }> {
+  const { publicKey, privateKey } = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+    'sign',
+    'verify',
+  ])
+  const publicJwk = (await crypto.subtle.exportKey('jwk', publicKey)) as Record<string, unknown>
+  publicJwk.kid = 'partner-key-1'
+  publicJwk.alg = 'ES256'
+  publicJwk.use = 'sig'
+  return { privateKey, publicJwk }
+}
+
+/** Mints an ES256 JWT signed with the federated credential's private key. */
+async function es256Jwt(privateKey: CryptoKey, payload: Record<string, unknown>): Promise<string> {
+  const signingInput = `${encodeSegment({ alg: 'ES256', kid: 'partner-key-1', typ: 'JWT' })}.${encodeSegment(payload)}`
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    privateKey,
+    new TextEncoder().encode(signingInput),
+  )
+  return `${signingInput}.${base64Url(new Uint8Array(signature))}`
+}
+
 describe('OAuth token exchange over real D1', () => {
   let harness: Harness
 
@@ -38,10 +62,9 @@ describe('OAuth token exchange over real D1', () => {
     harness = await createHarness()
   })
 
-  it('exchanges an HS256 subject token, then introspects the issued token (real SQL)', async () => {
+  it('exchanges an ES256 subject token via a federated credential, then introspects it (real SQL)', async () => {
     const cookie = await signInAdmin(harness)
     const audience = 'https://api.example.com'
-    const sharedSecret = 'token-exchange-shared-secret-2026'
 
     // Confidential client allowed to use the token-exchange grant (findClient path).
     const createApp = await harness.request('/api/management/applications', {
@@ -56,24 +79,38 @@ describe('OAuth token exchange over real D1', () => {
       }),
     })
     expect(createApp.status, await createApp.clone().text()).toBe(201)
-    const application = (await createApp.json()) as { clientId: string; clientSecret: string }
+    const application = (await createApp.json()) as { id: string; clientId: string; clientSecret: string }
 
-    // Trusted issuer with a shared secret (createTrustedIssuer + findTrustedIssuer).
-    const issuerUrl = 'https://issuer.partner.example.com'
-    const createIssuer = await harness.request('/api/management/trusted-issuers', {
+    // The API resource that defines the minted token's audience.
+    const createResource = await harness.request('/api/management/api-resources', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({
-        name: 'Partner',
-        issuer: issuerUrl,
-        sharedSecret,
-        allowedAudiences: [audience],
-      }),
+      body: JSON.stringify({ identifier: audience, name: 'Example API', audience }),
     })
-    expect(createIssuer.status, await createIssuer.clone().text()).toBe(201)
+    expect(createResource.status, await createResource.clone().text()).toBe(201)
+    const resource = (await createResource.json()) as { id: string }
+
+    // Federated credential under the application (asymmetric, inline public JWK).
+    const issuerUrl = 'https://issuer.partner.example.com'
+    const { privateKey, publicJwk } = await es256KeyAndPublicJwk()
+    const createCredential = await harness.request(
+      `/api/management/applications/${application.id}/federated-credentials`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({
+          name: 'Partner',
+          issuer: issuerUrl,
+          subject: 'partner-user-1',
+          audienceResourceId: resource.id,
+          publicKeys: [publicJwk],
+        }),
+      },
+    )
+    expect(createCredential.status, await createCredential.clone().text()).toBe(201)
 
     const now = Math.floor(Date.now() / 1000)
-    const subjectToken = await hs256Jwt(sharedSecret, {
+    const subjectToken = await es256Jwt(privateKey, {
       iss: issuerUrl,
       sub: 'partner-user-1',
       aud: audience,
