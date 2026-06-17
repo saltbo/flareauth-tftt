@@ -1,0 +1,41 @@
+name = "flareauth-e2e"
+main = "../server/worker.ts"
+compatibility_date = "2026-04-12"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[vars]
+BETTER_AUTH_SECRET = "e2e-local-secret-value-with-enough-entropy-2026"
+BETTER_AUTH_URL = "http://localhost:4189"
+TRUSTED_ORIGINS = "http://localhost:4189"
+EMAIL_FROM = "e2e@example.com"
+EMAIL_FROM_NAME = "FlareAuth E2E"
+E2E_OAUTH_CLIENT_SECRET = "e2e-secret"
+
+[assets]
+binding = "ASSETS"
+directory = "../dist/client"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/.well-known/*"]
+
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["e2e@example.com"]
+
+[[r2_buckets]]
+binding = "ASSET_BUCKET"
+bucket_name = "flareauth-assets-e2e"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "flareauth-db-e2e"
+database_id = "00000000-0000-0000-0000-0000000000e2"
+migrations_dir = "../migrations"
+
+[[queues.producers]]
+binding = "EMAIL_QUEUE"
+queue = "flareauth-email-e2e"
+
+[observability]
+enabled = false

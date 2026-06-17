@@ -477,6 +477,13 @@ export {
   updateApiScope,
 } from './management-api-resources'
 
+export {
+  createFederatedCredential,
+  deleteFederatedCredential,
+  listFederatedCredentials,
+  updateFederatedCredential,
+} from './management-federated-credentials'
+
 function stringifyQuery(query: Partial<PaginationQuery>): Partial<Record<keyof PaginationQuery, string>> {
   return Object.fromEntries(
     Object.entries(query)

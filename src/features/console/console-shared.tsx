@@ -28,7 +28,9 @@ import { hostedCustomCssSchema } from '@shared/api/configz'
 import type { ConnectorResponse, ConnectorTemplate } from '@shared/api/connectors'
 import {
   createManagementConnectorRequestSchema,
+  createManagementFederatedCredentialRequestSchema,
   type ListManagementConnectorsResponse,
+  type ManagementFederatedCredentialResponse,
   type ManagementReadinessItem,
   type ManagementSignInSettingsResponse,
   type ManagementUserResponse,
@@ -36,6 +38,7 @@ import {
   managementUpdateUserRequestSchema,
   updateManagementBrandingSettingsRequestSchema,
   updateManagementConnectorRequestSchema,
+  updateManagementFederatedCredentialRequestSchema,
   updateManagementSignInSettingsRequestSchema,
 } from '@shared/api/management'
 import type { SecurityPolicy } from '@shared/api/security'
@@ -124,6 +127,7 @@ const emptyConnectorsResponse: ListManagementConnectorsResponse = {
     limit: 50,
     offset: 0,
     total: 0,
+    hasMore: false,
     nextOffset: null,
   },
 }
@@ -140,7 +144,7 @@ type DetailTab = {
   value: string
   label: string
 }
-type ApplicationDetailSection = 'settings' | 'branding'
+type ApplicationDetailSection = 'settings' | 'branding' | 'federated-credentials'
 type UserDetailSection = 'profile' | 'security' | 'sessions' | 'linked-accounts' | 'applications' | 'operations'
 type OrganizationDetailSection = 'settings' | 'authorization'
 type RoleDetailSection = 'settings' | 'permissions' | 'assignments'
@@ -236,6 +240,7 @@ export type {
   HostedAuthPreviewFlow,
   HostedAuthPreviewState,
   ListManagementConnectorsResponse,
+  ManagementFederatedCredentialResponse,
   ManagementReadinessItem,
   ManagementSignInSettingsResponse,
   ManagementUserResponse,
@@ -281,6 +286,7 @@ export {
   createApplicationRequestSchema,
   createElement,
   createManagementConnectorRequestSchema,
+  createManagementFederatedCredentialRequestSchema,
   createOrganizationRequestSchema,
   createRoleRequestSchema,
   createWebhookEndpointRequestSchema,
@@ -357,6 +363,7 @@ export {
   updateApplicationRequestSchema,
   updateManagementBrandingSettingsRequestSchema,
   updateManagementConnectorRequestSchema,
+  updateManagementFederatedCredentialRequestSchema,
   updateManagementSignInSettingsRequestSchema,
   updateOrganizationRequestSchema,
   updateRoleRequestSchema,

@@ -222,36 +222,57 @@ export const listManagementConnectorsResponseSchema = listConnectorsResponseSche
 export const createManagementConnectorRequestSchema = createConnectorRequestSchema
 export const updateManagementConnectorRequestSchema = updateConnectorRequestSchema
 
-export const managementTrustedIssuerResponseSchema = z.object({
+const jwkSchema = z.record(z.string(), z.unknown())
+
+export const managementFederatedCredentialResponseSchema = z.object({
   id: z.string(),
+  applicationId: z.string(),
   name: z.string(),
   issuer: z.string(),
+  subject: z.string(),
+  audienceResourceId: z.string(),
   jwksUrl: z.string().nullable(),
-  sharedSecretConfigured: z.boolean(),
-  allowedAudiences: z.array(z.string()),
+  publicKeys: z.array(jwkSchema).nullable(),
   enabled: z.boolean(),
   metadata: z.record(z.string(), z.unknown()),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
 
-export const listManagementTrustedIssuersResponseSchema = z.object({
-  issuers: z.array(managementTrustedIssuerResponseSchema),
+export const listManagementFederatedCredentialsResponseSchema = z.object({
+  credentials: z.array(managementFederatedCredentialResponseSchema),
 })
 
-export const createManagementTrustedIssuerRequestSchema = z
+export const createManagementFederatedCredentialRequestSchema = z
   .object({
     name: z.string().trim().min(1),
-    issuer: z.url(),
+    // Logical issuer identity (opaque, not dereferenced) — keep stable, not a dev URL.
+    issuer: z.string().trim().min(1),
+    subject: z.string().trim().min(1),
+    audienceResourceId: z.string().trim().min(1),
     jwksUrl: z.url().nullable().optional(),
-    sharedSecret: z.string().trim().min(16).nullable().optional(),
-    allowedAudiences: z.array(z.string().trim().min(1)).nullable().optional(),
+    publicKeys: z.array(jwkSchema).nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .strict()
+  .refine((value) => Boolean(value.jwksUrl) || (value.publicKeys?.length ?? 0) > 0, {
+    message: 'A federated credential requires either jwksUrl or publicKeys.',
+  })
 
-export const createManagementTrustedIssuerResponseSchema = z.object({
-  issuer: managementTrustedIssuerResponseSchema,
+export const updateManagementFederatedCredentialRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    subject: z.string().trim().min(1).optional(),
+    audienceResourceId: z.string().trim().min(1).optional(),
+    jwksUrl: z.url().nullable().optional(),
+    publicKeys: z.array(jwkSchema).nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .strict()
+
+export const createManagementFederatedCredentialResponseSchema = z.object({
+  credential: managementFederatedCredentialResponseSchema,
 })
 
 export const managementUserResponseSchema = z.object({
@@ -374,7 +395,6 @@ export const managementResourceSchemas = {
   brandingSettings: managementBrandingSettingsResponseSchema,
   readiness: managementReadinessResponseSchema,
   connectors: managementConnectorResponseSchema,
-  trustedIssuers: managementTrustedIssuerResponseSchema,
 } as const
 
 export const managementCollectionSchemas = {
@@ -385,7 +405,6 @@ export const managementCollectionSchemas = {
   apiScopes: listApiScopesResponseSchema,
   roles: listRolesResponseSchema,
   connectors: listManagementConnectorsResponseSchema,
-  trustedIssuers: listManagementTrustedIssuersResponseSchema,
 } as const
 
 export const managementUserListQuerySchema = adminUserListQuerySchema
@@ -401,7 +420,6 @@ export const managementCollectionRoutes = [
   '/roles',
   '/api-resources',
   '/connectors',
-  '/trusted-issuers',
 ] as const
 
 export { paginationQuerySchema }
@@ -434,7 +452,16 @@ export type ManagementConnectorResponse = z.infer<typeof managementConnectorResp
 export type ListManagementConnectorsResponse = z.infer<typeof listManagementConnectorsResponseSchema>
 export type CreateManagementConnectorRequest = z.infer<typeof createManagementConnectorRequestSchema>
 export type UpdateManagementConnectorRequest = z.infer<typeof updateManagementConnectorRequestSchema>
-export type ManagementTrustedIssuerResponse = z.infer<typeof managementTrustedIssuerResponseSchema>
-export type ListManagementTrustedIssuersResponse = z.infer<typeof listManagementTrustedIssuersResponseSchema>
-export type CreateManagementTrustedIssuerRequest = z.infer<typeof createManagementTrustedIssuerRequestSchema>
-export type CreateManagementTrustedIssuerResponse = z.infer<typeof createManagementTrustedIssuerResponseSchema>
+export type ManagementFederatedCredentialResponse = z.infer<typeof managementFederatedCredentialResponseSchema>
+export type ListManagementFederatedCredentialsResponse = z.infer<
+  typeof listManagementFederatedCredentialsResponseSchema
+>
+export type CreateManagementFederatedCredentialRequest = z.infer<
+  typeof createManagementFederatedCredentialRequestSchema
+>
+export type UpdateManagementFederatedCredentialRequest = z.infer<
+  typeof updateManagementFederatedCredentialRequestSchema
+>
+export type CreateManagementFederatedCredentialResponse = z.infer<
+  typeof createManagementFederatedCredentialResponseSchema
+>

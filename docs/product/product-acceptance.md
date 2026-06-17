@@ -259,7 +259,7 @@ The coverage check requires:
 - Every automated journey is defined in `specs/*.feature`.
 - Every `@e2e` scenario is declared in `specs/e2e-coverage.json`.
 - Every scenario has exactly one supported entrypoint.
-- Direct Playwright spec files do not exist under `tests/e2e`.
+- Direct Playwright spec files do not exist under `e2e`.
 
 As new detail routes from this spec ship, the same PR must add journey IDs and
 Cucumber coverage for those detail pages before claiming product acceptance.
